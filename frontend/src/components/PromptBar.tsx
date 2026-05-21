@@ -77,7 +77,9 @@ export default function PromptBar() {
     try {
       const state = useStore.getState();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      await axios.post(`${apiUrl}/api/agents/generate`, {
+      
+      // Use generate_direct which doesn't require scene_id pre-creation or authentication
+      await axios.post(`${apiUrl}/api/agents/generate_direct`, {
         prompt: value,
         project_id: projectId,
         client_id: clientId,

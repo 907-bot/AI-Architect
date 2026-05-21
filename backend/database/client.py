@@ -19,7 +19,7 @@ if not DATABASE_URL:
         "Please ensure it is set in your Railway variables or .env file."
     )
 
-# For production, use async support
+# Standard connection (SSL handled via URL params in config)
 engine = create_engine(
     DATABASE_URL,
     echo=settings.debug,

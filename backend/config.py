@@ -23,6 +23,10 @@ class Settings(BaseSettings):
         url = os.environ.get("DATABASE_URL") or os.environ.get("database_url") or self.database_url
         if url and url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+        # Add SSL parameter for Supabase external connections
+        if url and "?" not in url:
+            # If no query params, add sslmode=require
+            url = f"{url}?sslmode=require"
         return url
 
     # Redis
