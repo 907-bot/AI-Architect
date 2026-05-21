@@ -63,7 +63,7 @@ def test_user(test_db):
         is_active=True
     )
     db.add(user)
-        db.commit()
+    db.commit()
     db.refresh(user)
     return user
 
