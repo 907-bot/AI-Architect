@@ -14,6 +14,14 @@ from backend.main import app
 from backend.database.models import Base, User, Project, Scene
 from backend.database.client import db_client
 from backend.auth.jwt import hash_password, get_jwt_handler
+from backend.config import settings
+
+# Import router modules so we can override their get_db dependencies in tests
+from backend.routers import auth as auth_router
+from backend.routers import projects as projects_router
+from backend.routers import scenes as scenes_router
+from backend.routers import agents as agents_router
+from backend.routers import assets as assets_router
 
 
 # =====================================================
@@ -46,7 +54,12 @@ def client(test_db):
         finally:
             db.close()
     
-    app.dependency_overrides[db_client.get_db] = override_get_db
+    # Override get_db for all routers to use the in-memory test DB
+    app.dependency_overrides[auth_router.get_db] = override_get_db
+    app.dependency_overrides[projects_router.get_db] = override_get_db
+    app.dependency_overrides[scenes_router.get_db] = override_get_db
+    app.dependency_overrides[agents_router.get_db] = override_get_db
+    app.dependency_overrides[assets_router.get_db] = override_get_db
     return TestClient(app)
 
 
@@ -71,7 +84,8 @@ def test_user(test_db):
 @pytest.fixture
 def auth_token(test_user):
     """Create JWT token for test user"""
-    jwt_handler = get_jwt_handler("test-secret")
+    # Use the same secret as the running application to ensure verification succeeds
+    jwt_handler = get_jwt_handler(settings.jwt_secret)
     token, _ = jwt_handler.create_access_token(
         user_id=str(test_user.id),
         email=test_user.email,
