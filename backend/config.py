@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     database_url: str = ""
 
+    @property
+    def database_url_clean(self) -> str:
+        import os
+        # Fallback order: os.environ DATABASE_URL -> os.environ database_url -> pydantic field
+        url = os.environ.get("DATABASE_URL") or os.environ.get("database_url") or self.database_url
+        if url and url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
+
     # Redis
     upstash_redis_url: str = ""
     upstash_redis_token: str = ""

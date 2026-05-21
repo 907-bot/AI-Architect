@@ -11,7 +11,13 @@ import structlog
 log = structlog.get_logger()
 
 # SQLAlchemy engine setup for PostgreSQL
-DATABASE_URL = settings.database_url
+DATABASE_URL = settings.database_url_clean
+
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is missing or empty. "
+        "Please ensure it is set in your Railway variables or .env file."
+    )
 
 # For production, use async support
 engine = create_engine(
