@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f9f9fb;
+  --foreground: #2d3250;
+  --primary: #7c93c3;
+  --primary-foreground: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #2d3250;
+  --border: #e2e8f0;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+}
+
+/* Light Soft-Minimalist panel styling */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px 0 rgba(124, 147, 195, 0.06);
+  transition: all 0.25s ease-in-out;
+}
+
+.glass-panel:hover {
+  border-color: rgba(124, 147, 195, 0.25);
+  box-shadow: 0 6px 24px 0 rgba(124, 147, 195, 0.12);
+}
+
+/* Glowing text replaced with a soft shadow/depth indicator */
+.glow-text {
+  text-shadow: 0 1px 4px rgba(124, 147, 195, 0.2);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 147, 195, 0.35);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 147, 195, 0.6);
+}
+
+/* Dynamic Grid Background - soft grey on off-white */
+.grid-bg {
+  background-size: 30px 30px;
+  background-image: 
+    linear-gradient(to right, rgba(124, 147, 195, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(124, 147, 195, 0.04) 1px, transparent 1px);
+}
