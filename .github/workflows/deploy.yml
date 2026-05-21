@@ -45,7 +45,7 @@ jobs:
           static_site_generator: next
       
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
       
       - name: Build with Next.js
         run: npm run build
