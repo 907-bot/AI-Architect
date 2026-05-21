@@ -77,6 +77,7 @@ export default function PromptBar() {
     try {
       const state = useStore.getState();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      console.log("Calling API:", `${apiUrl}/api/agents/generate_direct`);
       
       // Use generate_direct which doesn't require scene_id pre-creation or authentication
       await axios.post(`${apiUrl}/api/agents/generate_direct`, {
@@ -89,10 +90,11 @@ export default function PromptBar() {
         plot_depth: state.plotDepth,
       });
     } catch (err) {
-      console.error(err);
+      console.error("API Error:", err);
+      const errorMessage = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : err;
       addAgentLog({
         agent: "orchestrator",
-        message: "Failed to contact backend API. Falling back to frontend mockup."
+        message: `API Error: ${errorMessage}. Falling back to frontend mockup.`
       });
       
       // Standalone mock logic to run if the backend API key isn't filled out or server is down
