@@ -25,8 +25,9 @@ export default function PromptBar() {
     setIsGenerating(true);
     clearAgentLogs();
 
-    // Setup temporary WS listener for logs
-    const ws = new WebSocket(`ws://localhost:8000/ws/${clientId}`);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const wsUrl = apiUrl.replace(/^http/, "ws");
+    const ws = new WebSocket(`${wsUrl}/ws/${clientId}`);
     
     ws.onmessage = (event) => {
       try {
@@ -75,7 +76,8 @@ export default function PromptBar() {
 
     try {
       const state = useStore.getState();
-      await axios.post("http://localhost:8000/api/agents/generate", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      await axios.post(`${apiUrl}/api/agents/generate`, {
         prompt: value,
         project_id: projectId,
         client_id: clientId,
