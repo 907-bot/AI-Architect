@@ -453,7 +453,6 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
-        print(">>> SENDING_RESPONSE")
             "message": f"{bt} - {fl} floors",
             "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res["materials"]}}
         })
