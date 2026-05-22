@@ -48,7 +48,12 @@ class Settings(BaseSettings):
     app_name: str = "AI Architect"
     app_version: str = "0.1.0"
     debug: bool = False
-    cors_origins: list[str] = ["http://localhost:3000", "https://ai-architect.vercel.app"]
+    cors_origins: list[str] = [
+        "http://localhost:3000", 
+        "https://ai-architect.vercel.app",
+        "https://907-bot.github.io",  # GitHub Pages
+        "https://907-bot.github.io/AI-Architect",  # GitHub Pages with path
+    ]
 
     class Config:
         env_file = ".env"
