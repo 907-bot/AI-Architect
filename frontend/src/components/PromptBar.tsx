@@ -44,8 +44,9 @@ export default function PromptBar() {
             // Load resulting scene properties
             const data = payload.data;
             if (data) {
-              // Construct geometries
-              const geo = data.skeptic?.corrections || data.bear?.enhanced_config || {};
+              // For HTTP response (generate_simple), data is scene_data
+              const httpData = payload.scene_data || payload.data || {};
+              const geo = httpData.geometry || data.skeptic?.corrections || data.bear?.enhanced_config || {};
               const geom = {
                 meshes: geo.meshes || [
                   { id: "building_base", type: "box", position: [0, 1.5, 0], scale: [8, 3, 10], material_id: "plaster_white" }
@@ -77,10 +78,10 @@ export default function PromptBar() {
     try {
       const state = useStore.getState();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      console.log("Calling API:", `${apiUrl}/api/agents/generate_direct`);
+      console.log("Calling API:", `${apiUrl}/api/agents/generate_simple`);
       
-      // Use generate_direct which doesn't require scene_id pre-creation or authentication
-      await axios.post(`${apiUrl}/api/agents/generate_direct`, {
+      // Use generate_simple which doesn't require scene_id pre-creation or authentication
+      const response = await axios.post(`${apiUrl}/api/agents/generate_simple`, {
         prompt: value,
         project_id: projectId,
         client_id: clientId,
@@ -89,6 +90,27 @@ export default function PromptBar() {
         plot_width: state.plotWidth,
         plot_depth: state.plotDepth,
       });
+      
+      // Process the HTTP response
+      if (response.data?.scene_data?.geometry) {
+        const geo = response.data.scene_data.geometry;
+        const geom = {
+          meshes: geo.meshes || [],
+        };
+        const conf = {
+          drone_path: [
+            { index: 0, position: [12, 5, 12], look_at: [0, 1.5, 0], duration_s: 4 },
+            { index: 1, position: [-12, 5, -12], look_at: [0, 1.5, 0], duration_s: 4 }
+          ]
+        };
+        const assets = {
+          materials: geo.materials || [
+            { id: "plaster_white", color_hex: "#f4f4f5", roughness: 0.8 },
+          ]
+        };
+        updateScene(geom, conf, assets);
+        addAgentLog({ agent: "orchestrator", message: response.data.message || "Generation complete" });
+      }
     } catch (err) {
       console.error("API Error:", err);
       const errorMessage = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : err;
