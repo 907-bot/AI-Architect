@@ -81,17 +81,64 @@ async def generate_scene_direct(
 ):
     """
     Simplified scene generation - returns mock success for frontend testing.
-    Note: Full implementation with database/OAI requires DB connection.
+    Sends immediate WebSocket responses for snappy UI.
     """
+    from backend.websocket_manager import ws_manager
+    
     log.info(
         "generate_scene_direct_request",
         prompt=request.prompt[:50],
         project_id=request.project_id
     )
     
-    # Return success immediately (full flow requires DB connection)
+    scene_id = str(uuid.uuid4())
+    client_id = request.client_id or "default"
+    
+    # Send WebSocket updates immediately (simulate agent chain)
+    await ws_manager.send_to_client(client_id, {
+        "type": "agent_update",
+        "agent": "orchestrator",
+        "message": "Processing prompt: " + request.prompt[:30],
+        "data": {"intent": "generate_building"}
+    })
+    
+    await ws_manager.send_to_client(client_id, {
+        "type": "agent_update",
+        "agent": "planner",
+        "message": f"Planning: 2-story building on {request.plot_width or 20}x{request.plot_depth or 30}m plot",
+        "data": {}
+    })
+    
+    await ws_manager.send_to_client(client_id, {
+        "type": "agent_update",
+        "agent": "geometry",
+        "message": "Generated 3D meshes for walls, floors, roof",
+        "data": {
+            "meshes": [
+                {"id": "building_base", "type": "box", "position": [0, 1.5, 0], "scale": [8, 3, 10], "material_id": "plaster_white"}
+            ]
+        }
+    })
+    
+    await ws_manager.send_to_client(client_id, {
+        "type": "agent_update",
+        "agent": "evaluation",
+        "message": "Complete - design validated",
+        "data": {
+            "bear": {
+                "enhanced_config": {
+                    "meshes": [
+                        {"id": "foundation", "type": "box", "position": [0, -0.1, 0], "scale": [8, 0.2, 10], "material_id": "concrete"},
+                        {"id": "base", "type": "box", "position": [0, 1.5, 0], "scale": [8, 3, 10], "material_id": "plaster_white"},
+                        {"id": "roof", "type": "box", "position": [0, 3.1, 0], "scale": [9, 0.2, 11], "material_id": "wood_oak"}
+                    ]
+                }
+            }
+        }
+    })
+    
     return GenerateSceneResponse(
-        scene_id=str(uuid.uuid4()),
+        scene_id=scene_id,
         status="queued",
         message="Scene generation queued",
         agent_executions=[]
