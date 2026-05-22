@@ -91,8 +91,11 @@ export default function PromptBar() {
         plot_depth: state.plotDepth,
       });
       
+      console.log("API Response:", JSON.stringify(response.data));
+      
       // Process the HTTP response
       if (response.data?.scene_data?.geometry) {
+        console.log("Geometry data:", JSON.stringify(response.data.scene_data.geometry));
         const geo = response.data.scene_data.geometry;
         const geom = {
           meshes: geo.meshes || [],
