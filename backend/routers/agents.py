@@ -421,7 +421,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
     import structlog
     log = structlog.get_logger()
     
-    print(">>> GEOMETRY AGENT INIT", file=sys.stderr)
+    print(">>> GEOMETRY AGENT INIT", file=sys.stdout)
     log.info("GENERATE_SIMPLE_START", prompt=getattr(request, 'prompt', 'none'))
     try:
         # Parse request safely
@@ -435,7 +435,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             pd = 30
             
         
-        print(">>> IMPORTING PROCEDURAL", file=sys.stderr)
+        print(">>> IMPORTING PROCEDURAL", file=sys.stdout)
         from backend.services.procedural import generate_building
         
         p = prompt.lower()
@@ -444,10 +444,10 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         fl = 2
         
         
-        print(">>> CALLING PROCEDURAL", file=sys.stderr)
+        print(">>> CALLING PROCEDURAL", file=sys.stdout)
         res = generate_building(btype=bt, style=sty, floors=fl, pw=pw, pd=pd, beds=3, garage=True, pool=False, garden=True)
         
-        print(">>> RETURNING RESPONSE", file=sys.stderr)
+        print(">>> RETURNING RESPONSE", file=sys.stdout)
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
