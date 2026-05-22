@@ -186,7 +186,7 @@ async def generate_scene_direct(
         raise
     except Exception as e:
         db.rollback()
-        log.error("generate_scene_direct_error", error=str(e))
+        log.error("generate_scene_direct_error", error=str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start scene generation: {str(e)}"
