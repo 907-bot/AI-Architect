@@ -25,7 +25,7 @@ export default function PromptBar() {
     setIsGenerating(true);
     clearAgentLogs();
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiUrl = "https://ai-architect-production-1e57.up.railway.app";
     const wsUrl = apiUrl.replace(/^http/, "ws");
     const ws = new WebSocket(`${wsUrl}/ws/${clientId}`);
     
@@ -77,7 +77,7 @@ export default function PromptBar() {
 
     try {
       const state = useStore.getState();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "https://ai-architect-production-1e57.up.railway.app";
       console.log("Calling API:", `${apiUrl}/api/agents/generate_simple`);
       
       // Use generate_simple which doesn't require scene_id pre-creation or authentication
