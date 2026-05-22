@@ -94,6 +94,8 @@ async def generate_scene_direct(
     scene_id = str(uuid.uuid4())
     client_id = request.client_id or "default"
     
+    log.info("generate_direct_websocket", client_id=client_id, active_connections=list(ws_manager.active_connections.keys()))
+    
     # Send WebSocket updates immediately (simulate agent chain)
     await ws_manager.send_to_client(client_id, {
         "type": "agent_update",
