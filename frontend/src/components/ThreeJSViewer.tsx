@@ -22,7 +22,7 @@ function ProjectionCameraController() {
     if (activeProjection.startsWith("orthographic") || activeProjection === "isometric" || activeProjection.startsWith("oblique")) {
       // Setup Orthographic Camera attributes
       const aspect = size.width / size.height;
-      const frustumSize = 25;
+      const frustumSize = 10;
       
       const orthoCam = new THREE.OrthographicCamera(
         frustumSize * aspect / -2,
