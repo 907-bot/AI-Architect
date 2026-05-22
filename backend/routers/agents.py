@@ -416,10 +416,12 @@ async def agents_health():
 @router.post("/generate_simple")
 async def generate_simple_fn(request: GenerateSceneRequest = None):
     """Generate buildings procedurally"""
+    import sys
     from fastapi.responses import JSONResponse
     import structlog
     log = structlog.get_logger()
     
+    print(">>> GEOMETRY AGENT INIT", file=sys.stderr)
     log.info("GENERATE_SIMPLE_START", prompt=getattr(request, 'prompt', 'none'))
     try:
         # Parse request safely
@@ -433,7 +435,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             pd = 30
             
         
-        log.info("IMPORT_PROCEDURAL_OK")
+        print(">>> IMPORTING PROCEDURAL", file=sys.stderr)
         from backend.services.procedural import generate_building
         
         p = prompt.lower()
@@ -442,9 +444,10 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         fl = 2
         
         
-        log.info("CALL_PROCEDURAL")
+        print(">>> CALLING PROCEDURAL", file=sys.stderr)
         res = generate_building(btype=bt, style=sty, floors=fl, pw=pw, pd=pd, beds=3, garage=True, pool=False, garden=True)
         
+        print(">>> RETURNING RESPONSE", file=sys.stderr)
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
