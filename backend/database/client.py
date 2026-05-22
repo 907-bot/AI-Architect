@@ -18,16 +18,20 @@ if not DATABASE_URL:
     # Allow app to run without DB (procedural generation doesn't need database)
     DATABASE_URL = ""
 
-# Standard connection (SSL handled via URL params in config)
-engine = create_engine(
-    DATABASE_URL,
-    echo=settings.debug,
-    pool_size=5,
-    max_overflow=10,
-    pool_pre_ping=True,  # Verify connection before using
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Only create engine if DATABASE_URL exists and is valid
+if DATABASE_URL:
+    engine = create_engine(
+        DATABASE_URL,
+        echo=settings.debug,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+else:
+    engine = None
+    SessionLocal = None
+    log.warning('database_disabled')
 
 
 class DatabaseClient:
