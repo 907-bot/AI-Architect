@@ -454,7 +454,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
             "message": f"{bt} - {fl} floors",
-            "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res["materials"]}}
+            "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res["materials"]}, "metadata": res.get("metadata", {})}
         })
     except Exception as e:
         return JSONResponse(content={
