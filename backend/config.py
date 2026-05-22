@@ -19,14 +19,22 @@ class Settings(BaseSettings):
     @property
     def database_url_clean(self) -> str:
         import os
+        from urllib.parse import urlparse, parse_qsl, urlunparse
         # Fallback order: os.environ DATABASE_URL -> os.environ database_url -> pydantic field
         url = os.environ.get("DATABASE_URL") or os.environ.get("database_url") or self.database_url
         if url and url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+        
         # Add SSL parameter for Supabase external connections
-        if url and "?" not in url:
-            # If no query params, add sslmode=require
-            url = f"{url}?sslmode=require"
+        if url:
+            parsed = urlparse(url)
+            query_params = dict(parse_qsl(parsed.query))
+            # Add or update sslmode
+            query_params['sslmode'] = 'require'
+            # Reconstruct URL with updated params
+            new_query = "&".join(f"{k}={v}" for k, v in query_params.items())
+            url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+        
         return url
 
     # Redis
