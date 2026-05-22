@@ -14,10 +14,9 @@ log = structlog.get_logger()
 DATABASE_URL = settings.database_url_clean
 
 if not DATABASE_URL:
-    raise ValueError(
-        "DATABASE_URL environment variable is missing or empty. "
-        "Please ensure it is set in your Railway variables or .env file."
-    )
+    log.warning("database_url_missing")
+    # Allow app to run without DB (procedural generation doesn't need database)
+    DATABASE_URL = ""
 
 # Standard connection (SSL handled via URL params in config)
 engine = create_engine(
