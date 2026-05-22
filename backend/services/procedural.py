@@ -16,18 +16,20 @@ MAT = {
 }
 
 def gen_building(btype="villa", style="modern", floors=2, pw=20, pd=30, beds=3, garage=True, pool=False, garden=True) -> Dict:
+    pw *= 0.1  # Scale for Three.js viewer
+    pd *= 0.1
     m, hpf = [], 3.0
     mt = "plaster" if style=="modern" else "brick"
     rm = "metal" if style=="modern" else "roof"
     
     # Foundation
-    m.append({"id": f"found_{uuid.uuid4().hex[:4]}", "grp": "Foundation", "type": "box", "pos": [0,-0.25,0], "scl": [pw,0.5,pd], "mid": "concrete"})
+    m.append({"id": f"found_{uuid.uuid4().hex[:4]}", "grp": "Foundation", "type": "box", "pos": [0,-0.25,0], "scl": [pw,0.05,pd], "mid": "concrete"})
     
     for f in range(floors):
         y = f*hpf+1.5
-        m.append({"id": f"wall_{f}_{uuid.uuid4().hex[:4]}", "grp": "Walls", "type": "box", "pos": [0,y,0], "scl": [pw*0.9,hpf,pd*0.9], "mid": mt})
-        m.append({"id": f"wnd_{f}f_{uuid.uuid4().hex[:4]}", "grp": "Openings", "type": "box", "pos": [0,y,pd*0.45], "scl": [pw*0.25,hpf*0.4,0.1], "mid": "glass"})
-        m.append({"id": "wnd_{f}b_"+uuid.uuid4().hex[:4], "grp": "Openings", "type": "box", "pos": [0,y,-pd*0.45], "scl": [pw*0.25,hpf*0.4,0.1], "mid": "glass"})
+        m.append({"id": f"wall_{f}_{uuid.uuid4().hex[:4]}", "grp": "Walls", "type": "box", "pos": [0,y,0], "scl": [pw*0.9,hpf*0.1,pd*0.9], "mid": mt})
+        m.append({"id": f"wnd_{f}f_{uuid.uuid4().hex[:4]}", "grp": "Openings", "type": "box", "pos": [0,y,pd*0.45], "scl": [pw*0.25,hpf*0.4,0.01], "mid": "glass"})
+        m.append({"id": "wnd_{f}b_"+uuid.uuid4().hex[:4], "grp": "Openings", "type": "box", "pos": [0,y,-pd*0.45], "scl": [pw*0.25,hpf*0.4,0.01], "mid": "glass"})
     
     # Entrance
     m.append({"id": "door_"+uuid.uuid4().hex[:4], "grp": "Openings", "type": "box", "pos": [0,1.1,pd/2-0.1], "scl": [1,2.2,0.1], "mid": "wood"})
