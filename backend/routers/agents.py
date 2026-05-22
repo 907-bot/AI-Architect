@@ -407,3 +407,46 @@ async def list_scene_executions(
 async def agents_health():
     """Health check for agents service"""
     return {"status": "ok", "service": "agents"}
+
+
+# =====================================================
+# PROCEDURAL GENERATION - High-quality building generator
+# =====================================================
+
+@router.post("/generate_simple")
+async def generate_simple_fn(request: GenerateSceneRequest = None):
+    """Generate buildings procedurally"""
+    from fastapi.responses import JSONResponse
+    try:
+        # Parse request safely
+        if request:
+            prompt = str(request.prompt) if request.prompt else "villa"
+            pw = int(request.plot_width or 20)
+            pd = int(request.plot_depth or 30)
+        else:
+            prompt = "villa"
+            pw = 20
+            pd = 30
+            
+        from backend.services.procedural import generate_building
+        
+        p = prompt.lower()
+        bt = "villa" if "villa" in p else "house"
+        sty = "modern"
+        fl = 2
+        
+        res = generate_building(btype=bt, style=sty, floors=fl, pw=pw, pd=pd, beds=3, garage=True, pool=False, garden=True)
+        
+        return JSONResponse(content={
+            "scene_id": str(uuid.uuid4()),
+            "status": "completed",
+            "message": f"{bt} - {fl} floors",
+            "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res["materials"]}}
+        })
+    except Exception as e:
+        return JSONResponse(content={
+            "scene_id": str(uuid.uuid4()),
+            "status": "error",
+            "message": str(e),
+            "scene_data": {}
+        }, status_code=500)
