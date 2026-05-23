@@ -90,11 +90,11 @@ def generate_detailed_building(
     thickness = 0.25 * scale
     meshes.append({
         "id": f"foundation_{uuid.uuid4().hex[:4]}",
-        "grp": "Foundation",
+        "component_group": "Foundation",
         "type": "box",
-        "pos": [0, -thickness/2, 0],
-        "scl": [pw, thickness, pd],
-        "mid": "concrete"
+        "position": [0, -thickness/2, 0],
+        "scale": [pw, thickness, pd],
+        "material_id": "concrete"
     })
     
     # ========== 2. FLOORS AND WALLS ==========
@@ -105,21 +105,21 @@ def generate_detailed_building(
         if floor > 0:
             meshes.append({
                 "id": f"floor_slab_{floor}_{uuid.uuid4().hex[:4]}",
-                "grp": "Structure",
+                "component_group": "Structure",
                 "type": "box", 
-                "pos": [0, floor * floor_height + 0.015, 0],
-                "scl": [pw * 0.92, 0.03, pd * 0.92],
-                "mid": "concrete"
+                "position": [0, floor * floor_height + 0.015, 0],
+                "scale": [pw * 0.92, 0.03, pd * 0.92],
+                "material_id": "concrete"
             })
         
         # Exterior walls
         meshes.append({
             "id": f"exterior_wall_{floor}_{uuid.uuid4().hex[:4]}",
-            "grp": "Exterior",
+            "component_group": "Exterior",
             "type": "box",
-            "pos": [0, y_pos, 0],
-            "scl": [pw * 0.96, floor_height - 0.05, pd * 0.96],
-            "mid": wall_mat
+            "position": [0, y_pos, 0],
+            "scale": [pw * 0.96, floor_height - 0.05, pd * 0.96],
+            "material_id": wall_mat
         })
     
     # ========== 3. WINDOWS WITH GLASS + FRAMES ==========
@@ -138,41 +138,41 @@ def generate_detailed_building(
             # Glass pane
             meshes.append({
                 "id": f"window_glass_f{floor}_{wi}_{uuid.uuid4().hex[:4]}",
-                "grp": "Windows",
+                "component_group": "Windows",
                 "type": "box",
-                "pos": [wx, base_y, pd/2 - win_depth/2],
-                "scl": [win_width, win_height, win_depth],
-                "mid": "glass_clear"
+                "position": [wx, base_y, pd/2 - win_depth/2],
+                "scale": [win_width, win_height, win_depth],
+                "material_id": "glass_clear"
             })
             
             # Window frame
             meshes.append({
                 "id": f"window_frame_f{floor}_{wi}_{uuid.uuid4().hex[:4]}",
-                "grp": "Windows", 
+                "component_group": "Windows", 
                 "type": "box",
-                "pos": [wx, base_y, pd/2],
-                "scl": [win_width * 1.08, win_height * 1.08, 0.012],
-                "mid": "frame_black"
+                "position": [wx, base_y, pd/2],
+                "scale": [win_width * 1.08, win_height * 1.08, 0.012],
+                "material_id": "frame_black"
             })
             
             # Back windows
             meshes.append({
                 "id": f"window_glass_b{floor}_{wi}_{uuid.uuid4().hex[:4]}",
-                "grp": "Windows",
+                "component_group": "Windows",
                 "type": "box",
-                "pos": [wx, base_y, -pd/2 + win_depth/2],
-                "scl": [win_width, win_height, win_depth],
-                "mid": "glass_clear"
+                "position": [wx, base_y, -pd/2 + win_depth/2],
+                "scale": [win_width, win_height, win_depth],
+                "material_id": "glass_clear"
             })
             
             # Side windows
             meshes.append({
                 "id": f"window_glass_s{floor}_{wi}_{uuid.uuid4().hex[:4]}",
-                "grp": "Windows",
+                "component_group": "Windows",
                 "type": "box",
-                "pos": [pw/2 - win_depth/2, base_y, wx],
-                "scl": [win_depth, win_height, win_width],
-                "mid": "glass_clear"
+                "position": [pw/2 - win_depth/2, base_y, wx],
+                "scale": [win_depth, win_height, win_width],
+                "material_id": "glass_clear"
             })
     
     # ========== 4. ENTRANCE / DOOR ==========
@@ -180,31 +180,31 @@ def generate_detailed_building(
     # Door panel with detail lines
     meshes.append({
         "id": f"door_panel_{uuid.uuid4().hex[:4]}",
-        "grp": "Entrance",
+        "component_group": "Entrance",
         "type": "box",
-        "pos": [0, door_y, pd/2 - 0.008],
-        "scl": [0.1, 0.23, 0.015],
-        "mid": "wood_oak"
+        "position": [0, door_y, pd/2 - 0.008],
+        "scale": [0.1, 0.23, 0.015],
+        "material_id": "wood_oak"
     })
     
     # Door frame
     meshes.append({
         "id": f"door_frame_{uuid.uuid4().hex[:4]}",
-        "grp": "Entrance",
+        "component_group": "Entrance",
         "type": "box",
-        "pos": [0, door_y + 0.01, pd/2],
-        "scl": [0.13, 0.26, 0.012],
-        "mid": "frame_black"
+        "position": [0, door_y + 0.01, pd/2],
+        "scale": [0.13, 0.26, 0.012],
+        "material_id": "frame_black"
     })
     
     # Entrance canopy
     meshes.append({
         "id": f"entrance_canopy_{uuid.uuid4().hex[:4]}",
-        "grp": "Entrance", 
+        "component_group": "Entrance", 
         "type": "box",
-        "pos": [0, 0.3, pd/2 + 0.12],
-        "scl": [0.18, 0.025, 0.12],
-        "mid": "metal_grey"
+        "position": [0, 0.3, pd/2 + 0.12],
+        "scale": [0.18, 0.025, 0.12],
+        "material_id": "metal_grey"
     })
     
     # ========== 5. ROOF ==========
@@ -214,50 +214,50 @@ def generate_detailed_building(
         # Flat roof with parapet
         meshes.append({
             "id": f"flat_roof_{uuid.uuid4().hex[:4]}",
-            "grp": "Roof",
+            "component_group": "Roof",
             "type": "box",
-            "pos": [0, roof_y + 0.025, 0],
-            "scl": [pw * 0.92, 0.05, pd * 0.92],
-            "mid": roof_mat
+            "position": [0, roof_y + 0.025, 0],
+            "scale": [pw * 0.92, 0.05, pd * 0.92],
+            "material_id": roof_mat
         })
         
     elif roof_style == "gable":
         # Main sloped roof
         meshes.append({
             "id": f"roof_slope_front_{uuid.uuid4().hex[:4]}",
-            "grp": "Roof",
+            "component_group": "Roof",
             "type": "box",
-            "pos": [0, roof_y + 0.12, pd*0.48],
-            "scl": [pw * 1.02, 0.12, pd * 0.08],
-            "mid": roof_mat
+            "position": [0, roof_y + 0.12, pd*0.48],
+            "scale": [pw * 1.02, 0.12, pd * 0.08],
+            "material_id": roof_mat
         })
         meshes.append({
             "id": f"roof_slope_back_{uuid.uuid4().hex[:4]}",
-            "grp": "Roof",
+            "component_group": "Roof",
             "type": "box",
-            "pos": [0, roof_y + 0.12, -pd*0.48],
-            "scl": [pw * 1.02, 0.12, pd * 0.08],
-            "mid": roof_mat
+            "position": [0, roof_y + 0.12, -pd*0.48],
+            "scale": [pw * 1.02, 0.12, pd * 0.08],
+            "material_id": roof_mat
         })
         # Ridge
         meshes.append({
             "id": f"ridge_cap_{uuid.uuid4().hex[:4]}",
-            "grp": "Roof",
+            "component_group": "Roof",
             "type": "box", 
-            "pos": [0, roof_y + 0.2, 0],
-            "scl": [pw * 1.04, 0.025, 0.06],
-            "mid": roof_mat
+            "position": [0, roof_y + 0.2, 0],
+            "scale": [pw * 1.04, 0.025, 0.06],
+            "material_id": roof_mat
         })
         
     elif roof_style == "hip":
         # Hip roof
         meshes.append({
             "id": f"hip_roof_{uuid.uuid4().hex[:4]}",
-            "grp": "Roof",
+            "component_group": "Roof",
             "type": "box",
-            "pos": [0, roof_y + 0.15, 0],
-            "scl": [pw * 0.98, 0.22, pd * 0.98],
-            "mid": roof_mat
+            "position": [0, roof_y + 0.15, 0],
+            "scale": [pw * 0.98, 0.22, pd * 0.98],
+            "material_id": roof_mat
         })
     
     # ========== 6. GARAGE ==========
@@ -268,21 +268,21 @@ def generate_detailed_building(
         
         meshes.append({
             "id": f"garage_structure_{uuid.uuid4().hex[:4]}",
-            "grp": "Garage",
+            "component_group": "Garage",
             "type": "box",
-            "pos": [garage_x, garage_y, garage_z],
-            "scl": [0.45, 0.28, 0.55],
-            "mid": wall_mat
+            "position": [garage_x, garage_y, garage_z],
+            "scale": [0.45, 0.28, 0.55],
+            "material_id": wall_mat
         })
         
         # Garage door
         meshes.append({
             "id": f"garage_door_{uuid.uuid4().hex[:4]}",
-            "grp": "Garage", 
+            "component_group": "Garage", 
             "type": "box",
-            "pos": [garage_x, garage_y - 0.08, garage_z + 0.28],
-            "scl": [0.32, 0.2, 0.015],
-            "mid": "metal_grey"
+            "position": [garage_x, garage_y - 0.08, garage_z + 0.28],
+            "scale": [0.32, 0.2, 0.015],
+            "material_id": "metal_grey"
         })
     
     # ========== 7. POOL ==========
@@ -293,21 +293,21 @@ def generate_detailed_building(
         # Pool edge/concrete
         meshes.append({
             "id": f"pool_edge_{uuid.uuid4().hex[:4]}",
-            "grp": "Pool",
+            "component_group": "Pool",
             "type": "box",
-            "pos": [pool_x, -0.035, pool_z],
-            "scl": [0.65, 0.015, 0.45],
-            "mid": "patio_stone"
+            "position": [pool_x, -0.035, pool_z],
+            "scale": [0.65, 0.015, 0.45],
+            "material_id": "patio_stone"
         })
         
         # Pool water
         meshes.append({
             "id": f"pool_water_{uuid.uuid4().hex[:4]}",
-            "grp": "Pool",
+            "component_group": "Pool",
             "type": "box",
-            "pos": [pool_x, 0.0, pool_z],
-            "scl": [0.58, 0.14, 0.38],
-            "mid": "glass_tinted"
+            "position": [pool_x, 0.0, pool_z],
+            "scale": [0.58, 0.14, 0.38],
+            "material_id": "glass_tinted"
         })
     
     # ========== 8. LANDSCAPING ==========
@@ -315,21 +315,21 @@ def generate_detailed_building(
         # Main ground
         meshes.append({
             "id": f"landscape_ground_{uuid.uuid4().hex[:4]}",
-            "grp": "Landscape",
+            "component_group": "Landscape",
             "type": "box",
-            "pos": [0, -0.065, 0],
-            "scl": [pw + 0.9, 0.025, pd + 1.0],
-            "mid": "grass"
+            "position": [0, -0.065, 0],
+            "scale": [pw + 0.9, 0.025, pd + 1.0],
+            "material_id": "grass"
         })
         
         # Patio area
         meshes.append({
             "id": f"patio_{uuid.uuid4().hex[:4]}", 
-            "grp": "Landscape",
+            "component_group": "Landscape",
             "type": "box",
-            "pos": [pw * 0.3, -0.055, pd/2 + 0.2],
-            "scl": [0.35, 0.01, 0.25],
-            "mid": "patio_stone"
+            "position": [pw * 0.3, -0.055, pd/2 + 0.2],
+            "scale": [0.35, 0.01, 0.25],
+            "material_id": "patio_stone"
         })
     
     # ========== 9. FENCE / BOUNDARY ==========
@@ -338,57 +338,57 @@ def generate_detailed_building(
     # Front fence
     meshes.append({
         "id": f"fence_front_{uuid.uuid4().hex[:4]}",
-        "grp": "Boundary",
+        "component_group": "Boundary",
         "type": "box",
-        "pos": [0, fence_height/2, pd/2 + 0.06],
-        "scl": [pw + 0.15, fence_height, 0.012],
-        "mid": "metal_black"
+        "position": [0, fence_height/2, pd/2 + 0.06],
+        "scale": [pw + 0.15, fence_height, 0.012],
+        "material_id": "metal_black"
     })
     
     # Back fence  
     meshes.append({
         "id": f"fence_back_{uuid.uuid4().hex[:4]}",
-        "grp": "Boundary",
+        "component_group": "Boundary",
         "type": "box",
-        "pos": [0, fence_height/2, -pd/2 - 0.06],
-        "scl": [pw + 0.15, fence_height, 0.012],
-        "mid": "metal_black"
+        "position": [0, fence_height/2, -pd/2 - 0.06],
+        "scale": [pw + 0.15, fence_height, 0.012],
+        "material_id": "metal_black"
     })
     
     # Left fence
     meshes.append({
         "id": f"fence_left_{uuid.uuid4().hex[:4]}",
-        "grp": "Boundary",
+        "component_group": "Boundary",
         "type": "box",
-        "pos": [-pw/2 - 0.06, fence_height/2, 0],
-        "scl": [0.012, fence_height, pd + 0.12],
-        "mid": "metal_black"
+        "position": [-pw/2 - 0.06, fence_height/2, 0],
+        "scale": [0.012, fence_height, pd + 0.12],
+        "material_id": "metal_black"
     })
     
     # Right fence
     meshes.append({
         "id": f"fence_right_{uuid.uuid4().hex[:4]}",
-        "grp": "Boundary", 
+        "component_group": "Boundary", 
         "type": "box",
-        "pos": [pw/2 + 0.06, fence_height/2, 0],
-        "scl": [0.012, fence_height, pd + 0.12],
-        "mid": "metal_black"
+        "position": [pw/2 + 0.06, fence_height/2, 0],
+        "scale": [0.012, fence_height, pd + 0.12],
+        "material_id": "metal_black"
     })
     
     # ========== 10. CHIMNEY ==========
     if style != "modern":
         meshes.append({
             "id": f"chimney_{uuid.uuid4().hex[:4]}",
-            "grp": "Chimney",
+            "component_group": "Chimney",
             "type": "box",
-            "pos": [pw * 0.35, roof_y + 0.28, pd * 0.3],
-            "scl": [0.07, 0.18, 0.07],
-            "mid": "brick_dark"
+            "position": [pw * 0.35, roof_y + 0.28, pd * 0.3],
+            "scale": [0.07, 0.18, 0.07],
+            "material_id": "brick_dark"
         })
     
     # Build materials list
     materials_list = [
-        {"id": k, "c": v["c"], "r": v["r"], "m": v["m"]}
+        {"material_id": k, "color_hex": v["c"], "roughness": v["r"], "metallic": v["m"]}
         for k, v in MATERIALS.items()
     ]
     
