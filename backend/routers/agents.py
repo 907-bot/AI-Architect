@@ -441,7 +441,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         from backend.services.architect import architect
         
         p = prompt.lower()
-        bt = "villa" if "villa" in p else "house"
+        result = architect.generate_building(prompt=prompt, plot_width=pw, plot_depth=pd)
         sty = "modern"
         fl = 2
         
@@ -466,7 +466,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
 
 
 @router.post("/agents/modify")
-async def modify_building(request: ModifyRequest):
+async def modify_building(request: dict):
     """Modify existing building by adding/removing features"""
     try:
         from backend.services.chat_agent import ChatArchitect, update_building
@@ -478,7 +478,7 @@ async def modify_building(request: ModifyRequest):
         
         # Use chat architect
         ca = update_building(current_meshes, current_materials)
-        result = ca.modify(request.command)
+        result = ca.modify(request.get("command", ""))
         
         if "error" in result:
             return JSONResponse(content={"status": "error", "message": result["error"]})
