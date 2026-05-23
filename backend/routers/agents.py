@@ -465,6 +465,12 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         }, status_code=500)
 
 
+class ModifyRequest(BaseModel):
+    command: str = ""
+    meshes: Optional[List[Dict]] = None
+    materials: Optional[List[Dict]] = None
+
+
 @router.post("/agents/modify")
 async def modify_building(request: ModifyRequest):
     """Modify existing building by adding/removing features"""
@@ -495,7 +501,4 @@ async def modify_building(request: ModifyRequest):
         return JSONResponse(content={"status": "error", "message": str(e)}, status_code=500)
 
 
-class ModifyRequest(BaseModel):
-    command: str
-    meshes: Optional[List[Dict]] = None
-    materials: Optional[List[Dict]] = None
+
