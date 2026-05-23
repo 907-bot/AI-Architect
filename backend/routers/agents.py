@@ -437,25 +437,26 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             pd = 30
             
         
-        print(">>> IMPORTING PROCEDURAL", file=sys.stdout)
-        from backend.services.procedural import generate_building
-        
-        p = prompt.lower()
-        bt = "villa" if "villa" in p else "house"
-        sty = "modern"
-        fl = 2
-        
-        
-        print(">>> CALLING PROCEDURAL", file=sys.stdout)
-        res = generate_building(btype=bt, style=sty, floors=fl, pw=pw, pd=pd, beds=3, garage=True, pool=False, garden=True)
-        
+        print(">>> IMPORTING SMART ARCHITECT", file=sys.stdout)
+        from backend.services.architect import architect
+
+        print(">>> CALLING SMART ARCHITECT", file=sys.stdout)
+        result = architect.generate_building(prompt=prompt, plot_width=pw, plot_depth=pd)
+
         print(">>> RETURNING RESPONSE", file=sys.stdout)
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
-            "message": f"{bt} - {fl} floors",
-            "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res["materials"]}, "metadata": res.get("metadata", {})}
-        })
+            "message": f"Generated {result.get(\'element_count\', 0)} elements",
+            "scene_data": {
+                "geometry": {
+                    "meshes": result["meshes"],
+                    "materials": result["materials"]
+                },
+                "toon": result.get("toon", ""),
+                "element_count": result.get("element_count", 0)
+            }
+        }
     except Exception as e:
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
@@ -496,7 +497,7 @@ async def modify_building(request: ModifyRequest):
                 "geometry": {"meshes": result["meshes"], "materials": result["materials"]},
                 "element_count": result["count"]
             }
-        })
+        }
     except Exception as e:
         return JSONResponse(content={"status": "error", "message": str(e)}, status_code=500)
 

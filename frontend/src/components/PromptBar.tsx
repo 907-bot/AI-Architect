@@ -208,7 +208,8 @@ export default function PromptBar() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full relative">
+    {isGenerating && <BuildingLoader isLoading={true} />}
+        <form onSubmit={handleSubmit} className="w-full relative">
       <div className="relative flex items-center w-full rounded-2xl bg-white/85 border border-slate-200/60 p-2 pl-4 shadow-xl backdrop-blur-md">
         <Sparkles className="w-5 h-5 text-slate-500 mr-3" />
         <input
