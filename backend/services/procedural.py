@@ -67,7 +67,7 @@ def generate_detailed_building(
     """
     
     # Scale for Three.js viewer (smaller for better visualization)
-    scale = 0.1
+    scale = 0.4
     pw = plot_width * scale
     pd = plot_depth * scale
     floor_height = 3.0 * scale  # 3m per floor

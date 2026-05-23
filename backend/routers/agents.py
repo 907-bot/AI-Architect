@@ -464,10 +464,20 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         # Features from prompt
         has_pool = "pool" in p
         has_garage = "garage" in p
+        
+        # Color scheme from prompt
+        if "cream" in p or "beige" in p:
+            color_scheme = "cream"
+        elif "red brick" in p or "red" in p:
+            color_scheme = "red"
+        elif "dark" in p or "black" in p:
+            color_scheme = "dark"
+        else:
+            color_scheme = "white"
 
         print(f">>> {bt} {floors}f pool={has_pool} garage={has_garage}", file=sys.stdout)
 
-        res = generate_building(btype=bt, style="modern", floors=floors, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
+        res = generate_building(btype=bt, style="modern", floors=floors, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True, color_scheme=color_scheme)
 
         print(">>> RETURNING RESPONSE", file=sys.stdout)
         print(">>> RETURNING RESPONSE", file=sys.stdout)
