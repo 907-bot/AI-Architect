@@ -438,19 +438,24 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             
         
         print(">>> IMPORTING SMART ARCHITECT", file=sys.stdout)
-        from backend.services.procedural import generate_building
+        from backend.services.procedural import generate_building as gen
         
         p = prompt.lower()
-        # Parse features from prompt
+        # Parse basic features from prompt
         p = prompt.lower()
-        bt = "apartment" if "apartment" in p else ("villa" if "villa" in p else "house")
-        fl = int("".join(filter(str.isdigit, p.split("floored")[0].split("floor")[-1])) or 2) if "floor" in p else 2
+        bt = "apartment" if "apartment" in p else "villa" if "villa" in p else "house"
+        fl = 2
+        if "floor" in p:
+            for w in p.split():
+                if w.isdigit():
+                    fl = int(w)
+                    break
         has_pool = "pool" in p
         has_garage = "garage" in p
         
-        print(f">>> PARSED: btype={bt}, floors={fl}, pool={has_pool}", file=sys.stdout)
+        print(f">>> {bt} {fl} floors pool={has_pool}", file=sys.stdout)
         
-        res = generate_building(btype=bt, style="modern", floors=fl, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
+        res = gen(btype=bt, style="modern", floors=fl, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
         sty = "modern"
         fl = 2
         
