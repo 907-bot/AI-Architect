@@ -451,12 +451,14 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         else:
             bt = "house"
         
-        # Floors - extract number
+        # Floors - extract number from phrases like "5 floors", "5-storey", "5story"
         floors = 2
-        words = p.split()
+        words = p.replace("-", " ").replace("storey", " floors").replace("story", " floors").split()
         for w in words:
             if w.isdigit():
                 floors = int(w)
+                if floors > 10: floors = 10  # Cap at 10
+                if floors < 1: floors = 1
                 break
         
         # Features from prompt
