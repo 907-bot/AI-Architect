@@ -438,7 +438,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             
         
         print(">>> IMPORTING SMART ARCHITECT", file=sys.stdout)
-        from backend.services.procedural import generate_building
+        from backend.services.architect import architect
         
         p = prompt.lower()
         bt = "villa" if "villa" in p else "house"
@@ -453,8 +453,8 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
-            "message": f"{bt} - {fl} floors",
-            "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res["materials"]}, "metadata": res.get("metadata", {})}
+            "message": f"Generated {result.get('element_count', 0)} elements",
+            "scene_data": {"geometry": {"meshes": result["meshes"], "materials": result["materials"]}}
         })
     except Exception as e:
         return JSONResponse(content={
