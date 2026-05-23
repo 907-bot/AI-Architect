@@ -437,32 +437,37 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             pd = 30
             
         
-        print(">>> IMPORTING SMART ARCHITECT", file=sys.stdout)
+        print(">>> IMPORTING PROCEDURAL", file=sys.stdout)
         from backend.services.procedural import generate_building
+
+        # Parse prompt for building features
+        p = prompt.lower() if prompt else "house"
         
-        p = prompt.lower()
-        # Parse basic features from prompt
-        p = prompt.lower()
-        bt = "apartment" if "apartment" in p else "villa" if "villa" in p else "house"
-        fl = 2
-        if "floor" in p:
-            for w in p.split():
-                if w.isdigit():
-                    fl = int(w)
-                    break
+        # Building type from prompt
+        if "apartment" in p or "flat" in p:
+            bt = "apartment"
+        elif "villa" in p:
+            bt = "villa"
+        else:
+            bt = "house"
+        
+        # Floors - extract number
+        floors = 2
+        words = p.split()
+        for w in words:
+            if w.isdigit():
+                floors = int(w)
+                break
+        
+        # Features from prompt
         has_pool = "pool" in p
         has_garage = "garage" in p
-        
-        print(f">>> {bt} {fl} floors pool={has_pool}", file=sys.stdout)
-        
-        res = generate_building(btype=bt, style="modern", floors=fl, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
-        sty = "modern"
-        fl = 2
-        
-        
-        print(">>> CALLING PROCEDURAL", file=sys.stdout)
-        res = generate_building(btype=bt, style=sty, floors=fl, pw=pw, pd=pd, beds=3, garage=True, pool=False, garden=True)
-        
+
+        print(f">>> {bt} {floors}f pool={has_pool} garage={has_garage}", file=sys.stdout)
+
+        res = generate_building(btype=bt, style="modern", floors=floors, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
+
+        print(">>> RETURNING RESPONSE", file=sys.stdout)
         print(">>> RETURNING RESPONSE", file=sys.stdout)
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
