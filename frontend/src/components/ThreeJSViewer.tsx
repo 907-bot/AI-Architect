@@ -268,7 +268,23 @@ export default function ThreeJSViewer() {
           <pointLight position={[-15, 10, -15]} intensity={0.5} color="#e0e7ff" />
           
           {/* Environment map for realistic reflections */}
-          <Environment preset="city" />
+          <Environment preset="city" background blur={0.8} />
+          {/* Additional hemisphere light for sky/ground ambient */}
+          <hemisphereLight skyColor="#ddeeff" groundColor="#889966" intensity={0.4} />
+          {/* Directional sun with soft shadows */}
+          <directionalLight
+            position={[30, 50, 20]}
+            intensity={1.2}
+            castShadow
+            shadow-mapSize-width={2048}
+            shadow-mapSize-height={2048}
+            shadow-camera-far={100}
+            shadow-camera-left={-20}
+            shadow-camera-right={20}
+            shadow-camera-top={20}
+            shadow-camera-bottom={-20}
+            shadow-bias={-0.0001}
+          />
 
           <Center top position={[0, 0, 0]}>
             <PlotLand />
