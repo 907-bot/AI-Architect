@@ -463,17 +463,31 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         
         # Features from prompt
         has_pool = "pool" in p
+        bt_balcony = True
+        has_garage_check = True
         has_garage = "garage" in p
+
+        bt_balcony = True
+        bt_has_pool = has_pool
+        bt_has_garage = has_garage  # Actually use has_garage value
         
         # Color scheme from prompt
         if "cream" in p or "beige" in p:
             color_scheme = "cream"
-        elif "red brick" in p or "red" in p:
+        elif "red brick" in p or "red " in p or "redwalls" in p:
             color_scheme = "red"
         elif "dark" in p or "black" in p:
             color_scheme = "dark"
+        elif "white" in p:
+            color_scheme = "white"
         else:
             color_scheme = "white"
+            
+        # Override features based on explicit prompt
+            bt_balcony = False
+            has_garage = False  
+            has_pool = False
+            has_garden = False
 
         print(f">>> {bt} {floors}f pool={has_pool} garage={has_garage}", file=sys.stdout)
 

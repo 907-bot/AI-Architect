@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import AgentConsole from "@/components/AgentConsole";
 import PromptBar from "@/components/PromptBar";
+import ConfigPanel from "@/components/ConfigPanel";
 import DroneCamera from "@/components/DroneCamera";
 import SemanticSearch from "@/components/SemanticSearch";
 import { 
@@ -31,12 +32,30 @@ const MapPicker = dynamic(() => import("@/components/MapPicker"), {
 });
 
 export default function WorkspacePage() {
+  const [showConfig, setShowConfig] = useState(false);
+  const [buildConfig, setBuildConfig] = useState({
+    wallColor: "white", roofStyle: "gable", windowGlass: "clear",
+    balcony: true, garage: true, pool: false, garden: true, floors: 2
+  });
   const { 
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
     activeProjection, setActiveProjection,
     visibleComponentGroup, setVisibleComponentGroup,
     complianceData
   } = useStore();
+
+  // Handle config build events from ConfigPanel
+  useState(() => {
+    const handler = (e: any) => {
+      const promptBar = document.querySelector('input') as HTMLInputElement;
+      if (promptBar) {
+        promptBar.value = e.detail;
+        promptBar.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    };
+    window.addEventListener('build-config', handler);
+    return () => window.removeEventListener('build-config', handler);
+  }, []);
 
   return (
     <main className="relative flex flex-col h-screen w-screen bg-[#f9f9fb] text-slate-800 overflow-hidden grid-bg">
@@ -99,6 +118,16 @@ export default function WorkspacePage() {
           </div>
 
           <AgentConsole />
+          
+          {/* Exterior Configuration Panel */}
+          <div className="mt-2">
+            <button onClick={() => setShowConfig(!showConfig)}
+              className="w-full py-2 px-3 bg-slate-100 rounded-lg text-xs font-medium text-slate-600 flex items-center justify-between">
+              <span>Customize Exterior</span>
+              <span className="text-xs">{showConfig ? "−" : "+"}</span>
+            </button>
+            {showConfig && <div className="mt-2"><ConfigPanel config={buildConfig} setConfig={setBuildConfig} /></div>}
+          </div>
           <DroneCamera />
           <SemanticSearch />
         </aside>
