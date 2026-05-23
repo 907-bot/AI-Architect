@@ -212,4 +212,4 @@ docker-compose up -d
 <div align="center">
   <p>Built with ❤️ using FastAPI, Next.js, LangGraph, Three.js, Supabase, and OpenRouter.</p>
   <p><strong>AI Architect</strong> — Empowering creators with spatial intelligence.</p>
-</div>
+</div># Railway deploy test
