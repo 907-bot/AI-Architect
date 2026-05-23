@@ -438,10 +438,19 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             
         
         print(">>> IMPORTING SMART ARCHITECT", file=sys.stdout)
-        from backend.services.architect import architect
+        from backend.services.procedural import generate_building
         
         p = prompt.lower()
-        result = architect.generate_building(prompt=prompt, plot_width=pw, plot_depth=pd)
+        # Parse features from prompt
+        p = prompt.lower()
+        bt = "apartment" if "apartment" in p else ("villa" if "villa" in p else "house")
+        fl = int("".join(filter(str.isdigit, p.split("floored")[0].split("floor")[-1])) or 2) if "floor" in p else 2
+        has_pool = "pool" in p
+        has_garage = "garage" in p
+        
+        print(f">>> PARSED: btype={bt}, floors={fl}, pool={has_pool}", file=sys.stdout)
+        
+        res = generate_building(btype=bt, style="modern", floors=fl, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
         sty = "modern"
         fl = 2
         
@@ -453,7 +462,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
-            "message": f"Generated {result.get('element_count', 0)} elements",
+            "message": f"{bt} - {fl} floors",
             "scene_data": {"geometry": {"meshes": result["meshes"], "materials": result["materials"]}}
         })
     except Exception as e:
