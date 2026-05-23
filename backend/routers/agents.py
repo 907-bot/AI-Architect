@@ -468,7 +468,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
             "message": f"{bt} - {fl} floors",
-            "scene_data": {"geometry": {"meshes": result["meshes"], "materials": result["materials"]}}
+            "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res.get("materials", [])}}
         })
     except Exception as e:
         return JSONResponse(content={
@@ -501,8 +501,8 @@ async def modify_building(request: dict):
             "status": "completed",
             "message": result["message"],
             "scene_data": {
-                "geometry": {"meshes": result["meshes"], "materials": result["materials"]},
-                "element_count": result["count"]
+                "geometry": {"meshes": res["meshes"], "materials": res.get("materials", [])},
+                "element_count": len(res.get("meshes", []))
             }
         })
     except Exception as e:
