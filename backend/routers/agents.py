@@ -463,3 +463,39 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             "message": str(e),
             "scene_data": {}
         }, status_code=500)
+
+
+@router.post("/agents/modify")
+async def modify_building(request: ModifyRequest):
+    """Modify existing building by adding/removing features"""
+    try:
+        from backend.services.chat_agent import ChatArchitect, update_building
+        from backend.services.architect import MATERIALS
+        
+        # Get current meshes from prior generation
+        current_meshes = request.meshes or []
+        current_materials = request.materials or list(MATERIALS.keys())
+        
+        # Use chat architect
+        ca = update_building(current_meshes, current_materials)
+        result = ca.modify(request.command)
+        
+        if "error" in result:
+            return JSONResponse(content={"status": "error", "message": result["error"]})
+        
+        return JSONResponse(content={
+            "status": "completed",
+            "message": result["message"],
+            "scene_data": {
+                "geometry": {"meshes": result["meshes"], "materials": result["materials"]},
+                "element_count": result["count"]
+            }
+        })
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "message": str(e)}, status_code=500)
+
+
+class ModifyRequest(BaseModel):
+    command: str
+    meshes: Optional[List[Dict]] = None
+    materials: Optional[List[Dict]] = None
