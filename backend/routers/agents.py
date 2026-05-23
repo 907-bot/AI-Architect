@@ -438,7 +438,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             
         
         print(">>> IMPORTING SMART ARCHITECT", file=sys.stdout)
-        from backend.services.procedural import generate_building as gen
+        from backend.services.procedural import generate_building
         
         p = prompt.lower()
         # Parse basic features from prompt
@@ -455,7 +455,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         
         print(f">>> {bt} {fl} floors pool={has_pool}", file=sys.stdout)
         
-        res = gen(btype=bt, style="modern", floors=fl, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
+        res = generate_building(btype=bt, style="modern", floors=fl, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True)
         sty = "modern"
         fl = 2
         
