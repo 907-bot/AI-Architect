@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import AgentConsole from "@/components/AgentConsole";
 import PromptBar from "@/components/PromptBar";
 import ConfigPanel from "@/components/ConfigPanel";
+import ChatInterface from "@/components/ChatInterface";
 import DroneCamera from "@/components/DroneCamera";
 import SemanticSearch from "@/components/SemanticSearch";
 import { 
@@ -32,7 +33,7 @@ const MapPicker = dynamic(() => import("@/components/MapPicker"), {
 });
 
 export default function WorkspacePage() {
-  const [showConfig, setShowConfig] = useState(false);
+  const [showConfig, setShowConfig] = useState(true);  // Show config by default
   const [buildConfig, setBuildConfig] = useState({
     wallColor: "white", roofStyle: "gable", windowGlass: "clear",
     balcony: true, garage: true, pool: false, garden: true, floors: 2
