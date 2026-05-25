@@ -13,7 +13,7 @@ import structlog
 from backend.database.models import Scene, Project, User, SceneVersion
 from backend.database.client import db_client
 from backend.routers.auth import get_current_user
-from backend.models.scene_graph import SceneGraph
+from backend.models.scene_graph import SceneGraph, SceneValidator, SceneGraph as SceneGraphModel
 
 log = structlog.get_logger()
 router = APIRouter()
@@ -34,12 +34,14 @@ class SceneCreate(BaseModel):
     name: str
     description: Optional[str] = None
     generation_prompt: Optional[str] = None
+    output_mode: Optional[str] = "fast_preview"
 
 
 class SceneUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     scene_graph: Optional[Dict[str, Any]] = None
+    output_mode: Optional[str] = None
 
 
 class SceneResponse(BaseModel):
@@ -107,6 +109,7 @@ async def create_scene(
             generation_prompt=request.generation_prompt,
             status="draft",
             version=1,
+            output_mode=request.output_mode or "fast_preview",
             scene_graph={
                 "rooms": [],
                 "walls": [],
@@ -233,6 +236,15 @@ async def get_scene(
                 detail="Scene not found"
             )
         
+        # Validate scene_graph before returning
+        validated_sg = scene.scene_graph
+        if isinstance(validated_sg, dict):
+            success, parsed, error_msg = SceneValidator.validate_llm_output(validated_sg)
+            if success:
+                validated_sg = parsed.to_dict()
+            else:
+                log.warning("get_scene_invalid_scene_graph", scene_id=scene_id, error=error_msg)
+
         return SceneDetailResponse(
             id=str(scene.id),
             project_id=str(scene.project_id),
@@ -243,7 +255,7 @@ async def get_scene(
             created_at=scene.created_at,
             updated_at=scene.updated_at,
             completed_at=scene.completed_at,
-            scene_graph=scene.scene_graph,
+            scene_graph=validated_sg,
             generation_prompt=scene.generation_prompt,
             asset_urls=scene.asset_urls,
             room_tags=scene.room_tags
@@ -383,3 +395,247 @@ async def delete_scene(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete scene"
         )
+
+
+# =====================================================
+# GENERATE TEST SCENE (no AI, returns hardcoded valid scene)
+# =====================================================
+
+@router.get("/generate-test", response_model=SceneDetailResponse)
+async def generate_test_scene(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns a hardcoded fully-valid scene graph.
+    Use this to test frontend rendering independent of AI generation.
+    """
+    log.info("generate_test_scene", user_id=user.id)
+
+    test_scene_graph = {
+        "style": "modern",
+        "rooms": [
+            {
+                "id": "living_room_1",
+                "room_type": "living_room",
+                "name": "Living Room",
+                "floor_number": 0,
+                "position": {"x": 0, "y": 0, "z": 0},
+                "width": 6.0,
+                "depth": 5.0,
+                "height": 3.0,
+                "material_id": "floor_oak",
+                "walls": [
+                    {
+                        "id": "wall_lr_1",
+                        "room_id": "living_room_1",
+                        "start_point": {"x": -3.0, "y": 0, "z": -2.5},
+                        "end_point": {"x": 3.0, "y": 0, "z": -2.5},
+                        "height": 3.0,
+                        "thickness": 0.2,
+                        "material_id": "wall_plaster",
+                        "doors": [],
+                        "windows": [
+                            {
+                                "id": "win_lr_1",
+                                "room_id": "living_room_1",
+                                "position": {"x": 0, "y": 1.5, "z": -2.5},
+                                "width": 2.0,
+                                "height": 1.5,
+                                "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
+                                "material_id": "glass_clear",
+                                "window_type": "sliding"
+                            }
+                        ]
+                    }
+                ],
+                "doors": [
+                    {
+                        "id": "door_lr_1",
+                        "room_id": "living_room_1",
+                        "position": {"x": 2.5, "y": 0, "z": 0},
+                        "width": 0.9,
+                        "height": 2.1,
+                        "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
+                        "material_id": "wood_oak",
+                        "door_type": "swing",
+                        "connects_to_room": "bedroom_1"
+                    }
+                ],
+                "furniture": [
+                    {
+                        "id": "sofa_1",
+                        "room_id": "living_room_1",
+                        "furniture_type": "sofa",
+                        "position": {"x": -1.5, "y": 0, "z": 1.0},
+                        "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
+                        "scale": {"x": 2.0, "y": 0.8, "z": 0.9},
+                        "model_id": "sofa_modern",
+                        "material_id": "fabric_grey",
+                        "metadata": {}
+                    }
+                ],
+                "lights": [
+                    {
+                        "id": "light_lr_1",
+                        "room_id": "living_room_1",
+                        "light_type": "ambient",
+                        "position": {"x": 0, "y": 2.8, "z": 0},
+                        "color_rgb": "#FFF5E6",
+                        "intensity": 0.8,
+                        "range": None,
+                        "angle": None
+                    }
+                ]
+            },
+            {
+                "id": "bedroom_1",
+                "room_type": "bedroom",
+                "name": "Master Bedroom",
+                "floor_number": 0,
+                "position": {"x": 0, "y": 0, "z": 6},
+                "width": 5.0,
+                "depth": 4.0,
+                "height": 3.0,
+                "material_id": "floor_carpet",
+                "walls": [
+                    {
+                        "id": "wall_br_1",
+                        "room_id": "bedroom_1",
+                        "start_point": {"x": -2.5, "y": 0, "z": -2.0},
+                        "end_point": {"x": 2.5, "y": 0, "z": -2.0},
+                        "height": 3.0,
+                        "thickness": 0.2,
+                        "material_id": "wall_plaster",
+                        "doors": [
+                            {
+                                "id": "door_br_1",
+                                "room_id": "bedroom_1",
+                                "position": {"x": 0, "y": 0, "z": -2.0},
+                                "width": 0.9,
+                                "height": 2.1,
+                                "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
+                                "material_id": "wood_oak",
+                                "door_type": "swing",
+                                "connects_to_room": "living_room_1"
+                            }
+                        ],
+                        "windows": []
+                    }
+                ],
+                "doors": [],
+                "windows": [],
+                "furniture": [
+                    {
+                        "id": "bed_1",
+                        "room_id": "bedroom_1",
+                        "furniture_type": "bed",
+                        "position": {"x": 0, "y": 0, "z": 1.0},
+                        "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
+                        "scale": {"x": 1.8, "y": 0.5, "z": 2.0},
+                        "model_id": "bed_queen",
+                        "material_id": "fabric_grey",
+                        "metadata": {}
+                    }
+                ],
+                "lights": [
+                    {
+                        "id": "light_br_1",
+                        "room_id": "bedroom_1",
+                        "light_type": "ambient",
+                        "position": {"x": 0, "y": 2.8, "z": 0},
+                        "color_rgb": "#FFF5E6",
+                        "intensity": 0.6,
+                        "range": None,
+                        "angle": None
+                    }
+                ]
+            }
+        ],
+        "stairs": [],
+        "materials": [
+            {
+                "id": "wall_plaster",
+                "name": "White Plaster",
+                "material_type": "paint",
+                "color_rgb": "#F5F5F0",
+                "roughness": 0.9,
+                "metallic": 0.0
+            },
+            {
+                "id": "floor_oak",
+                "name": "Oak Wood Floor",
+                "material_type": "wood",
+                "color_rgb": "#B88A44",
+                "roughness": 0.6,
+                "metallic": 0.0
+            },
+            {
+                "id": "floor_carpet",
+                "name": "Grey Carpet",
+                "material_type": "carpet",
+                "color_rgb": "#8B8B8B",
+                "roughness": 0.95,
+                "metallic": 0.0
+            },
+            {
+                "id": "wood_oak",
+                "name": "Oak Wood",
+                "material_type": "wood",
+                "color_rgb": "#8B5A2B",
+                "roughness": 0.5,
+                "metallic": 0.0
+            },
+            {
+                "id": "glass_clear",
+                "name": "Clear Glass",
+                "material_type": "glass",
+                "color_rgb": "#D4E8F0",
+                "roughness": 0.0,
+                "metallic": 0.1
+            },
+            {
+                "id": "fabric_grey",
+                "name": "Grey Fabric",
+                "material_type": "fabric",
+                "color_rgb": "#A8A8A8",
+                "roughness": 0.9,
+                "metallic": 0.0
+            }
+        ],
+        "lights": [],
+        "navigation": {
+            "navigation_meshes": [],
+            "walkthrough_points": [
+                {"x": -5, "y": 1.6, "z": -5},
+                {"x": 0, "y": 1.6, "z": 0},
+                {"x": 5, "y": 1.6, "z": 5}
+            ],
+            "drone_path_nodes": [
+                {"x": 10, "y": 8, "z": 10},
+                {"x": -10, "y": 8, "z": -10},
+                {"x": 0, "y": 12, "z": 0}
+            ]
+        }
+    }
+
+    return SceneDetailResponse(
+        id="test-scene-001",
+        project_id="test-project",
+        name="Test Scene (Hardcoded)",
+        description="A fully-valid hardcoded scene for frontend testing",
+        status="completed",
+        version=1,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        completed_at=datetime.utcnow(),
+        scene_graph=test_scene_graph,
+        generation_prompt="Generate a modern house with living room and bedroom",
+        asset_urls={
+            "glb": None,
+            "splat": None,
+            "thumbnail": None,
+            "preview_frames": []
+        },
+        room_tags=["living_room", "bedroom"]
+    )

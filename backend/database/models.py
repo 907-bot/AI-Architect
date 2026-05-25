@@ -108,6 +108,7 @@ class Scene(Base):
     semantic_embedding = Column(JSON)  # Stored as JSON, indexed separately
     room_tags = Column(ARRAY(String))
     style_tags = Column(ARRAY(String))
+    output_mode = Column(String(50), default="fast_preview")
     
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -284,6 +285,30 @@ class RenderJob(Base):
 # =====================================================
 # 10. API KEYS
 # =====================================================
+
+# =====================================================
+# 13. ARTIFACTS
+# =====================================================
+
+class Artifact(Base):
+    __tablename__ = "artifacts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    scene_id = Column(UUID(as_uuid=True), ForeignKey("scenes.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    stage = Column(String(50), nullable=False, index=True)
+    artifact_type = Column(String(20), nullable=False)
+    status = Column(String(20), default="queued", index=True)
+    url = Column(Text)
+    preview_url = Column(Text)
+    error_message = Column(Text)
+    metadata_json = Column(JSONB, default={})
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime)
+
+    # Relationships
+    scene = relationship("Scene")
+
 
 class APIKey(Base):
     __tablename__ = "api_keys"

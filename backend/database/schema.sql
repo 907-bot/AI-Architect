@@ -90,6 +90,7 @@ CREATE TABLE scenes (
     semantic_embedding vector(1536),
     room_tags TEXT[],
     style_tags TEXT[],
+    output_mode VARCHAR(50) DEFAULT 'fast_preview',
     
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
@@ -246,12 +247,31 @@ CREATE TABLE render_jobs (
     completed_at TIMESTAMP
 );
 
-CREATE INDEX idx_render_jobs_scene_id ON render_jobs(scene_id);
-CREATE INDEX idx_render_jobs_user_id ON render_jobs(user_id);
-CREATE INDEX idx_render_jobs_status ON render_jobs(status);
+-- =====================================================
+-- 10. ARTIFACTS (Progressive Artifact Outputs)
+-- =====================================================
+
+CREATE TABLE artifacts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scene_id UUID NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    stage VARCHAR(50) NOT NULL, -- floorplan, preview, furnished, cinematic, walkthrough
+    artifact_type VARCHAR(20) NOT NULL, -- svg, png, gltf, glb, mp4, ifc, obj
+    status VARCHAR(20) DEFAULT 'queued', -- queued, processing, completed, failed
+    url TEXT,
+    preview_url TEXT,
+    error_message TEXT,
+    metadata_json JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP
+);
+
+CREATE INDEX idx_artifacts_scene_id ON artifacts(scene_id);
+CREATE INDEX idx_artifacts_stage ON artifacts(stage);
+CREATE INDEX idx_artifacts_status ON artifacts(status);
 
 -- =====================================================
--- 10. API KEYS & INTEGRATIONS
+-- 12. API KEYS & INTEGRATIONS
 -- =====================================================
 
 CREATE TABLE api_keys (
@@ -270,7 +290,7 @@ CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_api_keys_is_active ON api_keys(is_active);
 
 -- =====================================================
--- 11. WEBHOOKS & EVENTS
+-- 13. WEBHOOKS & EVENTS
 -- =====================================================
 
 CREATE TABLE events (
@@ -288,7 +308,7 @@ CREATE INDEX idx_events_event_type ON events(event_type);
 CREATE INDEX idx_events_created_at ON events(created_at DESC);
 
 -- =====================================================
--- 12. AUDIT LOG
+-- 14. AUDIT LOG
 -- =====================================================
 
 CREATE TABLE audit_logs (

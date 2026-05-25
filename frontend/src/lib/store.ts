@@ -81,6 +81,25 @@ export type ProjectionType =
 
 export type ComponentGroupFilter = "All" | "Foundation" | "Floor Slabs" | "Walls" | "Windows" | "Roof";
 
+export type OutputMode =
+  | "fast_preview"
+  | "architectural_concept"
+  | "realistic_visualization"
+  | "technical_floorplan"
+  | "construction_bim"
+  | "xr_export"
+  | "fabrication_cad"
+  | "marketing_walkthrough";
+
+export interface ArtifactInfo {
+  stage: string;
+  artifact_type: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  url: string | null;
+  preview_url: string | null;
+  error?: string | null;
+}
+
 interface ArchitectStore {
   projectId: string;
   clientId: string;
@@ -102,6 +121,13 @@ interface ArchitectStore {
   activeProjection: ProjectionType;
   visibleComponentGroup: ComponentGroupFilter;
   complianceData: ComplianceData | null;
+
+  // Artifact Pipeline
+  activeOutputMode: OutputMode;
+  artifacts: ArtifactInfo[];
+  artifactGenerationStatus: "idle" | "generating" | "completed" | "failed";
+  designStyle: string;
+  designStyles: { id: string; name: string; description: string }[];
 
   setProjectId: (id: string) => void;
   setPrompt: (prompt: string) => void;
@@ -139,6 +165,13 @@ export const useStore = create<ArchitectStore>((set) => ({
   visibleComponentGroup: "All",
   complianceData: null,
 
+  // Artifact Pipeline
+  activeOutputMode: "fast_preview",
+  artifacts: [],
+  artifactGenerationStatus: "idle",
+  designStyle: "modern",
+  designStyles: [],
+
   setProjectId: (id) => set({ projectId: id }),
   setPrompt: (prompt) => set({ currentPrompt: prompt }),
   setIsGenerating: (generating) => set({ isGenerating: generating }),
@@ -156,5 +189,13 @@ export const useStore = create<ArchitectStore>((set) => ({
   setPlotData: (lat, lng, w, d) => set({ plotLat: lat, plotLng: lng, plotWidth: w, plotDepth: d }),
   setActiveProjection: (proj) => set({ activeProjection: proj }),
   setVisibleComponentGroup: (group) => set({ visibleComponentGroup: group }),
-  setComplianceData: (data) => set({ complianceData: data })
+  setComplianceData: (data) => set({ complianceData: data }),
+  setActiveOutputMode: (mode) => set({ activeOutputMode: mode }),
+  setArtifacts: (artifacts) => set({ artifacts }),
+  setArtifactGenerationStatus: (status) => set({ artifactGenerationStatus: status }),
+  addArtifact: (artifact) => set((state) => ({
+    artifacts: [...state.artifacts.filter(a => a.stage !== artifact.stage), artifact]
+  })),
+  setDesignStyle: (style) => set({ designStyle: style }),
+  setDesignStyles: (styles) => set({ designStyles: styles })
 }));

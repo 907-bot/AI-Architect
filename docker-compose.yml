@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   # =====================================================
-  # BACKEND - FastAPI + LangGraph
+  # BACKEND - FastAPI + LangGraph + Artifact Pipeline
   # =====================================================
   
   backend:
@@ -21,13 +21,17 @@ services:
       - CLOUDFLARE_R2_ENDPOINT=${CLOUDFLARE_R2_ENDPOINT}
       - CLOUDFLARE_R2_ACCESS_KEY=${CLOUDFLARE_R2_ACCESS_KEY}
       - CLOUDFLARE_R2_SECRET_KEY=${CLOUDFLARE_R2_SECRET_KEY}
-      - UPSTASH_REDIS_URL=${UPSTASH_REDIS_URL}
+      - CLOUDFLARE_R2_BUCKET=${CLOUDFLARE_R2_BUCKET:-ai-architect-artifacts}
+      - ARTIFACT_STORAGE_BACKEND=${ARTIFACT_STORAGE_BACKEND:-local}
+      - RENDER_QUEUE_REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ORIGINS=http://localhost:3000,https://ai-architect.vercel.app
     depends_on:
-      - redis
+      redis:
+        condition: service_started
     volumes:
       - ./backend:/app/backend
+      - artifact_data:/tmp/ai-architect-artifacts
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - ai-architect
@@ -61,7 +65,7 @@ services:
 
 
   # =====================================================
-  # REDIS - Cache & Queue
+  # REDIS - Cache & Render Queue
   # =====================================================
   
   redis:
@@ -75,6 +79,35 @@ services:
     networks:
       - ai-architect
     restart: unless-stopped
+
+
+  # =====================================================
+  # BLENDER WORKER - Cloud Rendering (optional)
+  # Scale with: docker-compose up -d --scale blender-worker=4
+  # =====================================================
+  
+  blender-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.blender
+    container_name: ai-architect-blender-worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ARTIFACT_STORAGE_BACKEND=${ARTIFACT_STORAGE_BACKEND:-local}
+      - CLOUDFLARE_R2_ENDPOINT=${CLOUDFLARE_R2_ENDPOINT}
+      - CLOUDFLARE_R2_ACCESS_KEY=${CLOUDFLARE_R2_ACCESS_KEY}
+      - CLOUDFLARE_R2_SECRET_KEY=${CLOUDFLARE_R2_SECRET_KEY}
+      - CLOUDFLARE_R2_BUCKET=${CLOUDFLARE_R2_BUCKET:-ai-architect-artifacts}
+    depends_on:
+      - redis
+    volumes:
+      - ./backend:/app/backend
+      - artifact_data:/tmp/ai-architect-artifacts
+    networks:
+      - ai-architect
+    restart: unless-stopped
+    deploy:
+      replicas: 1
 
 
   # =====================================================
@@ -95,6 +128,7 @@ services:
 
 volumes:
   redis_data:
+  artifact_data:
 
 
 networks:

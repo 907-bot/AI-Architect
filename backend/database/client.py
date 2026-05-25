@@ -7,26 +7,48 @@ from typing import Generator
 import asyncpg
 from backend.config import settings
 import structlog
+import os
 
 log = structlog.get_logger()
 
-# SQLAlchemy engine setup for PostgreSQL
-DATABASE_URL = settings.database_url_clean
+# Engine and session factory initialization.
+# Prefer DATABASE_URL (from env or settings.database_url). If missing, fall back to a local
+# SQLite file so the app imports cleanly in development. In production (Railway) ensure
+# DATABASE_URL is set in environment variables.
+DATABASE_URL = settings.database_url_clean or os.environ.get("DATABASE_URL") or ""
 
-if not DATABASE_URL:
-    raise ValueError(
-        "DATABASE_URL environment variable is missing or empty. "
-        "Please ensure it is set in your Railway variables or .env file."
+if DATABASE_URL:
+    try:
+        engine = create_engine(
+            DATABASE_URL,
+            echo=settings.debug,
+            pool_size=5,
+            max_overflow=10,
+            pool_pre_ping=True,
+        )
+        log.info("database_engine_created", url=str(engine.url))
+    except Exception as e:
+        # If engine creation fails, log and fall back to a local SQLite file to avoid import-time crashes
+        log.error("database_engine_creation_failed", error=str(e))
+        DATABASE_URL = "sqlite:///./dev_fallback.db"
+        engine = create_engine(
+            DATABASE_URL,
+            echo=settings.debug,
+            connect_args={"check_same_thread": False},
+        )
+        log.warning("fallback_to_sqlite", url=DATABASE_URL)
+else:
+    # No DATABASE_URL provided — fall back to a local sqlite database for development/test
+    DATABASE_URL = "sqlite:///./dev_fallback.db"
+    engine = create_engine(
+        DATABASE_URL,
+        echo=settings.debug,
+        connect_args={"check_same_thread": False},
     )
-
-# For production, use async support
-engine = create_engine(
-    DATABASE_URL,
-    echo=settings.debug,
-    pool_size=5,
-    max_overflow=10,
-    pool_pre_ping=True,  # Verify connection before using
-)
+    log.warning(
+        "no_database_url_found",
+        message="DATABASE_URL not set; falling back to local SQLite dev_fallback.db. Set DATABASE_URL in production."
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -1,0 +1,37 @@
+# Blender Worker — Docker image for cloud rendering
+# Based on nytimes/blender:latest which has Blender + Python
+
+FROM nytimes/blender:latest
+
+LABEL description="AI Architect Blender Worker - Cloud Rendering"
+LABEL version="1.0"
+
+# Install Python dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy worker code
+WORKDIR /app
+COPY backend/blender_worker/ /app/backend/blender_worker/
+COPY backend/services/ /app/backend/services/
+COPY backend/models/ /app/backend/models/
+COPY backend/config.py /app/backend/config.py
+COPY backend/__init__.py /app/backend/__init__.py
+
+# Install Python dependencies
+COPY backend/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Blender Python path hack
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+# Point bpy to Blender's bundled Python
+ENV BLENDER_PATH=/usr/local/blender
+
+# Default command: run worker
+CMD ["python3", "-m", "backend.blender_worker.worker"]

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { decodeMessage } from "@/lib/toon";
 import axios from "axios";
 
 export default function PromptBar() {
@@ -27,30 +28,85 @@ export default function PromptBar() {
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const wsUrl = apiUrl.replace(/^http/, "ws");
-    const ws = new WebSocket(`${wsUrl}/ws/${clientId}`);
+    const ws = new WebSocket(`${wsUrl}/ws/${clientId}?format=toon`);
     
     ws.onmessage = (event) => {
       try {
-        const payload = JSON.parse(event.data);
-        if (payload.type === "agent_update") {
-          addAgentLog({
-            agent: payload.agent,
-            message: payload.message,
-            data: payload.data
-          });
+        const payload = decodeMessage(event.data) as any;
+        if (!payload) return;
+        const eventType = payload.type || payload.event || "";
+        const agent = payload.agent || "";
+        const msg = payload.message || "";
+        const data = payload.data;
 
-          // Check if it's the complete phase
-          if (payload.agent === "evaluation" && payload.message.includes("complete")) {
-            // Load resulting scene properties
-            const data = payload.data;
-            if (data) {
-              // Construct geometries
-              const geo = data.skeptic?.corrections || data.bear?.enhanced_config || {};
-              const geom = {
-                meshes: geo.meshes || [
-                  { id: "building_base", type: "box", position: [0, 1.5, 0], scale: [8, 3, 10], material_id: "plaster_white" }
+        // Log agent events to the console
+        addAgentLog({ agent, message: msg, data });
+
+        // Handle phased events from the background task
+        if (eventType === "agent.geometry" && data) {
+          // Geometry data arrived — update scene
+          const geom = {
+            meshes: data.meshes || [
+              { id: "building_base", type: "box", position: [0, 1.5, 0], scale: [8, 3, 10], material_id: "plaster_white" }
+            ]
+          };
+          const conf = { drone_path: [] };
+          const assets = { materials: data.materials || [] };
+          // Extract rooms for room tags if present
+          const rooms = (data.rooms || []).map((r: any) => ({
+            id: r.id, name: r.name, x: r.position?.x || 0, y: r.position?.y || 0,
+            width_m: r.width || 5, height_m: r.depth || 5
+          }));
+          updateScene(
+            { ...geom, rooms },
+            conf,
+            assets
+          );
+        }
+
+        // Completion signals: agent.evaluation complete, scene.validated, scene.invalid
+        const isComplete =
+          eventType === "agent.evaluation" && (payload.phase === "complete" || msg.includes("complete")) ||
+          eventType === "scene.validated" ||
+          eventType === "scene.invalid";
+
+        if (isComplete) {
+          // Also update scene from evaluation data if geometry wasn't already processed
+          if (data && !eventType.startsWith("agent.geometry")) {
+            const geo = data.skeptic?.corrections || data.bear?.enhanced_config || {};
+            const sceneGraph = data.scene_graph || data;
+            const rooms = (sceneGraph.rooms || []).map((r: any) => ({
+              id: r.id, name: r.name, x: r.position?.x || 0, y: r.position?.y || 0,
+              width_m: r.width || 5, height_m: r.depth || 5
+            }));
+            updateScene(
+              {
+                meshes: geo.meshes || sceneGraph.meshes || [
+                  { id: "base", type: "box", position: [0, 1.5, 0], scale: [8, 3, 10], material_id: "plaster_white" }
+                ],
+                rooms,
+              },
+              {
+                drone_path: data.bear?.drone_path || sceneGraph.navigation?.drone_path_nodes?.map((n: any, i: number) => ({
+                  index: i, position: [n.x || 0, n.y || 5, n.z || 0],
+                  look_at: [0, 1.5, 0], duration_s: 4
+                })) || []
+              },
+              {
+                materials: sceneGraph.materials || data.materials || [
+                  { id: "plaster_white", color_hex: "#f4f4f5", roughness: 0.8 },
+                  { id: "wood_oak", color_hex: "#b45309", roughness: 0.6 }
                 ]
-              };
+              }
+            );
+          }
+          setIsGenerating(false);
+          ws.close();
+        }
+      } catch (err) {
+        console.error("Error parsing socket message", err);
+      }
+    };
               const conf = {
                 drone_path: data.bear?.drone_path || [
                   { index: 0, position: [12, 5, 12], look_at: [0, 1.5, 0], duration_s: 4 },

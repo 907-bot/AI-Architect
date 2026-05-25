@@ -6,9 +6,10 @@ import AgentConsole from "@/components/AgentConsole";
 import PromptBar from "@/components/PromptBar";
 import DroneCamera from "@/components/DroneCamera";
 import SemanticSearch from "@/components/SemanticSearch";
+import ArtifactPanel from "@/components/ArtifactPanel";
 import { 
   Box, Compass, CheckCircle2, AlertTriangle, 
-  MapPin, Eye, Filter, Settings, Layers 
+  MapPin, Eye, Filter, Settings, Layers, Image 
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
 
@@ -98,6 +99,7 @@ export default function WorkspacePage() {
             </div>
           </div>
 
+          <ArtifactPanel />
           <AgentConsole />
           <DroneCamera />
           <SemanticSearch />

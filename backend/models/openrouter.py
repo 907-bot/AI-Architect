@@ -7,6 +7,8 @@ import structlog
 from typing import Optional, Dict, List, Any
 from enum import Enum
 import time
+import json
+from backend.config import settings
 
 log = structlog.get_logger()
 
@@ -147,15 +149,23 @@ class OpenRouterClient:
     def __init__(self, api_key: str, base_url: str = "https://openrouter.ai/api/v1"):
         self.api_key = api_key
         self.base_url = base_url
-        self.client = httpx.AsyncClient(
-            base_url=base_url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "HTTP-Referer": "https://ai-architect.vercel.app",
-                "X-Title": "AI Architect"
-            },
-            timeout=60.0
-        )
+        # Read debug/mock flags from settings
+        self.mock = getattr(settings, "openrouter_mock", False)
+        self.debug = getattr(settings, "openrouter_debug", False)
+
+        # Only create an HTTP client when not in mock mode
+        if not self.mock:
+            self.client = httpx.AsyncClient(
+                base_url=base_url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "HTTP-Referer": "https://ai-architect.vercel.app",
+                    "X-Title": "AI Architect"
+                },
+                timeout=60.0
+            )
+        else:
+            self.client = None
         
         # Circuit breakers per model
         self.circuit_breakers: Dict[str, CircuitBreakerState] = {
@@ -165,7 +175,13 @@ class OpenRouterClient:
         # Token budgets per agent
         self.token_budgets: Dict[str, TokenBudget] = {}
         
-        log.info("openrouter_client_initialized", base_url=base_url)
+        if not api_key and not self.mock:
+            log.warning("openrouter_api_key_missing", message="OpenRouter API key is not set. LLM calls will fail.")
+
+        if self.mock:
+            log.info("openrouter_client_initialized", mode="mock", base_url=base_url)
+        else:
+            log.info("openrouter_client_initialized", base_url=base_url)
     
     def get_fallback_chain(self, agent_type: str) -> List[str]:
         """Get fallback model chain for agent type"""
@@ -191,6 +207,35 @@ class OpenRouterClient:
         # Initialize token budget for agent if needed
         if agent_id and agent_id not in self.token_budgets:
             self.token_budgets[agent_id] = TokenBudget()
+
+        # Mock mode: return deterministic stubbed responses for debugging
+        if self.mock:
+            # Simple canned outputs per agent_type
+            if agent_type == "orchestrator":
+                stub = {
+                    "style": "modern",
+                    "rooms": {"bedrooms": 3, "bathrooms": 2},
+                    "features": ["open_plan", "garage"],
+                    "constraints": [],
+                    "budget": "medium"
+                }
+                return json.dumps(stub), {"model": "mock", "tokens_used": 0}
+            if agent_type == "planner":
+                stub = {
+                    "style": "modern",
+                    "budget": "medium",
+                    "occupancy": 4,
+                    "include_garage": True,
+                    "include_basement": False,
+                    "target_sqft": 2000.0,
+                    "num_bedrooms": 3,
+                    "num_bathrooms": 2,
+                    "flooring_type": "hardwood"
+                }
+                return json.dumps(stub), {"model": "mock", "tokens_used": 0}
+            # Default textual stub
+            stub_text = f"Mock response for agent_type={agent_type}"
+            return stub_text, {"model": "mock", "tokens_used": 0}
         
         for attempt, model in enumerate(fallback_chain):
             if attempt >= 3:  # Max 3 retries
