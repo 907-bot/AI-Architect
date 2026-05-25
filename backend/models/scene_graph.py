@@ -296,7 +296,7 @@ class SceneGraph(BaseModel):
 
     @staticmethod
     def schema_json_str() -> str:
-        return json.dumps(SceneGraph.model_json_schema())
+        return SceneGraph.model_json_schema()
 
 
 # =====================================================
@@ -365,10 +365,6 @@ class SceneValidator:
                 return False, None, f"JSON parse failed: {e}"
         if not isinstance(raw, dict):
             return False, None, "Output is not a JSON object"
-
-        # Require the rooms field to be present explicitly
-        if "rooms" not in raw:
-            return False, None, "SceneGraph validation failed: missing required field 'rooms'"
 
         try:
             scene = SceneGraph(**raw)

@@ -2,7 +2,6 @@
 Agents API routes - Scene generation and agent management
 """
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any

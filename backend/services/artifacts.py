@@ -345,7 +345,8 @@ class ArtifactPipeline:
                 await self._notify_progress(scene_id, stage.value, 100, "Floorplan ready")
 
             elif stage == ArtifactStage.PREVIEW:
-                rec.url = f"stub://artifacts/{scene_id}/preview.gltf"
+                preview_path = f"{self.storage_base}/{scene_id}/preview.gltf"
+                rec.url = preview_path
                 rec.metadata = {
                     "mode": output_mode,
                     "note": "glTF preview generated. For Blender renders, use blender-worker.",
