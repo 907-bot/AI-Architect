@@ -1,49 +1,57 @@
 """
-Database client for Supabase with SQLAlchemy ORM
+Database client for Supabase with SQLAlchemy ORM.
+Fully resilient — the app starts and serves procedural endpoints
+even when no database is reachable.
 """
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from typing import Generator
-import asyncpg
+from typing import Generator, Optional
 from backend.config import settings
 import structlog
 
 log = structlog.get_logger()
 
-# SQLAlchemy engine setup for PostgreSQL
-DATABASE_URL = settings.database_url_clean
+DATABASE_URL: str = settings.database_url_clean or ""
 
-if not DATABASE_URL:
-    log.warning("database_url_missing")
-    # Allow app to run without DB (procedural generation doesn't need database)
-    DATABASE_URL = ""
+engine = None
+SessionLocal = None
 
-# Only create engine if DATABASE_URL exists and is valid
 if DATABASE_URL:
-    engine = create_engine(
-        DATABASE_URL,
-        echo=settings.debug,
-        pool_size=5,
-        max_overflow=10,
-        pool_pre_ping=True,
-    )
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    try:
+        engine = create_engine(
+            DATABASE_URL,
+            echo=settings.debug,
+            pool_size=5,
+            max_overflow=10,
+            pool_pre_ping=True,
+            connect_args={"connect_timeout": 5},   # fail fast instead of hanging
+        )
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        log.info("database_engine_created", url=DATABASE_URL[:40] + "...")
+    except Exception as e:
+        log.warning("database_engine_failed", error=str(e))
+        engine = None
+        SessionLocal = None
 else:
-    engine = None
-    SessionLocal = None
-    log.warning('database_disabled')
+    log.warning("database_url_missing — running in no-DB mode (procedural endpoints work fine)")
 
 
 class DatabaseClient:
-    """Manages database connections and operations"""
-    
+    """Manages database connections. All methods degrade gracefully when DB is unavailable."""
+
     def __init__(self):
         self.engine = engine
         self.SessionLocal = SessionLocal
-        log.info("database_client_initialized", engine=str(engine.url))
-    
+        if self.engine:
+            log.info("database_client_initialized")
+        else:
+            log.warning("database_client_no_engine — DB-dependent routes will return 503")
+
     def get_db(self) -> Generator[Session, None, None]:
-        """Get database session for dependency injection"""
+        """Dependency-injection session. Raises 503 if DB unavailable."""
+        if self.SessionLocal is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=503, detail="Database unavailable")
         db = self.SessionLocal()
         try:
             yield db
@@ -53,19 +61,24 @@ class DatabaseClient:
             raise
         finally:
             db.close()
-    
+
     async def init_db(self):
-        """Initialize database (create tables)"""
+        """Create tables. Silently skips when DB is unavailable."""
+        if self.engine is None:
+            log.warning("init_db_skipped — no database engine")
+            return
         try:
             from backend.database.models import Base
             Base.metadata.create_all(bind=self.engine)
-            log.info("database_initialized")
+            log.info("database_tables_created")
         except Exception as e:
             log.error("database_init_error", error=str(e))
-            raise
-    
+            # Non-fatal — procedural endpoints work without tables
+
     def health_check(self) -> bool:
-        """Check database connectivity"""
+        """Returns False (not crash) when DB is unavailable."""
+        if self.SessionLocal is None:
+            return False
         try:
             with self.SessionLocal() as session:
                 session.execute(text("SELECT 1"))
@@ -75,5 +88,5 @@ class DatabaseClient:
             return False
 
 
-# Global database client instance
+# Global singleton
 db_client = DatabaseClient()
