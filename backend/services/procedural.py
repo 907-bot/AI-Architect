@@ -105,7 +105,7 @@ def generate_detailed_building(
         if floor > 0:
             meshes.append({
                 "id": f"floor_slab_{floor}_{uuid.uuid4().hex[:4]}",
-                "component_group": "Structure",
+                "component_group": "Floor Slabs",
                 "type": "box", 
                 "position": [0, floor * floor_height + 0.015, 0],
                 "scale": [pw * 0.92, 0.03, pd * 0.92],
@@ -386,9 +386,10 @@ def generate_detailed_building(
             "material_id": "brick_dark"
         })
     
-    # Build materials list
+    # Build materials list — use 'id' key so frontend can find them without remapping
     materials_list = [
-        {"material_id": k, "color_hex": v["c"], "roughness": v["r"], "metallic": v["m"]}
+        {"id": k, "color_hex": v["c"], "roughness": v["r"], "metallic": v.get("m", 0.0),
+         "opacity": v.get("o", 1.0), "transparent": "o" in v}
         for k, v in MATERIALS.items()
     ]
     
@@ -410,9 +411,14 @@ def generate_detailed_building(
 # Main entry point for API
 def generate_building(**kwargs) -> Dict[str, Any]:
     """Wrapper for API compatibility"""
+    # Map color_scheme to a style
+    color_to_style = {"red": "classical", "dark": "minimalist", "cream": "cottage", "white": "modern"}
+    color_scheme = kwargs.get("color_scheme", "white")
+    style = kwargs.get("style", color_to_style.get(color_scheme, "modern"))
+
     return generate_detailed_building(
         btype=kwargs.get("btype", kwargs.get("prompt", "house")),
-        style=kwargs.get("style", "modern"),
+        style=style,
         floors=kwargs.get("floors", 2),
         plot_width=kwargs.get("pw", kwargs.get("plot_width", 20)),
         plot_depth=kwargs.get("pd", kwargs.get("plot_depth", 30)),

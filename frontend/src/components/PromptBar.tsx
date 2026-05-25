@@ -3,9 +3,10 @@
 import React, { useState } from "react";
 import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import BuildingLoader from "@/components/BuildingLoader";
 import axios from "axios";
 
-export default function PromptBar() {
+export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
   const [value, setValue] = useState("");
   const projectId = useStore((state) => state.projectId);
   const clientId = useStore((state) => state.clientId);
@@ -89,6 +90,15 @@ export default function PromptBar() {
         plot_lng: state.plotLng,
         plot_width: state.plotWidth,
         plot_depth: state.plotDepth,
+        // Pass ConfigPanel selections through
+        wall_color: buildConfig?.wallColor || "white",
+        roof_style: buildConfig?.roofStyle || "gable",
+        window_glass: buildConfig?.windowGlass || "clear",
+        floors: buildConfig?.floors || 2,
+        has_balcony: buildConfig?.balcony ?? true,
+        has_garage: buildConfig?.garage ?? true,
+        has_pool: buildConfig?.pool ?? false,
+        has_garden: buildConfig?.garden ?? true,
       });
       
       console.log("API Response:", JSON.stringify(response.data));
@@ -106,12 +116,16 @@ export default function PromptBar() {
             { index: 1, position: [-12, 5, -12], look_at: [0, 1.5, 0], duration_s: 4 }
           ]
         };
+        // Normalise material keys: backend returns material_id, frontend needs id
+        const rawMaterials = geo.materials || [{ id: "plaster_white", color_hex: "#f4f4f5", roughness: 0.8 }];
         const assets = {
-          materials: geo.materials || [
-            { id: "plaster_white", color_hex: "#f4f4f5", roughness: 0.8 },
-          ]
+          materials: rawMaterials.map((m: any) => ({
+            ...m,
+            id: m.id || m.material_id,   // support both key names
+          }))
         };
-        updateScene(geom, conf, assets);
+        const compliance = response.data.scene_data.compliance || null;
+        updateScene(geom, conf, assets, compliance);
         addAgentLog({ agent: "orchestrator", message: response.data.message || "Generation complete" });
       }
     } catch (err) {
@@ -208,8 +222,9 @@ export default function PromptBar() {
   };
 
   return (
-    {isGenerating && <BuildingLoader isLoading={true} />}
-        <form onSubmit={handleSubmit} className="w-full relative">
+    <>
+      <BuildingLoader isLoading={isGenerating} />
+      <form onSubmit={handleSubmit} className="w-full relative">
       <div className="relative flex items-center w-full rounded-2xl bg-white/85 border border-slate-200/60 p-2 pl-4 shadow-xl backdrop-blur-md">
         <Sparkles className="w-5 h-5 text-slate-500 mr-3" />
         <input id="prompt-input"
@@ -239,5 +254,6 @@ export default function PromptBar() {
         </button>
       </div>
     </form>
+    </>
   );
 }

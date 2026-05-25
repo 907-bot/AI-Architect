@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import AgentConsole from "@/components/AgentConsole";
 import PromptBar from "@/components/PromptBar";
@@ -46,12 +46,12 @@ export default function WorkspacePage() {
   } = useStore();
 
   // Handle config build events from ConfigPanel
-  useState(() => {
+  useEffect(() => {
     const handler = (e: any) => {
-      const promptBar = document.querySelector('input') as HTMLInputElement;
-      if (promptBar) {
-        promptBar.value = e.detail;
-        promptBar.dispatchEvent(new Event('change', { bubbles: true }));
+      const promptInput = document.getElementById('prompt-input') as HTMLInputElement;
+      if (promptInput) {
+        promptInput.value = e.detail;
+        promptInput.dispatchEvent(new Event('input', { bubbles: true }));
       }
     };
     window.addEventListener('build-config', handler);
@@ -291,7 +291,7 @@ export default function WorkspacePage() {
 
           {/* Bottom Floating prompt input panel */}
           <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-2xl px-4 z-10">
-            <PromptBar />
+            <PromptBar buildConfig={buildConfig} />
           </div>
         </section>
       </div>

@@ -33,17 +33,26 @@ def get_db() -> Session:
 
 class GenerateSceneRequest(BaseModel):
     # Frontend-compatible fields
-    scene_id: Optional[str] = None  # Can be derived from project_id if not provided
+    scene_id: Optional[str] = None
     prompt: str
     style: Optional[str] = "modern"
     budget: Optional[str] = "medium"
-    # Additional frontend fields (optional)
+    # Plot data
     project_id: Optional[str] = None
     client_id: Optional[str] = None
     plot_lat: Optional[float] = None
     plot_lng: Optional[float] = None
     plot_width: Optional[float] = None
     plot_depth: Optional[float] = None
+    # ConfigPanel selections wired in from frontend
+    wall_color: Optional[str] = "white"
+    roof_style: Optional[str] = "gable"
+    window_glass: Optional[str] = "clear"
+    floors: Optional[int] = None
+    has_balcony: Optional[bool] = True
+    has_garage: Optional[bool] = None      # None = let prompt decide
+    has_pool: Optional[bool] = None
+    has_garden: Optional[bool] = True
 
 
 class AgentExecutionResponse(BaseModel):
@@ -415,97 +424,129 @@ async def agents_health():
 
 @router.post("/generate_simple")
 async def generate_simple_fn(request: GenerateSceneRequest = None):
-    print(">>> GEOMETRY AGENT STARTED")
-    """Generate buildings procedurally"""
+    """Generate buildings procedurally from a prompt + ConfigPanel options"""
     import sys
     from fastapi.responses import JSONResponse
-    import structlog
-    log = structlog.get_logger()
-    
-    print(">>> GEOMETRY AGENT INIT", file=sys.stdout)
-    print(">>> HANDLING REQUEST")
     log.info("GENERATE_SIMPLE_START", prompt=getattr(request, 'prompt', 'none'))
+
     try:
-        # Parse request safely
-        if request:
-            prompt = str(request.prompt) if request.prompt else "villa"
-            pw = int(request.plot_width or 20)
-            pd = int(request.plot_depth or 30)
-        else:
-            prompt = "villa"
-            pw = 20
-            pd = 30
-            
-        
-        print(">>> IMPORTING PROCEDURAL", file=sys.stdout)
+        # --- Parse request safely ---
+        prompt = str(request.prompt) if request and request.prompt else "villa"
+        pw = float(request.plot_width or 20) if request else 20.0
+        pd_val = float(request.plot_depth or 30) if request else 30.0
+
+        # --- Fields from ConfigPanel (sent as extra JSON keys) ---
+        cfg_wall_color  = request.wall_color  if request else "white"
+        cfg_roof_style  = request.roof_style  if request else "gable"
+        cfg_floors_hint = request.floors      if request else None
+        cfg_garage      = request.has_garage  if request else None
+        cfg_pool        = request.has_pool    if request else None
+        cfg_garden      = request.has_garden  if request else True
+
         from backend.services.procedural import generate_building
 
-        # Parse prompt for building features
-        p = prompt.lower() if prompt else "house"
-        
-        # Building type from prompt
+        p = prompt.lower()
+
+        # --- Building type ---
         if "apartment" in p or "flat" in p:
             bt = "apartment"
         elif "villa" in p:
             bt = "villa"
         else:
             bt = "house"
-        
-        # Floors - extract number from phrases like "5 floors", "5-storey", "5story"
+
+        # --- Floor count: prompt wins, then ConfigPanel, then default 2 ---
         floors = 2
         words = p.replace("-", " ").replace("storey", " floors").replace("story", " floors").split()
-        for w in words:
+        for i, w in enumerate(words):
             if w.isdigit():
-                floors = int(w)
-                if floors > 10: floors = 10  # Cap at 10
-                if floors < 1: floors = 1
+                floors = max(1, min(int(w), 10))
                 break
-        
-        # Features from prompt
-        has_pool = "pool" in p
-        bt_balcony = True
-        has_garage_check = True
-        has_garage = "garage" in p
+        if cfg_floors_hint and floors == 2:   # only override if prompt didn't specify
+            floors = max(1, min(int(cfg_floors_hint), 10))
 
-        bt_balcony = True
-        bt_has_pool = has_pool
-        bt_has_garage = has_garage  # Actually use has_garage value
-        
-        # Color scheme from prompt
+        # --- Features: prompt wins, then ConfigPanel, then sensible default ---
+        has_pool   = "pool"   in p if "pool"   in p else (cfg_pool   if cfg_pool   is not None else False)
+        has_garage = "garage" in p if "garage" in p else (cfg_garage if cfg_garage is not None else True)
+        has_garden = cfg_garden if cfg_garden is not None else True
+
+        # --- Color scheme: prompt wins, then ConfigPanel ---
         if "cream" in p or "beige" in p:
             color_scheme = "cream"
-        elif "red brick" in p or "red " in p or "redwalls" in p:
+        elif "red brick" in p or "red " in p:
             color_scheme = "red"
         elif "dark" in p or "black" in p:
             color_scheme = "dark"
         elif "white" in p:
             color_scheme = "white"
         else:
-            color_scheme = "white"
-            
-        # Override features based on explicit prompt
-            bt_balcony = False
-            has_garage = False  
-            has_pool = False
-            has_garden = False
+            # Fall back to ConfigPanel wall color selection
+            color_scheme = cfg_wall_color or "white"
 
-        print(f">>> {bt} {floors}f pool={has_pool} garage={has_garage}", file=sys.stdout)
+        # Roof style: ConfigPanel or gable default
+        roof_style = cfg_roof_style or "gable"
 
-        res = generate_building(btype=bt, style="modern", floors=floors, pw=pw, pd=pd, beds=3, garage=has_garage, pool=has_pool, garden=True, color_scheme=color_scheme)
+        log.info("generate_simple_params", bt=bt, floors=floors, pool=has_pool,
+                 garage=has_garage, garden=has_garden, color=color_scheme, roof=roof_style)
 
-        print(">>> RETURNING RESPONSE", file=sys.stdout)
-        print(">>> RETURNING RESPONSE", file=sys.stdout)
+        res = generate_building(
+            btype=bt, style="modern", floors=floors,
+            pw=pw, pd=pd_val,
+            beds=3,
+            garage=has_garage, pool=has_pool, garden=has_garden,
+            color_scheme=color_scheme, roof_style=roof_style
+        )
+
+        # --- Build NBC compliance data ---
+        plot_area   = pw * pd_val
+        floor_area  = pw * 0.6 * pd_val * 0.6 * floors      # approx footprint × floors
+        actual_far  = round(floor_area / plot_area, 2) if plot_area > 0 else 0
+        footprint   = pw * 0.6 * pd_val * 0.6
+        coverage_pct = round((footprint / plot_area) * 100, 1) if plot_area > 0 else 0
+        allowed_far  = 2.5
+        allowed_cov  = 60.0
+
+        issues = []
+        if actual_far > allowed_far:
+            issues.append(f"FAR of {actual_far} exceeds the NBC limit of {allowed_far}.")
+        if coverage_pct > allowed_cov:
+            issues.append(f"Ground coverage {coverage_pct}% exceeds the NBC limit of {allowed_cov}%.")
+
+        compliance = {
+            "compliant": len(issues) == 0,
+            "issues": issues,
+            "actual_far": actual_far,
+            "allowed_far": allowed_far,
+            "actual_coverage_pct": coverage_pct,
+            "allowed_coverage_pct": allowed_cov,
+            "vastu_suggestions": [
+                "Main entrance is recommended in the North, East, or North-East corner.",
+                "Kitchen is best placed in the South-East (Agneya) corner.",
+                "Master bedroom performs best in the South-West zone.",
+            ]
+        }
+
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "completed",
-            "message": f"{bt} - {floors} floors",
-            "scene_data": {"geometry": {"meshes": res["meshes"], "materials": res.get("materials", [])}}
+            "message": f"{bt.title()} — {floors} floor{'s' if floors != 1 else ''}",
+            "scene_data": {
+                "geometry": {
+                    "meshes": res["meshes"],
+                    "materials": res.get("materials", [])
+                },
+                "compliance": compliance
+            }
         })
+
     except Exception as e:
+        log.error("generate_simple_error", error=str(e))
+        import traceback
         return JSONResponse(content={
             "scene_id": str(uuid.uuid4()),
             "status": "error",
             "message": str(e),
+            "traceback": traceback.format_exc(),
             "scene_data": {}
         }, status_code=500)
 
@@ -532,8 +573,8 @@ async def modify_building(request: dict):
             "status": "completed",
             "message": result["message"],
             "scene_data": {
-                "geometry": {"meshes": res["meshes"], "materials": res.get("materials", [])},
-                "element_count": len(res.get("meshes", []))
+                "geometry": {"meshes": result["meshes"], "materials": result.get("materials", [])},
+                "element_count": len(result.get("meshes", []))
             }
         })
     except Exception as e:

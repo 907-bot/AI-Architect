@@ -203,7 +203,9 @@ function ProceduralScene() {
         }
 
         const materialId = mesh.material_id;
-        const matchingMaterial = assetManifest?.materials?.find((m: any) => m.id === materialId);
+        const matchingMaterial = assetManifest?.materials?.find(
+          (m: any) => (m.id || m.material_id) === materialId
+        );
         const color = matchingMaterial?.color_hex || matchingMaterial?.color || "#cbd5e1";
         const roughness = matchingMaterial?.roughness ?? 0.8;
         const metallic = matchingMaterial?.metallic ?? 0.1;
@@ -220,8 +222,8 @@ function ProceduralScene() {
             <meshStandardMaterial 
               color={color} 
               roughness={roughness}
-              metallic={metallic}
-              transparent={matchingMaterial?.transparent}
+              metalness={metallic}
+              transparent={!!(matchingMaterial?.transparent || (matchingMaterial?.opacity !== undefined && matchingMaterial.opacity < 1))}
               opacity={matchingMaterial?.opacity ?? 1.0}
             />
           </mesh>
