@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import AgentConsole from "@/components/AgentConsole";
 import PromptBar from "@/components/PromptBar";
+import ConfigPanel from "@/components/ConfigPanel";
+import ChatInterface from "@/components/ChatInterface";
 import DroneCamera from "@/components/DroneCamera";
 import SemanticSearch from "@/components/SemanticSearch";
 import ArtifactPanel from "@/components/ArtifactPanel";
@@ -32,12 +34,30 @@ const MapPicker = dynamic(() => import("@/components/MapPicker"), {
 });
 
 export default function WorkspacePage() {
+  const [showConfig, setShowConfig] = useState(true);  // Show config by default
+  const [buildConfig, setBuildConfig] = useState({
+    wallColor: "white", roofStyle: "gable", windowGlass: "clear",
+    balcony: true, garage: true, pool: false, garden: true, floors: 2
+  });
   const { 
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
     activeProjection, setActiveProjection,
     visibleComponentGroup, setVisibleComponentGroup,
     complianceData
   } = useStore();
+
+  // Handle config build events from ConfigPanel
+  useEffect(() => {
+    const handler = (e: any) => {
+      const promptInput = document.getElementById('prompt-input') as HTMLInputElement;
+      if (promptInput) {
+        promptInput.value = e.detail;
+        promptInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+    window.addEventListener('build-config', handler);
+    return () => window.removeEventListener('build-config', handler);
+  }, []);
 
   return (
     <main className="relative flex flex-col h-screen w-screen bg-[#f9f9fb] text-slate-800 overflow-hidden grid-bg">
@@ -101,6 +121,16 @@ export default function WorkspacePage() {
 
           <ArtifactPanel />
           <AgentConsole />
+          
+          {/* Exterior Configuration Panel */}
+          <div className="mt-2">
+            <button onClick={() => setShowConfig(!showConfig)}
+              className="w-full py-2 px-3 bg-slate-100 rounded-lg text-xs font-medium text-slate-600 flex items-center justify-between">
+              <span>Customize Exterior</span>
+              <span className="text-xs">{showConfig ? "−" : "+"}</span>
+            </button>
+            {showConfig && <div className="mt-2"><ConfigPanel config={buildConfig} setConfig={setBuildConfig} /></div>}
+          </div>
           <DroneCamera />
           <SemanticSearch />
         </aside>
@@ -263,7 +293,7 @@ export default function WorkspacePage() {
 
           {/* Bottom Floating prompt input panel */}
           <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-2xl px-4 z-10">
-            <PromptBar />
+            <PromptBar buildConfig={buildConfig} />
           </div>
         </section>
       </div>

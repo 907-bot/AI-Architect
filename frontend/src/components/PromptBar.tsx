@@ -3,10 +3,14 @@
 import React, { useState } from "react";
 import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
+<<<<<<< HEAD
 import { decodeMessage } from "@/lib/toon";
+=======
+import BuildingLoader from "@/components/BuildingLoader";
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 import axios from "axios";
 
-export default function PromptBar() {
+export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
   const [value, setValue] = useState("");
   const projectId = useStore((state) => state.projectId);
   const clientId = useStore((state) => state.clientId);
@@ -26,7 +30,7 @@ export default function PromptBar() {
     setIsGenerating(true);
     clearAgentLogs();
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiUrl = "https://ai-architect-production-1e57.up.railway.app";
     const wsUrl = apiUrl.replace(/^http/, "ws");
     const ws = new WebSocket(`${wsUrl}/ws/${clientId}?format=toon`);
     
@@ -39,6 +43,7 @@ export default function PromptBar() {
         const msg = payload.message || "";
         const data = payload.data;
 
+<<<<<<< HEAD
         // Log agent events to the console
         addAgentLog({ agent, message: msg, data });
 
@@ -96,6 +101,19 @@ export default function PromptBar() {
                 materials: sceneGraph.materials || data.materials || [
                   { id: "plaster_white", color_hex: "#f4f4f5", roughness: 0.8 },
                   { id: "wood_oak", color_hex: "#b45309", roughness: 0.6 }
+=======
+          // Check if it's the complete phase
+          if (payload.agent === "evaluation" && payload.message.includes("complete")) {
+            // Load resulting scene properties
+            const data = payload.data;
+            if (data) {
+              // For HTTP response (generate_simple), data is scene_data
+              const httpData = payload.scene_data || payload.data || {};
+              const geo = httpData.geometry || data.skeptic?.corrections || data.bear?.enhanced_config || {};
+              const geom = {
+                meshes: geo.meshes || [
+                  { id: "building_base", type: "box", position: [0, 1.5, 0], scale: [8, 3, 10], material_id: "plaster_white" }
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
                 ]
               }
             );
@@ -132,8 +150,11 @@ export default function PromptBar() {
 
     try {
       const state = useStore.getState();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      await axios.post(`${apiUrl}/api/agents/generate`, {
+      const apiUrl = "https://ai-architect-production-1e57.up.railway.app";
+      console.log("Calling API:", `${apiUrl}/api/agents/generate_simple`);
+      
+      // Use generate_simple which doesn't require scene_id pre-creation or authentication
+      const response = await axios.post(`${apiUrl}/api/agents/generate_simple`, {
         prompt: value,
         project_id: projectId,
         client_id: clientId,
@@ -141,12 +162,50 @@ export default function PromptBar() {
         plot_lng: state.plotLng,
         plot_width: state.plotWidth,
         plot_depth: state.plotDepth,
+        // Pass ConfigPanel selections through
+        wall_color: buildConfig?.wallColor || "white",
+        roof_style: buildConfig?.roofStyle || "gable",
+        window_glass: buildConfig?.windowGlass || "clear",
+        floors: buildConfig?.floors || 2,
+        has_balcony: buildConfig?.balcony ?? true,
+        has_garage: buildConfig?.garage ?? true,
+        has_pool: buildConfig?.pool ?? false,
+        has_garden: buildConfig?.garden ?? true,
       });
+      
+      console.log("API Response:", JSON.stringify(response.data));
+      
+      // Process the HTTP response
+      if (response.data?.scene_data?.geometry) {
+        console.log("Geometry data:", JSON.stringify(response.data.scene_data.geometry));
+        const geo = response.data.scene_data.geometry;
+        const geom = {
+          meshes: geo.meshes || [],
+        };
+        const conf = {
+          drone_path: [
+            { index: 0, position: [12, 5, 12], look_at: [0, 1.5, 0], duration_s: 4 },
+            { index: 1, position: [-12, 5, -12], look_at: [0, 1.5, 0], duration_s: 4 }
+          ]
+        };
+        // Normalise material keys: backend returns material_id, frontend needs id
+        const rawMaterials = geo.materials || [{ id: "plaster_white", color_hex: "#f4f4f5", roughness: 0.8 }];
+        const assets = {
+          materials: rawMaterials.map((m: any) => ({
+            ...m,
+            id: m.id || m.material_id,   // support both key names
+          }))
+        };
+        const compliance = response.data.scene_data.compliance || null;
+        updateScene(geom, conf, assets, compliance);
+        addAgentLog({ agent: "orchestrator", message: response.data.message || "Generation complete" });
+      }
     } catch (err) {
-      console.error(err);
+      console.error("API Error:", err);
+      const errorMessage = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : err;
       addAgentLog({
         agent: "orchestrator",
-        message: "Failed to contact backend API. Falling back to frontend mockup."
+        message: `API Error: ${errorMessage}. Falling back to frontend mockup.`
       });
       
       // Standalone mock logic to run if the backend API key isn't filled out or server is down
@@ -235,10 +294,12 @@ export default function PromptBar() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full relative">
+    <>
+      <BuildingLoader isLoading={isGenerating} />
+      <form onSubmit={handleSubmit} className="w-full relative">
       <div className="relative flex items-center w-full rounded-2xl bg-white/85 border border-slate-200/60 p-2 pl-4 shadow-xl backdrop-blur-md">
         <Sparkles className="w-5 h-5 text-slate-500 mr-3" />
-        <input
+        <input id="prompt-input"
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -265,5 +326,6 @@ export default function PromptBar() {
         </button>
       </div>
     </form>
+    </>
   );
 }

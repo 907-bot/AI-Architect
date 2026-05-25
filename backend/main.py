@@ -38,27 +38,26 @@ log = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifecycle management"""
-    
-    # STARTUP
+    """Application lifecycle — DB failures are non-fatal."""
+
     log.info(
         "app_startup",
         app=settings.app_name,
         version=settings.app_version,
-        environment=settings.environment if hasattr(settings, 'environment') else 'unknown'
     )
-    
-    # Initialize database
+
+    # Try to init DB but never let it stop the server from starting
     try:
         await db_client.init_db()
-        log.info("database_initialized")
     except Exception as e:
-        log.error("database_init_failed", error=str(e))
-    
-    # Health check database
-    if db_client.health_check():
-        log.info("database_health_check_passed")
+        log.error("database_init_failed", error=str(e),
+                  note="Server continuing — procedural endpoints are unaffected")
+
+    db_ok = db_client.health_check()
+    if db_ok:
+        log.info("database_connected")
     else:
+<<<<<<< HEAD
         log.error("database_health_check_failed")
     
     # Initialize artifact pipeline
@@ -90,9 +89,13 @@ async def lifespan(app: FastAPI):
     artifact_pipeline.on_progress(notify_artifact_progress)
     log.info("artifact_pipeline_initialized")
     
+=======
+        log.warning("database_unavailable — DB-dependent routes will return 503; "
+                    "generate_simple / procedural routes work fine without DB")
+
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
     yield
-    
-    # SHUTDOWN
+
     log.info("app_shutdown")
 
 
@@ -103,7 +106,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="AI-native Spatial Architecture Platform — Generate, visualize, and explore buildings with Multi-Agent AI + 3D Gaussian Splatting",
+    description="AI-native Spatial Architecture Platform",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
@@ -201,7 +204,6 @@ async def debug_db_init(body: DebugInitRequest):
 # MIDDLEWARE
 # =====================================================
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -211,7 +213,6 @@ app.add_middleware(
     expose_headers=["X-Total-Count", "X-Page-Number"],
 )
 
-# GZIP compression
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
@@ -221,20 +222,15 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler"""
     log.error(
         "unhandled_exception",
         path=request.url.path,
         error=str(exc),
         exc_type=type(exc).__name__
     )
-    
     return JSONResponse(
         status_code=500,
-        content={
-            "detail": "Internal server error",
-            "type": type(exc).__name__
-        }
+        content={"detail": "Internal server error", "type": type(exc).__name__}
     )
 
 
@@ -242,8 +238,9 @@ async def global_exception_handler(request, exc):
 # ROUTERS
 # =====================================================
 
-app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
+app.include_router(auth.router,     prefix="/api/auth",     tags=["authentication"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
+<<<<<<< HEAD
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])
 app.include_router(assets.router, prefix="/api/assets", tags=["assets"])
@@ -252,6 +249,11 @@ app.include_router(artifacts_router, prefix="/api/artifacts", tags=["artifacts"]
 app.include_router(render_jobs_router, prefix="/api/render-jobs", tags=["render-jobs"])
 app.include_router(styles_router, prefix="/api", tags=["styles"])
 app.include_router(assets_library_router, prefix="/api/assets-library", tags=["assets-library"])
+=======
+app.include_router(agents.router,   prefix="/api/agents",   tags=["agents"])
+app.include_router(scenes.router,   prefix="/api/scenes",   tags=["scenes"])
+app.include_router(assets.router,   prefix="/api/assets",   tags=["assets"])
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 
 
 # =====================================================
@@ -259,6 +261,7 @@ app.include_router(assets_library_router, prefix="/api/assets-library", tags=["a
 # =====================================================
 
 @app.websocket("/ws/{client_id}")
+<<<<<<< HEAD
 async def websocket_endpoint(websocket: WebSocket, client_id: str, format: str = "json"):
     """
     Legacy WebSocket endpoint (client_id-based).
@@ -276,6 +279,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, format: str =
     except WebSocketDisconnect:
         ws_manager.disconnect(client_id)
         log.info("websocket_disconnected_legacy", client_id=client_id)
+=======
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    await ws_manager.connect(client_id, websocket)
+    log.info("websocket_connected", client_id=client_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            await ws_manager.handle_message(client_id, data)
+    except WebSocketDisconnect:
+        ws_manager.disconnect(client_id)
+        log.info("websocket_disconnected", client_id=client_id)
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
     except Exception as e:
         log.error("websocket_error_legacy", client_id=client_id, error=str(e))
         ws_manager.disconnect(client_id)
@@ -315,34 +330,31 @@ async def websocket_session_endpoint(websocket: WebSocket, session_id: str, form
 
 
 # =====================================================
-# HEALTH & STATUS ENDPOINTS
+# HEALTH & STATUS
 # =====================================================
 
 @app.get("/health")
 async def health_check():
-    """
-    Application health check
-    """
     db_healthy = db_client.health_check()
-    
     return {
-        "status": "ok" if db_healthy else "degraded",
+        "status": "ok",          # Server is always ok — DB is optional
         "version": settings.app_version,
-        "database": "connected" if db_healthy else "disconnected"
+        "database": "connected" if db_healthy else "unavailable (procedural mode)",
     }
 
 
 @app.get("/status")
 async def status():
-    """
-    Application status and metrics
-    """
     return {
         "app_name": settings.app_name,
         "version": settings.app_version,
         "description": "AI Architect — Multi-Agent Spatial Architecture Platform",
         "features": [
+            "Procedural Building Generation (no DB required)",
+            "Indian NBC / Vastu Compliance Audit",
+            "Real-time WebSocket Agent Updates",
             "Multi-Agent Orchestration (LangGraph)",
+<<<<<<< HEAD
             "3D Gaussian Splatting Rendering",
             "Real-time Scene Generation",
             "Procedural Architecture",
@@ -357,17 +369,16 @@ async def status():
             "Render Job Queue",
             "PBR Material Library",
             "Cloudflare R2 Storage"
+=======
+            "9 Camera Projections + Drone Flyby",
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
         ],
         "api_docs": "/api/docs",
-        "api_version": settings.app_version
     }
 
 
 @app.get("/")
 async def root():
-    """
-    Root endpoint - API information
-    """
     return {
         "message": "Welcome to AI Architect",
         "documentation": "/api/docs",
@@ -379,25 +390,12 @@ async def root():
             "scenes": "/api/scenes",
             "agents": "/api/agents",
             "assets": "/api/assets",
+<<<<<<< HEAD
             "artifacts": "/api/artifacts",
             "render-jobs": "/api/render-jobs",
             "styles": "/api/styles",
             "assets-library": "/api/assets-library"
+=======
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
         }
     }
-
-
-# =====================================================
-# STARTUP LOGGING
-# =====================================================
-
-@app.on_event("startup")
-async def startup():
-    """Startup event"""
-    log.info("api_server_started", port=8000)
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Shutdown event"""
-    log.info("api_server_stopped")

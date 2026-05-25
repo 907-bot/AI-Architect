@@ -19,10 +19,22 @@ class Settings(BaseSettings):
     @property
     def database_url_clean(self) -> str:
         import os
+        from urllib.parse import urlparse, parse_qsl, urlunparse
         # Fallback order: os.environ DATABASE_URL -> os.environ database_url -> pydantic field
         url = os.environ.get("DATABASE_URL") or os.environ.get("database_url") or self.database_url
         if url and url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+        
+        # Add SSL parameter for Supabase external connections
+        if url:
+            parsed = urlparse(url)
+            query_params = dict(parse_qsl(parsed.query))
+            # Add or update sslmode
+            query_params['sslmode'] = 'require'
+            # Reconstruct URL with updated params
+            new_query = "&".join(f"{k}={v}" for k, v in query_params.items())
+            url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+        
         return url
 
     # Redis
@@ -44,6 +56,7 @@ class Settings(BaseSettings):
     app_name: str = "AI Architect"
     app_version: str = "0.1.0"
     debug: bool = False
+<<<<<<< HEAD
     cors_origins: list[str] = ["http://localhost:3000", "https://ai-architect.vercel.app"]
     # Debug secret used by /debug endpoints (set in Railway or .env for one-time operations)
     debug_secret: str = ""
@@ -69,6 +82,14 @@ class Settings(BaseSettings):
     # Blender worker
     blender_worker_concurrency: int = 2
     blender_worker_poll_interval: float = 1.0
+=======
+    cors_origins: list[str] = [
+        "http://localhost:3000", 
+        "https://ai-architect.vercel.app",
+        "https://907-bot.github.io",  # GitHub Pages
+        "https://907-bot.github.io/AI-Architect",  # GitHub Pages with path
+    ]
+>>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 
     class Config:
         env_file = ".env"

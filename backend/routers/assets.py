@@ -18,7 +18,13 @@ router = APIRouter()
 
 
 def get_db() -> Session:
-    """Dependency injection"""
+    """Safe DB dependency — raises 503 when database is unavailable."""
+    if db_client.SessionLocal is None:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable"
+        )
     with db_client.SessionLocal() as session:
         yield session
 
