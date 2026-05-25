@@ -1,399 +1,291 @@
 "use client";
 
-import React, { useEffect, useRef, Component, ErrorInfo, ReactNode } from "react";
+import React, { useEffect, useRef, Component, ErrorInfo, ReactNode, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Grid, ContactShadows, Environment, Center } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Environment, Sky, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "@/lib/store";
 
-// Generic error boundary to isolate component failures
-interface ErrorBoundaryProps {
-  children: ReactNode;
-  fallback?: ReactNode;
-}
-interface ErrorBoundaryState {
-  hasError: boolean;
-}
-class MeshErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
-  }
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.warn("Three.js component error:", error.message, info.componentStack);
-  }
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback || null;
-    }
-    return this.props.children;
-  }
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+
+class MeshBoundary extends Component<{children: ReactNode; fallback?: ReactNode}, {err: boolean}> {
+  state = { err: false };
+  static getDerivedStateFromError() { return { err: true }; }
+  componentDidCatch(e: Error) { console.warn("R3F error:", e.message); }
+  render() { return this.state.err ? (this.props.fallback ?? null) : this.props.children; }
 }
 
-// Camera Controller to update camera projection matrices dynamically
-function ProjectionCameraController() {
+// ─── Camera Controller ────────────────────────────────────────────────────────
+
+function CameraController() {
   const { camera, size } = useThree();
-  const activeProjection = useStore((state) => state.activeProjection);
-  const dronePath = useStore((state) => state.dronePath);
-  const isDroneFlying = useStore((state) => state.isDroneFlying);
-  const currentKeyframe = useStore((state) => state.currentDroneKeyframe);
-  const setDroneKeyframe = useStore((state) => state.setDroneKeyframe);
-  const progressRef = useRef(0);
+  const proj = useStore((s) => s.activeProjection);
+  const dronePath = useStore((s) => s.dronePath);
+  const isDrone = useStore((s) => s.isDroneFlying);
+  const kf = useStore((s) => s.currentDroneKeyframe);
+  const setKf = useStore((s) => s.setDroneKeyframe);
+  const progress = useRef(0);
 
   useEffect(() => {
     try {
-      if (activeProjection.startsWith("orthographic") || activeProjection === "isometric" || activeProjection.startsWith("oblique")) {
-        const aspect = size.width / size.height;
-        const frustumSize = activeProjection === "orthographic_top" ? 30 : 0.6;
-        const orthoCam = new THREE.OrthographicCamera(
-          frustumSize * aspect / -2, frustumSize * aspect / 2,
-          frustumSize / 2, frustumSize / -2, 0.1, 1000
-        );
-        if (activeProjection === "orthographic_top") {
-          orthoCam.position.set(0, 30, 0); orthoCam.lookAt(0, 0, 0);
-        } else if (activeProjection === "orthographic_front") {
-          orthoCam.position.set(0, 5, 30); orthoCam.lookAt(0, 5, 0);
-        } else if (activeProjection === "orthographic_side") {
-          orthoCam.position.set(30, 5, 0); orthoCam.lookAt(0, 5, 0);
-        } else if (activeProjection === "isometric") {
-          const val = 15;
-          orthoCam.position.set(val, val, val); orthoCam.lookAt(0, 1.5, 0);
-        } else if (activeProjection === "oblique_cavalier" || activeProjection === "oblique_cabinet") {
-          const val = 18;
-          const scaleFactor = activeProjection === "oblique_cabinet" ? 0.5 : 1.0;
-          orthoCam.position.set(0, 5, val); orthoCam.lookAt(0, 5, 0);
-          const alpha = Math.PI / 6;
-          const matrix = new THREE.Matrix4();
-          matrix.set(1, 0, -scaleFactor * Math.cos(alpha), 0, 0, 1, -scaleFactor * Math.sin(alpha), 0, 0, 0, 1, 0, 0, 0, 0, 1);
-          orthoCam.projectionMatrix.multiply(matrix);
-        }
-        camera.position.copy(orthoCam.position);
-        camera.rotation.copy(orthoCam.rotation);
+      if (proj.startsWith("orthographic") || proj === "isometric" || proj.startsWith("oblique")) {
+        const asp = size.width / size.height;
+        const fs = 28;
+        const o = new THREE.OrthographicCamera(-fs*asp/2, fs*asp/2, fs/2, -fs/2, 0.1, 500);
+        if (proj === "orthographic_top")   { o.position.set(0,40,0.01); o.lookAt(0,0,0); }
+        else if (proj === "orthographic_front") { o.position.set(0,6,40); o.lookAt(0,6,0); }
+        else if (proj === "orthographic_side")  { o.position.set(40,6,0); o.lookAt(0,6,0); }
+        else if (proj === "isometric")      { o.position.set(20,20,20); o.lookAt(0,2,0); }
+        else { o.position.set(0,6,30); o.lookAt(0,6,0); }
+        camera.position.copy(o.position);
+        camera.quaternion.copy(o.quaternion);
         if (camera instanceof THREE.OrthographicCamera) {
-          camera.left = orthoCam.left;
-          camera.right = orthoCam.right;
-          camera.top = orthoCam.top;
-          camera.bottom = orthoCam.bottom;
-          camera.projectionMatrix.copy(orthoCam.projectionMatrix);
-        } else {
-          Object.setPrototypeOf(camera, THREE.OrthographicCamera.prototype);
-          Object.assign(camera, orthoCam);
+          Object.assign(camera, { left:o.left, right:o.right, top:o.top, bottom:o.bottom });
+          camera.updateProjectionMatrix();
         }
-        camera.updateProjectionMatrix();
       } else {
-        if (Object.getPrototypeOf(camera) !== THREE.PerspectiveCamera.prototype) {
-          Object.setPrototypeOf(camera, THREE.PerspectiveCamera.prototype);
-        }
-        const persCam = camera as THREE.PerspectiveCamera;
-        persCam.fov = activeProjection === "perspective_1p" ? 40 : 60;
-        if (activeProjection === "perspective_1p") {
-          persCam.position.set(0, 2.5, 18); persCam.lookAt(0, 2.5, 0);
-        } else if (activeProjection === "perspective_3p") {
-          persCam.position.set(18, 20, 18); persCam.lookAt(0, 1.5, 0);
-        } else if (activeProjection === "perspective_2p" && !isDroneFlying) {
-          persCam.position.set(15, 12, 15); persCam.lookAt(0, 1.5, 0);
-        }
-        persCam.updateProjectionMatrix();
+        const pc = camera as THREE.PerspectiveCamera;
+        pc.fov = proj === "perspective_1p" ? 42 : proj === "perspective_3p" ? 70 : 60;
+        if (proj === "perspective_1p")  { pc.position.set(0,3.5,22); pc.lookAt(0,3.5,0); }
+        else if (proj === "perspective_3p") { pc.position.set(20,22,20); pc.lookAt(0,2,0); }
+        pc.updateProjectionMatrix();
       }
-    } catch (e) {
-      console.warn("Camera controller error:", e);
-    }
-  }, [activeProjection, size, camera]);
+    } catch(e) { console.warn("cam err:", e); }
+  }, [proj, size, camera]);
 
-  useFrame((state, delta) => {
-    if (!isDroneFlying || !dronePath || dronePath.length === 0) return;
-    try {
-      const currentKf = dronePath[currentKeyframe];
-      const nextKfIndex = (currentKeyframe + 1) % dronePath.length;
-      const nextKf = dronePath[nextKfIndex];
-      const duration = currentKf.duration_s || 3;
-      progressRef.current += delta / duration;
-      const startPos = new THREE.Vector3(...currentKf.position);
-      const endPos = new THREE.Vector3(...nextKf.position);
-      const newPos = new THREE.Vector3().lerpVectors(startPos, endPos, Math.min(progressRef.current, 1));
-      camera.position.copy(newPos);
-      const startLook = new THREE.Vector3(...(currentKf.look_at || [0, 0, 0]));
-      const endLook = new THREE.Vector3(...(nextKf.look_at || [0, 0, 0]));
-      const targetLook = new THREE.Vector3().lerpVectors(startLook, endLook, Math.min(progressRef.current, 1));
-      camera.lookAt(targetLook);
-      if (progressRef.current >= 1) {
-        progressRef.current = 0;
-        setDroneKeyframe(nextKfIndex);
-      }
-    } catch (e) {
-      console.warn("Drone frame error:", e);
-    }
+  useFrame((_, dt) => {
+    if (!isDrone || !dronePath?.length) return;
+    const cur = dronePath[kf];
+    const nxt = dronePath[(kf+1) % dronePath.length];
+    progress.current += dt / (cur.duration_s || 4);
+    const t = Math.min(progress.current, 1);
+    camera.position.lerpVectors(new THREE.Vector3(...cur.position), new THREE.Vector3(...nxt.position), t);
+    camera.lookAt(new THREE.Vector3(...(cur.look_at || [0,2,0])));
+    if (t >= 1) { progress.current = 0; setKf((kf+1) % dronePath.length); }
   });
 
   return null;
 }
 
-function PlotLand() {
-  const plotWidth = useStore((state) => state.plotWidth);
-  const plotDepth = useStore((state) => state.plotDepth);
-  const radius = Math.max(plotWidth || 20, plotDepth || 30) * 0.7;
+// ─── Ground ───────────────────────────────────────────────────────────────────
 
-  return (
-    <MeshErrorBoundary>
-      <group position={[0, -0.25, 0]}>
-        <mesh receiveShadow>
-          <cylinderGeometry args={[radius, radius * 0.9, 0.5, 64]} />
-          <meshStandardMaterial color="#d4d4d8" roughness={0.8} />
-        </mesh>
-        <mesh position={[0, 0.26, 0]} receiveShadow>
-          <cylinderGeometry args={[radius * 0.95, radius * 0.95, 0.05, 64]} />
-          <meshStandardMaterial color="#a1a1aa" roughness={1.0} />
-        </mesh>
-      </group>
-    </MeshErrorBoundary>
-  );
-}
-
-// Renders a single mesh safely inside an error boundary
-function SafeMesh({ mesh, assetManifest }: { mesh: any; assetManifest: any }) {
-  try {
-    let geom: ReactNode;
-    const scale = mesh.scale || [1, 1, 1];
-    if (mesh.type === "box") {
-      geom = <boxGeometry args={scale} />;
-    } else if (mesh.type === "prism") {
-      geom = <coneGeometry args={[scale[0] / 2, scale[1], 4]} />;
-    } else {
-      geom = <boxGeometry args={scale} />;
-    }
-
-    const materialId = mesh.material_id;
-    const matchingMaterial = assetManifest?.materials?.find((m: any) => m.id === materialId);
-    const color = matchingMaterial?.color_hex || matchingMaterial?.color || "#cbd5e1";
-    const roughness = matchingMaterial?.roughness ?? 0.8;
-    const metallic = matchingMaterial?.metallic ?? 0.1;
-    const transparent = !!(matchingMaterial?.transparent || (matchingMaterial?.opacity !== undefined && matchingMaterial.opacity < 1));
-    const transmission = matchingMaterial?.transmission ?? 0;
-
-    return (
-      <mesh
-        key={mesh.id}
-        position={mesh.position || [0, 0, 0]}
-        rotation={mesh.rotation || [0, 0, 0]}
-        castShadow
-        receiveShadow
-      >
-        {geom}
-        {transparent || transmission > 0 ? (
-          <meshPhysicalMaterial
-            color={color}
-            roughness={roughness}
-            metalness={metallic}
-            transparent={transparent}
-            opacity={matchingMaterial?.opacity ?? 1.0}
-            transmission={transmission}
-            thickness={0.5}
-            ior={1.5}
-            envMapIntensity={1.0}
-          />
-        ) : (
-          <meshStandardMaterial
-            color={color}
-            roughness={roughness}
-            metalness={metallic}
-          />
-        )}
-      </mesh>
-    );
-  } catch (e) {
-    console.warn("SafeMesh render error for", mesh?.id, e);
-    return null;
-  }
-}
-
-function SafeFurniture({ item }: { item: any }) {
-  try {
-    return (
-      <mesh key={item.id} position={item.position || [0, 0.5, 0]} castShadow receiveShadow>
-        <boxGeometry args={[item.width || 1.2, item.height || 0.7, item.depth || 1.2]} />
-        <meshStandardMaterial color="#e7cbcb" roughness={0.4} />
-      </mesh>
-    );
-  } catch (e) {
-    console.warn("SafeFurniture error for", item?.id, e);
-    return null;
-  }
-}
-
-// Procedural Geometry renderer with component filtering
-function ProceduralScene() {
-  const geometryData = useStore((state) => state.geometryData);
-  const assetManifest = useStore((state) => state.assetManifest);
-  const filter = useStore((state) => state.visibleComponentGroup);
-
-  if (!geometryData || !geometryData.meshes) {
-    return (
-      <MeshErrorBoundary>
-        <group>
-          <mesh position={[0, 0.05, 0]} receiveShadow>
-            <boxGeometry args={[10, 0.1, 14]} />
-            <meshStandardMaterial color="#d4d4d8" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, 0.8, 0]} castShadow receiveShadow>
-            <boxGeometry args={[9.5, 1.5, 13.5]} />
-            <meshPhysicalMaterial color="#e2e8f0" roughness={0.6} metalness={0.05} />
-          </mesh>
-          <mesh position={[2.5, 1.6, 5.5]} castShadow>
-            <boxGeometry args={[1.2, 0.8, 0.1]} />
-            <meshPhysicalMaterial color="#94a3b8" roughness={0.3} metalness={0.6} />
-          </mesh>
-          <mesh position={[-3, 2.0, 5.8]} castShadow>
-            <boxGeometry args={[0.8, 1.2, 0.08]} />
-            <meshPhysicalMaterial color="#fef08a" roughness={0.1} metalness={0.0} transmission={0.6} thickness={0.3} transparent opacity={0.5} />
-          </mesh>
-          <mesh position={[0, 1.7, -6.2]} castShadow>
-            <boxGeometry args={[1.8, 1.0, 0.08]} />
-            <meshPhysicalMaterial color="#8b5a2b" roughness={0.7} />
-          </mesh>
-          <mesh position={[-3.5, 1.3, 2]} castShadow>
-            <coneGeometry args={[1.2, 0.8, 4]} />
-            <meshPhysicalMaterial color="#b91c1c" roughness={0.8} />
-          </mesh>
-          <mesh position={[3.5, 1.3, -2]} castShadow>
-            <coneGeometry args={[1.2, 0.8, 4]} />
-            <meshPhysicalMaterial color="#b91c1c" roughness={0.8} />
-          </mesh>
-          <mesh position={[0, 0.02, 0]}>
-            <planeGeometry args={[14, 18]} />
-            <meshStandardMaterial color="#e4e4e7" roughness={1} transparent opacity={0.3} side={THREE.DoubleSide} />
-          </mesh>
-        </group>
-      </MeshErrorBoundary>
-    );
-  }
-
-  const filteredMeshes = (geometryData.meshes || []).filter((mesh: any) => {
-    if (filter === "All") return true;
-    return mesh.component_group === filter;
-  });
+function Ground() {
+  const pw = useStore((s) => s.plotWidth);
+  const pd = useStore((s) => s.plotDepth);
+  const r = Math.max(pw, pd) * 0.9;
 
   return (
     <group>
-      {filteredMeshes.map((mesh) => {
-        let geom;
-        if (mesh.type === "box") {
-          geom = <boxGeometry args={mesh.scale} />;
-        } else if (mesh.type === "prism") {
-          geom = <coneGeometry args={[mesh.scale[0] / 2, mesh.scale[1], 4]} />;
-        } else {
-          geom = <boxGeometry args={mesh.scale} />;
-        }
-        const materialId = mesh.material_id;
-        const matchingMaterial = assetManifest?.materials?.find(
-          (m: any) => (m.id || m.material_id) === materialId
-        );
-        const color = matchingMaterial?.color_hex || matchingMaterial?.color || "#cbd5e1";
-        const roughness = matchingMaterial?.roughness ?? 0.8;
-        const metallic = matchingMaterial?.metallic ?? 0.1;
-        const transparent = !!(matchingMaterial?.transparent || (matchingMaterial?.opacity !== undefined && matchingMaterial.opacity < 1));
-        const transmission = matchingMaterial?.transmission ?? 0;
-        return (
-          <mesh key={mesh.id} position={mesh.position}
-            rotation={mesh.rotation || [0, 0, 0]} castShadow receiveShadow>
-            {geom}
-            {transparent || transmission > 0 ? (
-              <meshPhysicalMaterial color={color} roughness={roughness}
-                metalness={metallic}
-                transparent={transparent}
-                opacity={matchingMaterial?.opacity ?? 1.0}
-                transmission={transmission}
-                thickness={0.5}
-                ior={1.5}
-                envMapIntensity={1.0} />
-            ) : (
-              <meshStandardMaterial color={color} roughness={roughness}
-                metalness={metallic} />
-            )}
-          </mesh>
-        );
-      })}
-      {(filter === "All" || filter === "Floor Slabs") && assetManifest?.furniture?.map((item: any) => (
-        <mesh key={item.id} position={item.position || [0, 0.5, 0]} castShadow receiveShadow>
-          <boxGeometry args={[item.width || 1.2, item.height || 0.7, item.depth || 1.2]} />
-          <meshStandardMaterial color="#e7cbcb" roughness={0.4} />
-        </mesh>
+      {/* Large grass field */}
+      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+        <circleGeometry args={[r * 3, 64]} />
+        <meshStandardMaterial color="#7ec87e" roughness={1} />
+      </mesh>
+      {/* Plot boundary (paved) */}
+      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+        <planeGeometry args={[pw * 0.95, pd * 0.95]} />
+        <meshStandardMaterial color="#c8c8c0" roughness={0.95} />
+      </mesh>
+      {/* Plot edge */}
+      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.005, 0]}>
+        <ringGeometry args={[pw * 0.47, pw * 0.48, 48]} />
+        <meshStandardMaterial color="#999" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── Tree ─────────────────────────────────────────────────────────────────────
+
+function Tree({ position }: { position: [number,number,number] }) {
+  const h = 3 + Math.random() * 2;
+  return (
+    <group position={position}>
+      <mesh position={[0, h/4, 0]} castShadow>
+        <cylinderGeometry args={[0.12, 0.2, h/2, 6]} />
+        <meshStandardMaterial color="#6b4c2a" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, h * 0.72, 0]} castShadow>
+        <coneGeometry args={[0.9, h * 0.6, 8]} />
+        <meshStandardMaterial color="#2d7a2d" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, h * 0.58, 0]} castShadow>
+        <coneGeometry args={[1.1, h * 0.5, 8]} />
+        <meshStandardMaterial color="#3a8f3a" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, h * 0.44, 0]} castShadow>
+        <coneGeometry args={[1.3, h * 0.4, 8]} />
+        <meshStandardMaterial color="#45a045" roughness={0.85} />
+      </mesh>
+    </group>
+  );
+}
+
+function Trees() {
+  const pw = useStore((s) => s.plotWidth);
+  const pd = useStore((s) => s.plotDepth);
+  const trees: [number,number,number][] = useMemo(() => {
+    const hw = pw / 2, hd = pd / 2;
+    const pad = 3;
+    return [
+      [-(hw + pad), 0, -(hd + pad)],
+      [hw + pad, 0, -(hd + pad)],
+      [-(hw + pad), 0, hd + pad],
+      [hw + pad, 0, hd + pad],
+      [-(hw + pad * 2), 0, 0],
+      [hw + pad * 2, 0, 0],
+      [0, 0, -(hd + pad * 2)],
+      [0, 0, hd + pad * 2],
+    ];
+  }, [pw, pd]);
+
+  return (
+    <>
+      {trees.map((pos, i) => <Tree key={i} position={pos} />)}
+    </>
+  );
+}
+
+// ─── Building Mesh ────────────────────────────────────────────────────────────
+
+function BuildingMesh({ mesh, materials }: { mesh: any; materials: any[] }) {
+  const mat = materials.find((m: any) => (m.id || m.material_id) === mesh.material_id);
+  const color = mat?.color_hex || mat?.color || "#c8cdd4";
+  const roughness = mat?.roughness ?? 0.8;
+  const metalness = mat?.metallic ?? mat?.metalness ?? 0.05;
+  const transmission = mat?.transmission ?? 0;
+  const opacity = mat?.opacity ?? 1;
+  const transparent = !!(mat?.transparent || transmission > 0 || opacity < 1);
+
+  let geom: ReactNode;
+  const s = mesh.scale || [1,1,1];
+  if (mesh.type === "prism" || mesh.type === "cone") {
+    geom = <coneGeometry args={[s[0]/2, s[1], 4]} />;
+  } else if (mesh.type === "cylinder") {
+    geom = <cylinderGeometry args={[s[0]/2, s[0]/2, s[1], 16]} />;
+  } else {
+    geom = <boxGeometry args={s} />;
+  }
+
+  return (
+    <mesh position={mesh.position} rotation={mesh.rotation || [0,0,0]} castShadow receiveShadow>
+      {geom}
+      {transparent || transmission > 0 ? (
+        <meshPhysicalMaterial
+          color={color} roughness={roughness} metalness={metalness}
+          transparent opacity={opacity} transmission={transmission}
+          thickness={0.4} ior={1.45} envMapIntensity={1.2}
+        />
+      ) : (
+        <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
+      )}
+    </mesh>
+  );
+}
+
+// ─── Empty State Placeholder ──────────────────────────────────────────────────
+
+function EmptyBuilding() {
+  const mesh = useRef<THREE.Mesh>(null!);
+  useFrame(({ clock }) => {
+    if (mesh.current) {
+      mesh.current.rotation.y = clock.getElapsedTime() * 0.3;
+      mesh.current.position.y = 2 + Math.sin(clock.getElapsedTime() * 0.8) * 0.2;
+    }
+  });
+  return (
+    <group>
+      <mesh ref={mesh} position={[0, 2, 0]} castShadow>
+        <boxGeometry args={[3, 4, 3]} />
+        <meshPhysicalMaterial color="#e2e8f0" roughness={0.3} metalness={0.1} wireframe />
+      </mesh>
+      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI/2,0,0]}>
+        <ringGeometry args={[2.5, 3.5, 32]} />
+        <meshStandardMaterial color="#7c93c3" transparent opacity={0.15} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── Scene ────────────────────────────────────────────────────────────────────
+
+function ProceduralScene() {
+  const geo = useStore((s) => s.geometryData);
+  const manifest = useStore((s) => s.assetManifest);
+  const filter = useStore((s) => s.visibleComponentGroup);
+  const materials = manifest?.materials || [];
+
+  if (!geo?.meshes?.length) return <EmptyBuilding />;
+
+  const meshes = geo.meshes.filter((m: any) => filter === "All" || m.component_group === filter);
+  return (
+    <group>
+      {meshes.map((m: any) => (
+        <MeshBoundary key={m.id}>
+          <BuildingMesh mesh={m} materials={materials} />
+        </MeshBoundary>
       ))}
     </group>
   );
 }
 
+// ─── Main Viewer ──────────────────────────────────────────────────────────────
+
 export default function ThreeJSViewer() {
-  const isDroneFlying = useStore((state) => state.isDroneFlying);
-  const activeProjection = useStore((state) => state.activeProjection);
-  const enableOrbit = !isDroneFlying && !activeProjection.startsWith("orthographic") && !activeProjection.startsWith("oblique");
+  const isDrone = useStore((s) => s.isDroneFlying);
+  const proj = useStore((s) => s.activeProjection);
+  const canOrbit = !isDrone && !proj.startsWith("orthographic") && !proj.startsWith("oblique");
 
   return (
     <div className="relative w-full h-full">
       <Canvas
-        camera={{ position: [15, 12, 15], fov: 60 }}
-        shadows
-        gl={{ preserveDrawingBuffer: true }}
+        camera={{ position: [18, 8, 18], fov: 60, near: 0.1, far: 1000 }}
+        shadows={{ type: THREE.PCFSoftShadowMap }}
+        gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true }}
+        dpr={[1, 2]}
       >
         <React.Suspense fallback={null}>
-          <color attach="background" args={["#18181b"]} />
-          <ambientLight intensity={0.4} />
+          {/* Sky */}
+          <Sky sunPosition={[100, 40, 100]} turbidity={8} rayleigh={0.5} mieCoefficient={0.005} mieDirectionalG={0.8} />
+          <color attach="background" args={["#dbeafe"]} />
+
+          {/* Lighting */}
+          <ambientLight intensity={0.55} color="#fff8f0" />
           <directionalLight
-            position={[30, 50, 20]}
-            intensity={1.2}
-            castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
-            shadow-camera-far={100}
-            shadow-camera-left={-20}
-            shadow-camera-right={20}
-            shadow-camera-top={20}
-            shadow-camera-bottom={-20}
-            shadow-bias={-0.0001}
+            position={[25, 40, 20]} intensity={1.5} castShadow
+            shadow-mapSize={[2048, 2048]} shadow-camera-far={120}
+            shadow-camera-left={-30} shadow-camera-right={30}
+            shadow-camera-top={30} shadow-camera-bottom={-30}
+            shadow-bias={-0.0005}
           />
-          <pointLight position={[-15, 10, -15]} intensity={0.5} color="#e0e7ff" />
-          <Environment preset="city" />
-          <hemisphereLight skyColor="#ddeeff" groundColor="#889966" intensity={0.4} />
-          <Center top position={[0, 0, 0]}>
-            <MeshErrorBoundary>
-              <PlotLand />
-            </MeshErrorBoundary>
-            <MeshErrorBoundary>
-              <ProceduralScene />
-            </MeshErrorBoundary>
-            <ContactShadows
-              position={[0, 0.01, 0]}
-              opacity={0.7}
-              scale={40}
-              blur={2.5}
-              far={10}
-              resolution={512}
-              color="#000000"
-            />
-          </Center>
-          <Grid
-            position={[0, 0, 0]}
-            args={[50, 50]}
-            cellSize={1}
-            cellThickness={0.6}
-            cellColor="#6b7280"
-            sectionSize={5}
-            sectionThickness={1.2}
-            sectionColor="#9ca3af"
-            fadeDistance={40}
-            infiniteGrid
+          <directionalLight position={[-15, 20, -15]} intensity={0.35} color="#c7d4f5" />
+          <hemisphereLight args={["#b9d4f7","#6aab6a", 0.5]} />
+
+          {/* Environment for reflections */}
+          <Environment preset="dawn" />
+
+          {/* Scene objects */}
+          <MeshBoundary><Ground /></MeshBoundary>
+          <MeshBoundary><Trees /></MeshBoundary>
+          <MeshBoundary><ProceduralScene /></MeshBoundary>
+
+          {/* Soft shadow on ground */}
+          <ContactShadows
+            position={[0, 0.02, 0]} opacity={0.55} scale={60}
+            blur={3} far={12} resolution={512} color="#334155"
           />
-          {enableOrbit && (
+
+          {/* Controls */}
+          {canOrbit && (
             <OrbitControls
-              maxPolarAngle={Math.PI / 2 - 0.1}
+              target={[0, 3, 0]}
+              maxPolarAngle={Math.PI / 2 - 0.05}
+              minDistance={6} maxDistance={60}
+              enableDamping dampingFactor={0.07}
               autoRotate={false}
-              autoRotateSpeed={0.5}
-              enableDamping
             />
           )}
-          <ProjectionCameraController />
+          <CameraController />
         </React.Suspense>
       </Canvas>
     </div>
