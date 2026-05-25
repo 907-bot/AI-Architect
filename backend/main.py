@@ -57,10 +57,9 @@ async def lifespan(app: FastAPI):
     if db_ok:
         log.info("database_connected")
     else:
-<<<<<<< HEAD
-        log.error("database_health_check_failed")
-    
-    # Initialize artifact pipeline
+        log.warning("database_unavailable — DB-dependent routes will return 503; "
+                    "generate_simple / procedural routes work fine without DB")
+
     storage_backend = getattr(settings, 'artifact_storage_backend', 'local')
     if storage_backend == 'r2' and settings.cloudflare_r2_endpoint:
         storage_manager.initialize(settings)
@@ -68,8 +67,7 @@ async def lifespan(app: FastAPI):
     else:
         storage_manager.initialize()
         log.info("artifact_storage_local_initialized")
-    
-    # Initialize render queue
+
     redis_url = settings.render_queue_redis_url or settings.upstash_redis_url
     if redis_url:
         render_queue.initialize(redis_url)
@@ -77,8 +75,7 @@ async def lifespan(app: FastAPI):
     else:
         render_queue.initialize()
         log.info("render_queue_local_initialized")
-    
-    # Wire artifact pipeline progress to WebSocket broadcast
+
     from backend.websocket_manager import ws_manager
     async def notify_artifact_progress(payload):
         try:
@@ -88,12 +85,6 @@ async def lifespan(app: FastAPI):
             pass
     artifact_pipeline.on_progress(notify_artifact_progress)
     log.info("artifact_pipeline_initialized")
-    
-=======
-        log.warning("database_unavailable — DB-dependent routes will return 503; "
-                    "generate_simple / procedural routes work fine without DB")
-
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
     yield
 
     log.info("app_shutdown")
@@ -240,7 +231,6 @@ async def global_exception_handler(request, exc):
 
 app.include_router(auth.router,     prefix="/api/auth",     tags=["authentication"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
-<<<<<<< HEAD
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])
 app.include_router(assets.router, prefix="/api/assets", tags=["assets"])
@@ -249,11 +239,6 @@ app.include_router(artifacts_router, prefix="/api/artifacts", tags=["artifacts"]
 app.include_router(render_jobs_router, prefix="/api/render-jobs", tags=["render-jobs"])
 app.include_router(styles_router, prefix="/api", tags=["styles"])
 app.include_router(assets_library_router, prefix="/api/assets-library", tags=["assets-library"])
-=======
-app.include_router(agents.router,   prefix="/api/agents",   tags=["agents"])
-app.include_router(scenes.router,   prefix="/api/scenes",   tags=["scenes"])
-app.include_router(assets.router,   prefix="/api/assets",   tags=["assets"])
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 
 
 # =====================================================
@@ -261,7 +246,6 @@ app.include_router(assets.router,   prefix="/api/assets",   tags=["assets"])
 # =====================================================
 
 @app.websocket("/ws/{client_id}")
-<<<<<<< HEAD
 async def websocket_endpoint(websocket: WebSocket, client_id: str, format: str = "json"):
     """
     Legacy WebSocket endpoint (client_id-based).
@@ -279,18 +263,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, format: str =
     except WebSocketDisconnect:
         ws_manager.disconnect(client_id)
         log.info("websocket_disconnected_legacy", client_id=client_id)
-=======
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    await ws_manager.connect(client_id, websocket)
-    log.info("websocket_connected", client_id=client_id)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            await ws_manager.handle_message(client_id, data)
-    except WebSocketDisconnect:
-        ws_manager.disconnect(client_id)
-        log.info("websocket_disconnected", client_id=client_id)
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
     except Exception as e:
         log.error("websocket_error_legacy", client_id=client_id, error=str(e))
         ws_manager.disconnect(client_id)
@@ -354,7 +326,6 @@ async def status():
             "Indian NBC / Vastu Compliance Audit",
             "Real-time WebSocket Agent Updates",
             "Multi-Agent Orchestration (LangGraph)",
-<<<<<<< HEAD
             "3D Gaussian Splatting Rendering",
             "Real-time Scene Generation",
             "Procedural Architecture",
@@ -368,10 +339,8 @@ async def status():
             "Multi-Output Modes",
             "Render Job Queue",
             "PBR Material Library",
-            "Cloudflare R2 Storage"
-=======
-            "9 Camera Projections + Drone Flyby",
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
+            "Cloudflare R2 Storage",
+            "9 Camera Projections + Drone Flyby"
         ],
         "api_docs": "/api/docs",
     }
@@ -390,12 +359,9 @@ async def root():
             "scenes": "/api/scenes",
             "agents": "/api/agents",
             "assets": "/api/assets",
-<<<<<<< HEAD
             "artifacts": "/api/artifacts",
             "render-jobs": "/api/render-jobs",
             "styles": "/api/styles",
             "assets-library": "/api/assets-library"
-=======
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
         }
     }

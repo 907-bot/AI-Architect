@@ -39,8 +39,6 @@ def get_db() -> Session:
 # =====================================================
 
 class GenerateSceneRequest(BaseModel):
-<<<<<<< HEAD
-    # Either provide an existing scene_id to regenerate, or provide project_id to create a new scene
     scene_id: Optional[str] = None
     project_id: Optional[str] = None
     client_id: Optional[str] = None
@@ -48,33 +46,18 @@ class GenerateSceneRequest(BaseModel):
     style: Optional[str] = "modern"
     budget: Optional[str] = "medium"
     output_mode: Optional[str] = "fast_preview"
-    # Optional plot/location parameters sent from frontend
-=======
-    # Frontend-compatible fields
-    scene_id: Optional[str] = None
-    prompt: str
-    style: Optional[str] = "modern"
-    budget: Optional[str] = "medium"
-    # Plot data
-    project_id: Optional[str] = None
-    client_id: Optional[str] = None
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
     plot_lat: Optional[float] = None
     plot_lng: Optional[float] = None
     plot_width: Optional[float] = None
     plot_depth: Optional[float] = None
-<<<<<<< HEAD
-=======
-    # ConfigPanel selections wired in from frontend
     wall_color: Optional[str] = "white"
     roof_style: Optional[str] = "gable"
     window_glass: Optional[str] = "clear"
     floors: Optional[int] = None
     has_balcony: Optional[bool] = True
-    has_garage: Optional[bool] = None      # None = let prompt decide
+    has_garage: Optional[bool] = None
     has_pool: Optional[bool] = None
     has_garden: Optional[bool] = True
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 
 
 class AgentExecutionResponse(BaseModel):

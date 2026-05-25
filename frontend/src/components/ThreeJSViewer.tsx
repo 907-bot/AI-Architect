@@ -44,62 +44,13 @@ function ProjectionCameraController() {
   const progressRef = useRef(0);
 
   useEffect(() => {
-<<<<<<< HEAD
     try {
       if (activeProjection.startsWith("orthographic") || activeProjection === "isometric" || activeProjection.startsWith("oblique")) {
         const aspect = size.width / size.height;
-        const frustumSize = 25;
+        const frustumSize = activeProjection === "orthographic_top" ? 30 : 0.6;
         const orthoCam = new THREE.OrthographicCamera(
           frustumSize * aspect / -2, frustumSize * aspect / 2,
           frustumSize / 2, frustumSize / -2, 0.1, 1000
-=======
-    // Check if we need to switch projection types or set specific views
-    if (activeProjection.startsWith("orthographic") || activeProjection === "isometric" || activeProjection.startsWith("oblique")) {
-      // Setup Orthographic Camera attributes
-      const aspect = size.width / size.height;
-      const frustumSize = 0.6;
-      
-      const orthoCam = new THREE.OrthographicCamera(
-        frustumSize * aspect / -2,
-        frustumSize * aspect / 2,
-        frustumSize / 2,
-        frustumSize / -2,
-        0.1,
-        1000
-      );
-
-      // View presets
-      if (activeProjection === "orthographic_top") {
-        orthoCam.position.set(0, 30, 0);
-        orthoCam.lookAt(0, 0, 0);
-      } else if (activeProjection === "orthographic_front") {
-        orthoCam.position.set(0, 5, 30);
-        orthoCam.lookAt(0, 5, 0);
-      } else if (activeProjection === "orthographic_side") {
-        orthoCam.position.set(30, 5, 0);
-        orthoCam.lookAt(0, 5, 0);
-      } else if (activeProjection === "isometric") {
-        // Standard Isometric angles
-        const val = 15;
-        orthoCam.position.set(val, val, val);
-        orthoCam.lookAt(0, 1.5, 0);
-      } else if (activeProjection === "oblique_cavalier" || activeProjection === "oblique_cabinet") {
-        // Cavalier/Cabinet oblique views
-        const val = 18;
-        const scaleFactor = activeProjection === "oblique_cabinet" ? 0.5 : 1.0;
-        // Oblique looks straight on, but is sheared
-        orthoCam.position.set(0, 5, val);
-        orthoCam.lookAt(0, 5, 0);
-
-        // Apply oblique shear to projection matrix
-        const alpha = Math.PI / 6; // 30 degrees
-        const matrix = new THREE.Matrix4();
-        matrix.set(
-          1, 0, -scaleFactor * Math.cos(alpha), 0,
-          0, 1, -scaleFactor * Math.sin(alpha), 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
         );
         if (activeProjection === "orthographic_top") {
           orthoCam.position.set(0, 30, 0); orthoCam.lookAt(0, 0, 0);
@@ -122,10 +73,10 @@ function ProjectionCameraController() {
         camera.position.copy(orthoCam.position);
         camera.rotation.copy(orthoCam.rotation);
         if (camera instanceof THREE.OrthographicCamera) {
-          camera.left = frustumSize * aspect / -2;
-          camera.right = frustumSize * aspect / 2;
-          camera.top = frustumSize / 2;
-          camera.bottom = frustumSize / -2;
+          camera.left = orthoCam.left;
+          camera.right = orthoCam.right;
+          camera.top = orthoCam.top;
+          camera.bottom = orthoCam.bottom;
           camera.projectionMatrix.copy(orthoCam.projectionMatrix);
         } else {
           Object.setPrototypeOf(camera, THREE.OrthographicCamera.prototype);
@@ -133,7 +84,9 @@ function ProjectionCameraController() {
         }
         camera.updateProjectionMatrix();
       } else {
-        Object.setPrototypeOf(camera, THREE.PerspectiveCamera.prototype);
+        if (Object.getPrototypeOf(camera) !== THREE.PerspectiveCamera.prototype) {
+          Object.setPrototypeOf(camera, THREE.PerspectiveCamera.prototype);
+        }
         const persCam = camera as THREE.PerspectiveCamera;
         persCam.fov = activeProjection === "perspective_1p" ? 40 : 60;
         if (activeProjection === "perspective_1p") {
@@ -285,18 +238,6 @@ function ProceduralScene() {
   });
 
   return (
-<<<<<<< HEAD
-    <MeshErrorBoundary>
-      <group>
-        {filteredMeshes.map((mesh: any) => (
-          <SafeMesh key={mesh.id} mesh={mesh} assetManifest={assetManifest} />
-        ))}
-        {(filter === "All" || filter === "Floor Slabs") && (assetManifest?.furniture || []).map((item: any) => (
-          <SafeFurniture key={item.id} item={item} />
-        ))}
-      </group>
-    </MeshErrorBoundary>
-=======
     <group>
       {filteredMeshes.map((mesh) => {
         let geom;
@@ -307,7 +248,6 @@ function ProceduralScene() {
         } else {
           geom = <boxGeometry args={mesh.scale} />;
         }
-
         const materialId = mesh.material_id;
         const matchingMaterial = assetManifest?.materials?.find(
           (m: any) => (m.id || m.material_id) === materialId
@@ -315,28 +255,17 @@ function ProceduralScene() {
         const color = matchingMaterial?.color_hex || matchingMaterial?.color || "#cbd5e1";
         const roughness = matchingMaterial?.roughness ?? 0.8;
         const metallic = matchingMaterial?.metallic ?? 0.1;
-
         return (
-          <mesh 
-            key={mesh.id} 
-            position={mesh.position}
-            rotation={mesh.rotation || [0, 0, 0]}
-            castShadow
-            receiveShadow
-          >
+          <mesh key={mesh.id} position={mesh.position}
+            rotation={mesh.rotation || [0, 0, 0]} castShadow receiveShadow>
             {geom}
-            <meshStandardMaterial 
-              color={color} 
-              roughness={roughness}
+            <meshStandardMaterial color={color} roughness={roughness}
               metalness={metallic}
               transparent={!!(matchingMaterial?.transparent || (matchingMaterial?.opacity !== undefined && matchingMaterial.opacity < 1))}
-              opacity={matchingMaterial?.opacity ?? 1.0}
-            />
+              opacity={matchingMaterial?.opacity ?? 1.0} />
           </mesh>
         );
       })}
-
-      {/* Furnishing elements (only visible when in 'All' view or interior focused meshes) */}
       {(filter === "All" || filter === "Floor Slabs") && assetManifest?.furniture?.map((item: any) => (
         <mesh key={item.id} position={item.position || [0, 0.5, 0]} castShadow receiveShadow>
           <boxGeometry args={[item.width || 1.2, item.height || 0.7, item.depth || 1.2]} />
@@ -344,7 +273,6 @@ function ProceduralScene() {
         </mesh>
       ))}
     </group>
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
   );
 }
 
@@ -371,15 +299,8 @@ export default function ThreeJSViewer() {
             shadow-bias={-0.0001}
           />
           <pointLight position={[-15, 10, -15]} intensity={0.5} color="#e0e7ff" />
-<<<<<<< HEAD
           <Environment preset="city" />
-=======
-          
-          {/* Environment map for realistic reflections */}
-          <Environment preset="city" background blur={0.8} />
-          {/* Additional hemisphere light for sky/ground ambient */}
           <hemisphereLight skyColor="#ddeeff" groundColor="#889966" intensity={0.4} />
-          {/* Directional sun with soft shadows */}
           <directionalLight
             position={[30, 50, 20]}
             intensity={1.2}
@@ -393,8 +314,6 @@ export default function ThreeJSViewer() {
             shadow-camera-bottom={-20}
             shadow-bias={-0.0001}
           />
-
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
           <Center top position={[0, 0, 0]}>
             <MeshErrorBoundary>
               <PlotLand />

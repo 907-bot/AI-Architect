@@ -56,40 +56,31 @@ class Settings(BaseSettings):
     app_name: str = "AI Architect"
     app_version: str = "0.1.0"
     debug: bool = False
-<<<<<<< HEAD
-    cors_origins: list[str] = ["http://localhost:3000", "https://ai-architect.vercel.app"]
-    # Debug secret used by /debug endpoints (set in Railway or .env for one-time operations)
+    cors_origins: list[str] = [
+        "http://localhost:3000", 
+        "https://ai-architect.vercel.app",
+        "https://907-bot.github.io",
+        "https://907-bot.github.io/AI-Architect",
+    ]
     debug_secret: str = ""
-    # OpenRouter debug/mocking flags
     openrouter_mock: bool = False
     openrouter_debug: bool = False
 
     # ========== Artifact Pipeline ==========
     artifact_storage_path: str = "/tmp/ai-architect-artifacts"
-    artifact_storage_backend: str = "local"  # local or r2
+    artifact_storage_backend: str = "local"
     render_queue_redis_url: str = ""
 
-    # Cloudflare R2
     cloudflare_r2_endpoint: str = ""
     cloudflare_r2_access_key: str = ""
     cloudflare_r2_secret_key: str = ""
     cloudflare_r2_bucket: str = "ai-architect-artifacts"
     cloudflare_r2_public_url: str = ""
 
-    # Default output mode
     default_output_mode: str = "fast_preview"
 
-    # Blender worker
     blender_worker_concurrency: int = 2
     blender_worker_poll_interval: float = 1.0
-=======
-    cors_origins: list[str] = [
-        "http://localhost:3000", 
-        "https://ai-architect.vercel.app",
-        "https://907-bot.github.io",  # GitHub Pages
-        "https://907-bot.github.io/AI-Architect",  # GitHub Pages with path
-    ]
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 
     class Config:
         env_file = ".env"

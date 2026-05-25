@@ -12,20 +12,11 @@ import os
 
 log = structlog.get_logger()
 
-<<<<<<< HEAD
-# Engine and session factory initialization.
-# Prefer DATABASE_URL (from env or settings.database_url). If missing, fall back to a local
-# SQLite file so the app imports cleanly in development. In production (Railway) ensure
-# DATABASE_URL is set in environment variables.
-DATABASE_URL = settings.database_url_clean or os.environ.get("DATABASE_URL") or ""
-
-=======
-DATABASE_URL: str = settings.database_url_clean or ""
+DATABASE_URL: str = settings.database_url_clean or os.environ.get("DATABASE_URL") or ""
 
 engine = None
 SessionLocal = None
 
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 if DATABASE_URL:
     try:
         engine = create_engine(
@@ -34,35 +25,7 @@ if DATABASE_URL:
             pool_size=5,
             max_overflow=10,
             pool_pre_ping=True,
-<<<<<<< HEAD
-        )
-        log.info("database_engine_created", url=str(engine.url))
-    except Exception as e:
-        # If engine creation fails, log and fall back to a local SQLite file to avoid import-time crashes
-        log.error("database_engine_creation_failed", error=str(e))
-        DATABASE_URL = "sqlite:///./dev_fallback.db"
-        engine = create_engine(
-            DATABASE_URL,
-            echo=settings.debug,
-            connect_args={"check_same_thread": False},
-        )
-        log.warning("fallback_to_sqlite", url=DATABASE_URL)
-else:
-    # No DATABASE_URL provided — fall back to a local sqlite database for development/test
-    DATABASE_URL = "sqlite:///./dev_fallback.db"
-    engine = create_engine(
-        DATABASE_URL,
-        echo=settings.debug,
-        connect_args={"check_same_thread": False},
-    )
-    log.warning(
-        "no_database_url_found",
-        message="DATABASE_URL not set; falling back to local SQLite dev_fallback.db. Set DATABASE_URL in production."
-    )
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-=======
-            connect_args={"connect_timeout": 5},   # fail fast instead of hanging
+            connect_args={"connect_timeout": 5},
         )
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         log.info("database_engine_created", url=DATABASE_URL[:40] + "...")
@@ -72,7 +35,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         SessionLocal = None
 else:
     log.warning("database_url_missing — running in no-DB mode (procedural endpoints work fine)")
->>>>>>> 6a37986fa6a3a791fff8e0b52d77c3d712c53f11
 
 
 class DatabaseClient:
