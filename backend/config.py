@@ -41,10 +41,6 @@ class Settings(BaseSettings):
     upstash_redis_url: str = ""
     upstash_redis_token: str = ""
 
-    # Sketchfab
-    sketchfab_api_token: str = ""
-    sketchfab_mcp_url: str = ""
-
     # HuggingFace
     huggingface_api_token: str = ""
 
