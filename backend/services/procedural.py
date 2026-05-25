@@ -389,7 +389,7 @@ def generate_detailed_building(
     # Build materials list — use 'id' key so frontend can find them without remapping
     materials_list = [
         {"id": k, "color_hex": v["c"], "roughness": v["r"], "metallic": v.get("m", 0.0),
-         "opacity": v.get("o", 1.0), "transparent": "o" in v}
+         "opacity": v.get("o", 1.0), "transparent": "o" in v, "transmission": v.get("t", 0)}
         for k, v in MATERIALS.items()
     ]
     

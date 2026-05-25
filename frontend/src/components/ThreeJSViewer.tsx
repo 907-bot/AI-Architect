@@ -4,7 +4,7 @@ import React, { useEffect, useRef, Component, ErrorInfo, ReactNode } from "react
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, ContactShadows, Environment, Center } from "@react-three/drei";
 import * as THREE from "three";
-import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
+import { useStore } from "@/lib/store";
 
 // Generic error boundary to isolate component failures
 interface ErrorBoundaryProps {
@@ -170,6 +170,8 @@ function SafeMesh({ mesh, assetManifest }: { mesh: any; assetManifest: any }) {
     const color = matchingMaterial?.color_hex || matchingMaterial?.color || "#cbd5e1";
     const roughness = matchingMaterial?.roughness ?? 0.8;
     const metallic = matchingMaterial?.metallic ?? 0.1;
+    const transparent = !!(matchingMaterial?.transparent || (matchingMaterial?.opacity !== undefined && matchingMaterial.opacity < 1));
+    const transmission = matchingMaterial?.transmission ?? 0;
 
     return (
       <mesh
@@ -180,13 +182,25 @@ function SafeMesh({ mesh, assetManifest }: { mesh: any; assetManifest: any }) {
         receiveShadow
       >
         {geom}
-        <meshStandardMaterial
-          color={color}
-          roughness={roughness}
-          metallic={metallic}
-          transparent={matchingMaterial?.transparent}
-          opacity={matchingMaterial?.opacity ?? 1.0}
-        />
+        {transparent || transmission > 0 ? (
+          <meshPhysicalMaterial
+            color={color}
+            roughness={roughness}
+            metalness={metallic}
+            transparent={transparent}
+            opacity={matchingMaterial?.opacity ?? 1.0}
+            transmission={transmission}
+            thickness={0.5}
+            ior={1.5}
+            envMapIntensity={1.0}
+          />
+        ) : (
+          <meshStandardMaterial
+            color={color}
+            roughness={roughness}
+            metalness={metallic}
+          />
+        )}
       </mesh>
     );
   } catch (e) {
@@ -219,13 +233,37 @@ function ProceduralScene() {
     return (
       <MeshErrorBoundary>
         <group>
-          <mesh position={[0, 0.1, 0]}>
-            <boxGeometry args={[8, 0.2, 10]} />
-            <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
+          <mesh position={[0, 0.05, 0]} receiveShadow>
+            <boxGeometry args={[10, 0.1, 14]} />
+            <meshStandardMaterial color="#d4d4d8" roughness={0.9} />
           </mesh>
-          <mesh position={[0, 1.6, 0]}>
-            <boxGeometry args={[7.8, 2.8, 9.8]} />
-            <meshStandardMaterial color="#e2e8f0" roughness={0.8} wireframe />
+          <mesh position={[0, 0.8, 0]} castShadow receiveShadow>
+            <boxGeometry args={[9.5, 1.5, 13.5]} />
+            <meshPhysicalMaterial color="#e2e8f0" roughness={0.6} metalness={0.05} />
+          </mesh>
+          <mesh position={[2.5, 1.6, 5.5]} castShadow>
+            <boxGeometry args={[1.2, 0.8, 0.1]} />
+            <meshPhysicalMaterial color="#94a3b8" roughness={0.3} metalness={0.6} />
+          </mesh>
+          <mesh position={[-3, 2.0, 5.8]} castShadow>
+            <boxGeometry args={[0.8, 1.2, 0.08]} />
+            <meshPhysicalMaterial color="#fef08a" roughness={0.1} metalness={0.0} transmission={0.6} thickness={0.3} transparent opacity={0.5} />
+          </mesh>
+          <mesh position={[0, 1.7, -6.2]} castShadow>
+            <boxGeometry args={[1.8, 1.0, 0.08]} />
+            <meshPhysicalMaterial color="#8b5a2b" roughness={0.7} />
+          </mesh>
+          <mesh position={[-3.5, 1.3, 2]} castShadow>
+            <coneGeometry args={[1.2, 0.8, 4]} />
+            <meshPhysicalMaterial color="#b91c1c" roughness={0.8} />
+          </mesh>
+          <mesh position={[3.5, 1.3, -2]} castShadow>
+            <coneGeometry args={[1.2, 0.8, 4]} />
+            <meshPhysicalMaterial color="#b91c1c" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.02, 0]}>
+            <planeGeometry args={[14, 18]} />
+            <meshStandardMaterial color="#e4e4e7" roughness={1} transparent opacity={0.3} side={THREE.DoubleSide} />
           </mesh>
         </group>
       </MeshErrorBoundary>
@@ -255,14 +293,25 @@ function ProceduralScene() {
         const color = matchingMaterial?.color_hex || matchingMaterial?.color || "#cbd5e1";
         const roughness = matchingMaterial?.roughness ?? 0.8;
         const metallic = matchingMaterial?.metallic ?? 0.1;
+        const transparent = !!(matchingMaterial?.transparent || (matchingMaterial?.opacity !== undefined && matchingMaterial.opacity < 1));
+        const transmission = matchingMaterial?.transmission ?? 0;
         return (
           <mesh key={mesh.id} position={mesh.position}
             rotation={mesh.rotation || [0, 0, 0]} castShadow receiveShadow>
             {geom}
-            <meshStandardMaterial color={color} roughness={roughness}
-              metalness={metallic}
-              transparent={!!(matchingMaterial?.transparent || (matchingMaterial?.opacity !== undefined && matchingMaterial.opacity < 1))}
-              opacity={matchingMaterial?.opacity ?? 1.0} />
+            {transparent || transmission > 0 ? (
+              <meshPhysicalMaterial color={color} roughness={roughness}
+                metalness={metallic}
+                transparent={transparent}
+                opacity={matchingMaterial?.opacity ?? 1.0}
+                transmission={transmission}
+                thickness={0.5}
+                ior={1.5}
+                envMapIntensity={1.0} />
+            ) : (
+              <meshStandardMaterial color={color} roughness={roughness}
+                metalness={metallic} />
+            )}
           </mesh>
         );
       })}
@@ -292,16 +341,6 @@ export default function ThreeJSViewer() {
           <color attach="background" args={["#18181b"]} />
           <ambientLight intensity={0.4} />
           <directionalLight
-            position={[10, 20, 10]}
-            intensity={1.2}
-            castShadow
-            shadow-mapSize={[2048, 2048]}
-            shadow-bias={-0.0001}
-          />
-          <pointLight position={[-15, 10, -15]} intensity={0.5} color="#e0e7ff" />
-          <Environment preset="city" />
-          <hemisphereLight skyColor="#ddeeff" groundColor="#889966" intensity={0.4} />
-          <directionalLight
             position={[30, 50, 20]}
             intensity={1.2}
             castShadow
@@ -314,6 +353,9 @@ export default function ThreeJSViewer() {
             shadow-camera-bottom={-20}
             shadow-bias={-0.0001}
           />
+          <pointLight position={[-15, 10, -15]} intensity={0.5} color="#e0e7ff" />
+          <Environment preset="city" />
+          <hemisphereLight skyColor="#ddeeff" groundColor="#889966" intensity={0.4} />
           <Center top position={[0, 0, 0]}>
             <MeshErrorBoundary>
               <PlotLand />
@@ -331,10 +373,22 @@ export default function ThreeJSViewer() {
               color="#000000"
             />
           </Center>
+          <Grid
+            position={[0, 0, 0]}
+            args={[50, 50]}
+            cellSize={1}
+            cellThickness={0.6}
+            cellColor="#6b7280"
+            sectionSize={5}
+            sectionThickness={1.2}
+            sectionColor="#9ca3af"
+            fadeDistance={40}
+            infiniteGrid
+          />
           {enableOrbit && (
             <OrbitControls
               maxPolarAngle={Math.PI / 2 - 0.1}
-              autoRotate
+              autoRotate={false}
               autoRotateSpeed={0.5}
               enableDamping
             />

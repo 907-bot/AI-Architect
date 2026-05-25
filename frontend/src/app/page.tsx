@@ -9,6 +9,7 @@ import ChatInterface from "@/components/ChatInterface";
 import DroneCamera from "@/components/DroneCamera";
 import SemanticSearch from "@/components/SemanticSearch";
 import ArtifactPanel from "@/components/ArtifactPanel";
+import BuildingLoader from "@/components/BuildingLoader";
 import { 
   Box, Compass, CheckCircle2, AlertTriangle, 
   MapPin, Eye, Filter, Settings, Layers, Image 
@@ -43,7 +44,7 @@ export default function WorkspacePage() {
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
     activeProjection, setActiveProjection,
     visibleComponentGroup, setVisibleComponentGroup,
-    complianceData
+    complianceData, isGenerating
   } = useStore();
 
   // Handle config build events from ConfigPanel
@@ -60,7 +61,9 @@ export default function WorkspacePage() {
   }, []);
 
   return (
-    <main className="relative flex flex-col h-screen w-screen bg-[#f9f9fb] text-slate-800 overflow-hidden grid-bg">
+    <>
+      <BuildingLoader isLoading={isGenerating} />
+      <main className="relative flex flex-col h-screen w-screen bg-[#f9f9fb] text-slate-800 overflow-hidden grid-bg">
       {/* ── Header ── */}
       <header className="relative flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white/70 backdrop-blur-md z-20">
         <div className="flex items-center gap-3">
@@ -297,6 +300,7 @@ export default function WorkspacePage() {
           </div>
         </section>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

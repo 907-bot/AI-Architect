@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { decodeMessage } from "@/lib/toon";
-import BuildingLoader from "@/components/BuildingLoader";
 import axios from "axios";
 
 export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
@@ -219,9 +218,7 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
   };
 
   return (
-    <>
-      <BuildingLoader isLoading={isGenerating} />
-      <form onSubmit={handleSubmit} className="w-full relative">
+    <form onSubmit={handleSubmit} className="w-full relative">
       <div className="relative flex items-center w-full rounded-2xl bg-white/85 border border-slate-200/60 p-2 pl-4 shadow-xl backdrop-blur-md">
         <Sparkles className="w-5 h-5 text-slate-500 mr-3" />
         <input id="prompt-input"
@@ -251,6 +248,5 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         </button>
       </div>
     </form>
-    </>
   );
 }
