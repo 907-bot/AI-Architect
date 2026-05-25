@@ -7,6 +7,7 @@ import PromptBar from "@/components/PromptBar";
 import ConfigPanel from "@/components/ConfigPanel";
 import DroneCamera from "@/components/DroneCamera";
 import BuildingLoader from "@/components/BuildingLoader";
+import AssetPalette from "@/components/AssetPalette";
 import {
   Box, Eye, Filter, Layers, ChevronDown, ChevronUp,
   CheckCircle2, AlertTriangle, Settings2,
@@ -58,6 +59,7 @@ export default function WorkspacePage() {
     visibleComponentGroup, setVisibleComponentGroup,
     complianceData, isGenerating,
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
+    isAssetPaletteOpen,
   } = useStore();
 
   return (
@@ -150,6 +152,9 @@ export default function WorkspacePage() {
               <PromptBar buildConfig={buildConfig} />
             </div>
           </aside>
+
+          {/* ── Asset Palette ── */}
+          {isAssetPaletteOpen && <AssetPalette />}
 
           {/* ── Right Panel: 3D Viewer ── */}
           <section className="flex-1 relative min-h-0 overflow-hidden">
