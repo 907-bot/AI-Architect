@@ -22,7 +22,13 @@ router = APIRouter()
 
 
 def get_db() -> Session:
-    """Dependency injection"""
+    """Safe DB dependency — raises 503 when database is unavailable."""
+    if db_client.SessionLocal is None:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable"
+        )
     with db_client.SessionLocal() as session:
         yield session
 
@@ -247,6 +253,9 @@ async def _generate_scene_background(scene_id: str, user_id: str, prompt: str):
     """
     Background task to generate scene using orchestrator agent
     """
+    if db_client.SessionLocal is None:
+        log.warning('background_task_skipped_no_db')
+        return
     db = db_client.SessionLocal()
     execution_ids = []
     
@@ -551,7 +560,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
         }, status_code=500)
 
 
-@router.post("/agents/modify")
+@router.post("/modify")
 async def modify_building(request: dict):
     """Modify existing building by adding/removing features"""
     try:
