@@ -70,6 +70,16 @@ def test_scene_graph_json_schema():
 
 def test_scene_validator_valid():
     data = make_minimal_scene_dict()
+    # Add minimal walls to make the scene truly valid
+    data["rooms"][0]["walls"] = [
+        {
+            "id": "wall_1", "room_id": "room_1",
+            "start_point": {"x": 0, "y": 0, "z": 0},
+            "end_point": {"x": 5, "y": 0, "z": 0},
+            "height": 3.0, "thickness": 0.2, "material_id": "mat_1",
+            "doors": [], "windows": []
+        }
+    ]
     sg = SceneGraph(**data)
     valid, errors = SceneValidator.validate_scene_graph(sg)
     assert valid
