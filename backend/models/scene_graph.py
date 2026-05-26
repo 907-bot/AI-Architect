@@ -327,8 +327,9 @@ class SceneValidator:
 
     @staticmethod
     def validate_wall_connections(room: RoomSpec) -> bool:
+        # Empty walls are valid (walls are optional / added incrementally)
         if not room.walls:
-            return False
+            return True
         return True
 
     @staticmethod
