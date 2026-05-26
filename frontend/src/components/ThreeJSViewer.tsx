@@ -138,7 +138,7 @@ function ProceduralScene() {
   const meshes = geo.meshes.filter((m: any) => filter === "All" || m.component_group === filter);
   return (
     <group>
-      {meshes.map((m: any) => (
+      {(meshes || []).map((m: any) => (
         <MeshBoundary key={m.id}><BuildingMesh mesh={m} materials={materials} /></MeshBoundary>
       ))}
     </group>
@@ -368,7 +368,7 @@ export default function ThreeJSViewer() {
           <MeshBoundary><ProceduralScene /></MeshBoundary>
 
           {/* Placed Sketchfab assets */}
-          {placedAssets.map((asset) => (
+          {(placedAssets || []).map((asset) => (
             <MeshBoundary key={asset.placement_id}>
               <PlacedAssetMesh asset={asset} onSelect={setSelectedAssetUid} />
             </MeshBoundary>

@@ -275,18 +275,18 @@ export default function WorkspacePage() {
                 </div>
                 {complianceData.issues.length > 0 && (
                   <div className="space-y-1 mb-2">
-                    {complianceData.issues.map((issue, i) => (
+                    {(complianceData?.issues || []).map((issue, i) => (
                       <div key={i} className="flex gap-1.5 text-[9px] text-rose-700 bg-rose-50 p-1.5 rounded-lg border border-rose-100">
                         <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />{issue}
                       </div>
                     ))}
                   </div>
                 )}
-                {complianceData.vastu_suggestions?.length && (
+                {(complianceData?.vastu_suggestions?.length ?? 0) > 0 && (
                   <div className="border-t border-slate-100 pt-2">
                     <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Vastu Shastra Suggestions</div>
                     <ul className="space-y-0.5 list-disc pl-3 text-[9px] text-emerald-700">
-                      {complianceData.vastu_suggestions.map((s,i) => <li key={i}>{s}</li>)}
+                      {(complianceData?.vastu_suggestions || []).map((s,i) => <li key={i}>{s}</li>)}
                     </ul>
                   </div>
                 )}

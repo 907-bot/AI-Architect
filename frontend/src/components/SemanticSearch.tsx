@@ -50,7 +50,7 @@ export default function SemanticSearch() {
 
       {semanticResults.length > 0 && (
         <div className="space-y-2 mt-2 pt-2 border-t border-slate-100 max-h-36 overflow-y-auto">
-          {semanticResults.map((res, i) => (
+          {(semanticResults || []).map((res, i) => (
             <div key={i} className="p-2 rounded bg-slate-50/50 border border-slate-100 text-[11px]">
               <div className="flex justify-between font-semibold text-slate-700">
                 <span>{res.name}</span>

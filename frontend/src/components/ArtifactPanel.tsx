@@ -131,7 +131,7 @@ export default function ArtifactPanel() {
               onChange={(e) => setDesignStyle(e.target.value)}
               className="w-full text-[10px] bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-700"
             >
-              {designStyles.map((s) => (
+              {(designStyles || []).map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
@@ -161,7 +161,7 @@ export default function ArtifactPanel() {
       {artifacts.length > 0 && (
         <div className="p-3 space-y-1.5">
           <div className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Generated Artifacts</div>
-          {artifacts.map((artifact, idx) => (
+          {(artifacts || []).map((artifact, idx) => (
             <div key={idx} className="flex items-center gap-2 text-[10px] p-1.5 rounded bg-slate-50 border border-slate-100">
               <div className="flex-shrink-0">
                 {artifact.status === "completed" ? (

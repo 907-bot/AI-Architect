@@ -47,7 +47,7 @@ export default function AgentConsole() {
             <p className="text-[10px] mt-1 text-slate-500">Enter a prompt to spin up the agents.</p>
           </div>
         ) : (
-          agentLogs.map((log, index) => (
+          (agentLogs || []).map((log, index) => (
             <div 
               key={index} 
               className="p-3 rounded-lg bg-slate-50/30 border border-slate-100 animate-fadeIn"

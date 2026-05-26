@@ -59,9 +59,9 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
               {msg.buildingSummary && (
                 <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
                   <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                    {msg.buildingSummary.floors}F {msg.buildingSummary.type}
+                    {msg.buildingSummary?.floors ?? '?'}F {msg.buildingSummary?.type ?? 'building'}
                   </span>
-                  {msg.buildingSummary.features.map(f => (
+                  {(msg.buildingSummary?.features || []).map(f => (
                     <span key={f} className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{f}</span>
                   ))}
                   {msg.buildingSummary.compliant
@@ -92,7 +92,7 @@ export default function ChatPanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1">
-      {chatMessages.map((msg) => (
+      {(chatMessages || []).map((msg) => (
         <MessageBubble key={msg.id} msg={msg} />
       ))}
       <div ref={bottomRef} />
