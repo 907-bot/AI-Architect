@@ -324,9 +324,9 @@ async def update_scene(
             scene.description = request.description
         if request.scene_graph:
             scene.scene_graph = request.scene_graph
-            scene.version += 1
             scene.status = "draft"
-        
+
+        scene.version += 1
         scene.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(scene)

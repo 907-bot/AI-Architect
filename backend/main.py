@@ -21,6 +21,7 @@ from backend.routers.artifacts_router import router as artifacts_router
 from backend.routers.render_jobs_router import router as render_jobs_router
 from backend.routers.styles_router import router as styles_router
 from backend.routers.assets_router import router as assets_library_router
+from backend.routers.sketchfab_assets import router as sketchfab_router
 from backend.websocket_manager import ws_manager
 from backend.database.client import db_client
 from backend.config import settings
@@ -239,6 +240,14 @@ app.include_router(artifacts_router, prefix="/api/artifacts", tags=["artifacts"]
 app.include_router(render_jobs_router, prefix="/api/render-jobs", tags=["render-jobs"])
 app.include_router(styles_router, prefix="/api", tags=["styles"])
 app.include_router(assets_library_router, prefix="/api/assets-library", tags=["assets-library"])
+app.include_router(sketchfab_router, prefix="/api/sketchfab", tags=["sketchfab"])
+
+# Serve cached GLB files from Sketchfab
+import os as _os
+from fastapi.staticfiles import StaticFiles as _StaticFiles
+_sketchfab_cache = _os.path.join(_os.path.dirname(__file__), "..", "cache", "sketchfab")
+_os.makedirs(_sketchfab_cache, exist_ok=True)
+app.mount("/cache/sketchfab", _StaticFiles(directory=_sketchfab_cache), name="sketchfab_cache")
 
 
 # =====================================================

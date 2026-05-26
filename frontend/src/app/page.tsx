@@ -7,9 +7,10 @@ import PromptBar from "@/components/PromptBar";
 import ConfigPanel from "@/components/ConfigPanel";
 import DroneCamera from "@/components/DroneCamera";
 import BuildingLoader from "@/components/BuildingLoader";
+import AssetPalette from "@/components/AssetPalette";
 import {
   Box, Eye, Filter, Layers, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Settings2,
+  CheckCircle2, AlertTriangle, Settings2, Package, X,
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
 
@@ -58,6 +59,7 @@ export default function WorkspacePage() {
     visibleComponentGroup, setVisibleComponentGroup,
     complianceData, isGenerating,
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
+    isAssetPaletteOpen, setAssetPaletteOpen,
   } = useStore();
 
   return (
@@ -84,10 +86,11 @@ export default function WorkspacePage() {
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
             NBC Auditor Active
           </div>
+
         </header>
 
         {/* ── Body ── */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
           {/* ── Left Panel: Chat ── */}
           <aside className="w-[340px] flex flex-col bg-white border-r border-slate-100 min-h-0 z-10">
@@ -151,12 +154,35 @@ export default function WorkspacePage() {
             </div>
           </aside>
 
+          {/* ── Asset Palette — floating overlay over 3D viewer ── */}
+          {isAssetPaletteOpen && (
+            <div className="absolute left-[340px] top-0 bottom-0 z-30 shadow-2xl">
+              <AssetPalette onClose={() => setAssetPaletteOpen(false)} />
+            </div>
+          )}
+
           {/* ── Right Panel: 3D Viewer ── */}
           <section className="flex-1 relative min-h-0 overflow-hidden">
             <ThreeJSViewer />
 
+            {/* Asset Library floating toggle button */}
+            <button
+              onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
+              className={`absolute top-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border shadow-lg backdrop-blur-md transition-all duration-200 ${
+                isAssetPaletteOpen
+                  ? "left-[284px] bg-[#7c93c3] text-white border-[#7c93c3]"
+                  : "left-4 bg-white/80 text-slate-700 border-slate-200/60 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+              }`}
+              style={{ top: isAssetPaletteOpen ? "auto" : undefined, bottom: isAssetPaletteOpen ? "auto" : undefined }}
+            >
+              {isAssetPaletteOpen
+                ? <><X className="w-3.5 h-3.5" />Close Library</>
+                : <><Package className="w-3.5 h-3.5" />Asset Library</>
+              }
+            </button>
+
             {/* Camera Projections overlay — top left */}
-            <div className="absolute top-4 left-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-60">
+            <div className={`absolute top-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-60 transition-all duration-200 ${isAssetPaletteOpen ? "left-[300px]" : "left-[140px]"}`}>
               <div className="flex items-center gap-1.5 mb-2">
                 <Eye className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Camera Projections</span>

@@ -4,13 +4,76 @@ SQLAlchemy ORM Models for AI Architect
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, 
-    ForeignKey, Text, JSON, ARRAY, Index, UniqueConstraint
+    Column, String, Integer, Float, Boolean, DateTime,
+    ForeignKey, Text, JSON, Index, UniqueConstraint
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from sqlalchemy import TypeDecorator
 import uuid
+
+
+class CompatibleJSONB(TypeDecorator):
+    """JSONB for PostgreSQL, JSON for everything else (e.g. SQLite in tests)."""
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB
+            return dialect.type_descriptor(PG_JSONB())
+        return dialect.type_descriptor(JSON())
+
+
+class CompatibleUUID(TypeDecorator):
+    """UUID for PostgreSQL, String(36) for everything else."""
+    impl = String(36)
+    cache_ok = True
+
+    def __init__(self, as_uuid=True, *args, **kwargs):
+        self.as_uuid = as_uuid
+        super().__init__(*args, **kwargs)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+            return dialect.type_descriptor(PG_UUID(as_uuid=self.as_uuid))
+        return dialect.type_descriptor(String(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if self.as_uuid and not isinstance(value, uuid.UUID):
+            return uuid.UUID(str(value))
+        return value
+
+
+class CompatibleARRAY(TypeDecorator):
+    """ARRAY for PostgreSQL, JSON for everything else."""
+    impl = JSON
+    cache_ok = True
+
+    def __init__(self, item_type=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
+            from sqlalchemy import String as SA_String
+            return dialect.type_descriptor(PG_ARRAY(SA_String))
+        return dialect.type_descriptor(JSON())
+
+
+JSONB = CompatibleJSONB      # type: ignore
+UUID = CompatibleUUID        # type: ignore
+ARRAY = CompatibleARRAY      # type: ignore
 
 Base = declarative_base()
 

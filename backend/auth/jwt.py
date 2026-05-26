@@ -4,14 +4,26 @@ Authentication layer with JWT tokens
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
+import bcrypt as _bcrypt
 import structlog
 
 log = structlog.get_logger()
 
-# ---- Password hashing ----
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# ---- Password utilities ----
+
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt"""
+    return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password against hash"""
+    try:
+        return _bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except Exception:
+        return False
 
 
 # ---- Schemas ----
@@ -49,18 +61,6 @@ class UserResponse(BaseModel):
     full_name: Optional[str]
     avatar_url: Optional[str]
     is_admin: bool
-
-
-# ---- Password utilities ----
-
-def hash_password(password: str) -> str:
-    """Hash password using bcrypt"""
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against hash"""
-    return pwd_context.verify(plain_password, hashed_password)
 
 
 # ---- JWT utilities ----

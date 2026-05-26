@@ -401,9 +401,9 @@ def test_api_status(client):
 
 def test_scene_graph_validation():
     """Test scene graph schema validation"""
-    from backend.models.scene_graph import SceneGraph, RoomSpec, Vector3, SceneValidator
-    
-    # Create valid scene graph
+    from backend.models.scene_graph import SceneGraph, RoomSpec, Vector3, SceneValidator, WallSpec
+
+    # Create valid scene graph with walls
     scene = SceneGraph(
         rooms=[
             RoomSpec(
@@ -416,7 +416,15 @@ def test_scene_graph_validation():
                 depth=15,
                 height=9,
                 material_id="mat_1",
-                walls=[],
+                walls=[
+                    WallSpec(
+                        id="wall_1", room_id="room_1",
+                        start_point=Vector3(x=0, y=0, z=0),
+                        end_point=Vector3(x=15, y=0, z=0),
+                        height=9.0, thickness=0.2, material_id="mat_1",
+                        doors=[], windows=[]
+                    )
+                ],
                 windows=[],
                 doors=[],
                 furniture=[],
@@ -428,7 +436,7 @@ def test_scene_graph_validation():
         lights=[],
         navigation={"navigation_meshes": [], "walkthrough_points": [], "drone_path_nodes": []}
     )
-    
+
     # Validate
     is_valid, errors = SceneValidator.validate_scene_graph(scene)
     assert is_valid
