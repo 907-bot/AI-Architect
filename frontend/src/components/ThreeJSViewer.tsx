@@ -1,177 +1,20 @@
 "use client";
 
-import React, { useEffect, useRef, useCallback, useState, Suspense } from "react";
+import React, { useEffect, useRef, Component, ErrorInfo, ReactNode, useMemo, useState, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Grid, ContactShadows, Environment, useGLTF } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Environment, Sky, Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { useStore } from "@/lib/store";
+import { useStore, PlacedAsset } from "@/lib/store";
 
-// ====================================================
-// TYPES
-// ====================================================
-
-interface PlacedAsset {
-  placement_id: string;
-  asset_uid: string;
-  position: [number, number, number];
-  rotation: [number, number, number];
-  scale: number;
-  glb_url?: string;
-  local_path?: string;
-  name?: string;
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+class MeshBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { err: boolean }> {
+  state = { err: false };
+  static getDerivedStateFromError() { return { err: true }; }
+  componentDidCatch(e: Error) { console.warn("R3F error:", e.message); }
+  render() { return this.state.err ? (this.props.fallback ?? null) : this.props.children; }
 }
 
-// ====================================================
-// SKETCHFAB GLB LOADER
-// ====================================================
-
-function SketchfabModel({
-  url, position, rotation, scale,
-}: {
-  url: string;
-  position: [number, number, number];
-  rotation: [number, number, number];
-  scale: number;
-}) {
-  const { scene } = useGLTF(url, true);
-  const ref = useRef<THREE.Group>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const box = new THREE.Box3().setFromObject(ref.current);
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const ns = maxDim > 0 ? scale / maxDim : scale;
-    ref.current.scale.setScalar(ns);
-    ref.current.position.set(position[0], position[1], position[2]);
-    ref.current.rotation.set(rotation[0], rotation[1], rotation[2]);
-    ref.current.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-        if (mat) mat.envMapIntensity = 1.2;
-      }
-    });
-  }, [url, position, rotation, scale]);
-
-  return <primitive ref={ref} object={scene.clone()} />;
-}
-
-// ====================================================
-// PROCEDURAL BUILDING
-// ====================================================
-
-function ProceduralBuilding() {
-  const geometryData = useStore((s) => s.geometryData);
-  const assetManifest = useStore((s) => s.assetManifest);
-  const filter = useStore((s) => s.visibleComponentGroup);
-
-  if (!geometryData?.meshes) return null;
-
-  const filteredMeshes = geometryData.meshes.filter((mesh) => {
-    if (filter === "All") return true;
-    const mapping: Record<string, string[]> = {
-      Foundation: ["Foundation"],
-      Structure: ["Structure"],
-      Exterior: ["Exterior"],
-      Windows: ["Windows"],
-      Roof: ["Roof"],
-      Entrance: ["Entrance"],
-      Pool: ["Pool"],
-      Landscape: ["Landscape"],
-      Boundary: ["Boundary"],
-      Chimney: ["Chimney"],
-      Garage: ["Garage"],
-    };
-    return (mapping[filter] || [filter]).includes(mesh.component_group);
-  });
-
-  return (
-    <group>
-      {filteredMeshes.map((mesh) => {
-        const mat = assetManifest?.materials?.find(
-          (m: any) => m.material_id === mesh.material_id || m.id === mesh.material_id
-        );
-        return (
-          <mesh
-            key={mesh.id}
-            position={mesh.position}
-            scale={mesh.scale}
-            rotation={mesh.rotation || [0, 0, 0]}
-            castShadow receiveShadow
-          >
-            <boxGeometry />
-            <meshStandardMaterial
-              color={mat?.color_hex || mat?.color || "#cbd5e1"}
-              roughness={mat?.roughness ?? 0.8}
-              metalness={mat?.metallic ?? 0.1}
-            />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-}
-
-// ====================================================
-// PLACED ASSETS RENDERER
-// ====================================================
-
-function PlacedAssets({ assets }: { assets: PlacedAsset[] }) {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
-
-  return (
-    <group>
-      {assets.map((asset) => {
-        // Build URL: prefer local cached GLB, fallback to remote URL
-        let url = asset.glb_url || "";
-        if (asset.local_path) {
-          const filename = asset.local_path.split("/").pop();
-          url = `${API_BASE}/cache/sketchfab/${filename}`;
-        }
-        if (!url) return null;
-
-        return (
-          <Suspense
-            key={asset.placement_id}
-            fallback={
-              <mesh position={asset.position}>
-                <boxGeometry args={[0.8, 0.8, 0.8]} />
-                <meshStandardMaterial color="#3b82f6" wireframe />
-              </mesh>
-            }
-          >
-            <SketchfabModel
-              url={url}
-              position={asset.position}
-              rotation={asset.rotation}
-              scale={asset.scale}
-            />
-          </Suspense>
-        );
-      })}
-    </group>
-  );
-}
-
-// ====================================================
-// FLOOR PLANE (invisible, used for drop raycasting)
-// ====================================================
-
-function FloorPlane({ planeRef }: { planeRef: React.RefObject<THREE.Mesh> }) {
-  return (
-    <mesh ref={planeRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} visible={false}>
-      <planeGeometry args={[200, 200]} />
-      <meshBasicMaterial />
-    </mesh>
-  );
-}
-
-// ====================================================
-// CAMERA CONTROLLER
-// ====================================================
-
+// ─── Camera controller ────────────────────────────────────────────────────────
 function CameraController() {
   const { camera, size } = useThree();
   const proj = useStore((s) => s.activeProjection);
@@ -182,27 +25,22 @@ function CameraController() {
   const progress = useRef(0);
 
   useEffect(() => {
-    const isOrtho = proj.startsWith("orthographic") || proj === "isometric" || proj.startsWith("oblique");
-    if (isOrtho) {
-      const asp = size.width / size.height;
-      const fs = 28;
-      const o = new THREE.OrthographicCamera(-fs * asp / 2, fs * asp / 2, fs / 2, -fs / 2, 0.1, 500);
-      if (proj === "orthographic_top") o.position.set(0, 40, 0.01);
-      else if (proj === "orthographic_front") o.position.set(0, 6, 40);
-      else if (proj === "orthographic_side") o.position.set(40, 6, 0);
-      else o.position.set(20, 20, 20);
-      o.lookAt(0, 0, 0);
-      camera.position.copy(o.position);
-      camera.quaternion.copy(o.quaternion);
-      camera.updateProjectionMatrix();
-    } else {
-      const pc = camera as THREE.PerspectiveCamera;
-      pc.fov = proj === "perspective_1p" ? 42 : proj === "perspective_3p" ? 70 : 60;
-      if (proj === "perspective_1p") { pc.position.set(0, 3.5, 22); pc.lookAt(0, 3.5, 0); }
-      else if (proj === "perspective_3p") { pc.position.set(20, 22, 20); pc.lookAt(0, 2, 0); }
-      else { pc.position.set(15, 12, 15); pc.lookAt(0, 1.5, 0); }
-      pc.updateProjectionMatrix();
-    }
+    try {
+      if (proj.startsWith("orthographic") || proj === "isometric" || proj.startsWith("oblique")) {
+        const asp = size.width / size.height;
+        const fs = 28;
+        if (proj === "orthographic_top") { camera.position.set(0, 40, 0.01); camera.lookAt(0, 0, 0); }
+        else if (proj === "orthographic_front") { camera.position.set(0, 6, 40); camera.lookAt(0, 6, 0); }
+        else if (proj === "orthographic_side") { camera.position.set(40, 6, 0); camera.lookAt(0, 6, 0); }
+        else if (proj === "isometric") { camera.position.set(20, 20, 20); camera.lookAt(0, 2, 0); }
+        else { camera.position.set(0, 6, 30); camera.lookAt(0, 6, 0); }
+      } else {
+        const pc = camera as THREE.PerspectiveCamera;
+        if (proj === "perspective_1p") { pc.fov = 42; pc.position.set(0, 3.5, 22); pc.lookAt(0, 3.5, 0); }
+        else if (proj === "perspective_3p") { pc.fov = 70; pc.position.set(20, 22, 20); pc.lookAt(0, 2, 0); }
+        pc.updateProjectionMatrix();
+      }
+    } catch (e) { console.warn("cam err:", e); }
   }, [proj, size, camera]);
 
   useFrame((_, dt) => {
@@ -219,271 +57,332 @@ function CameraController() {
   return null;
 }
 
-// ====================================================
-// GROUND
-// ====================================================
-
+// ─── Ground ───────────────────────────────────────────────────────────────────
 function Ground() {
   const pw = useStore((s) => s.plotWidth);
   const pd = useStore((s) => s.plotDepth);
-  const r = Math.max(pw, pd) * 0.9;
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-        <circleGeometry args={[r, 64]} />
-        <meshStandardMaterial color="#3a3a3a" roughness={0.9} />
+        <circleGeometry args={[Math.max(pw, pd) * 3, 64]} />
+        <meshStandardMaterial color="#7ec87e" roughness={1} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]} receiveShadow>
-        <circleGeometry args={[r * 0.85, 64]} />
-        <meshStandardMaterial color="#2d5a1e" roughness={1} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+        <planeGeometry args={[pw * 0.95, pd * 0.95]} />
+        <meshStandardMaterial color="#c8c8c0" roughness={0.95} />
       </mesh>
     </group>
   );
 }
 
-// ====================================================
-// RAYCASTER HOOK — translates HTML drop coords → 3D point
-// ====================================================
-
-function useDropRaycaster(
-  canvasRef: React.RefObject<HTMLDivElement>,
-  floorRef: React.RefObject<THREE.Mesh>,
-  cameraRef: React.RefObject<THREE.Camera>
-) {
-  return useCallback((clientX: number, clientY: number): THREE.Vector3 => {
-    if (!canvasRef.current || !floorRef.current || !cameraRef.current) {
-      return new THREE.Vector3(0, 0, 0);
-    }
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -((clientY - rect.top) / rect.height) * 2 + 1;
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(x, y), cameraRef.current);
-    const hits = raycaster.intersectObject(floorRef.current);
-    return hits.length > 0 ? hits[0].point : new THREE.Vector3(0, 0, 0);
-  }, [canvasRef, floorRef, cameraRef]);
+// ─── Trees ────────────────────────────────────────────────────────────────────
+function Tree({ position }: { position: [number, number, number] }) {
+  const h = 3 + Math.abs(position[0] * 0.3) % 2;
+  return (
+    <group position={position}>
+      <mesh position={[0, h / 4, 0]} castShadow>
+        <cylinderGeometry args={[0.12, 0.2, h / 2, 6]} />
+        <meshStandardMaterial color="#6b4c2a" roughness={0.9} />
+      </mesh>
+      {[0.72, 0.58, 0.44].map((yFactor, i) => (
+        <mesh key={i} position={[0, h * yFactor, 0]} castShadow>
+          <coneGeometry args={[1.3 - i * 0.2, h * (0.6 - i * 0.1), 8]} />
+          <meshStandardMaterial color={["#2d7a2d", "#3a8f3a", "#45a045"][i]} roughness={0.85} />
+        </mesh>
+      ))}
+    </group>
+  );
 }
 
-// ====================================================
-// MAIN VIEWER
-// ====================================================
+function Trees() {
+  const pw = useStore((s) => s.plotWidth);
+  const pd = useStore((s) => s.plotDepth);
+  const positions = useMemo<[number, number, number][]>(() => {
+    const hw = pw / 2, hd = pd / 2, p = 3;
+    return [[-hw - p, 0, -hd - p], [hw + p, 0, -hd - p], [-hw - p, 0, hd + p], [hw + p, 0, hd + p],
+      [-hw - p * 2, 0, 0], [hw + p * 2, 0, 0], [0, 0, -hd - p * 2], [0, 0, hd + p * 2]];
+  }, [pw, pd]);
+  return <>{positions.map((pos, i) => <Tree key={i} position={pos} />)}</>;
+}
 
-export default function ThreeJSViewer() {
-  const isDroneFlying = useStore((s) => s.isDroneFlying);
-  const activeProjection = useStore((s) => s.activeProjection);
-
-  const [placedAssets, setPlacedAssets] = useState<PlacedAsset[]>([]);
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [dropStatus, setDropStatus] = useState<string | null>(null);
-
-  const canvasWrapperRef = useRef<HTMLDivElement>(null);
-  const floorRef = useRef<THREE.Mesh>(null);
-  const cameraRef = useRef<THREE.Camera | null>(null);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
-
-  const enableOrbit = !isDroneFlying &&
-    !activeProjection.startsWith("orthographic") &&
-    !activeProjection.startsWith("oblique");
-
-  // ── HTML drag events on the canvas wrapper div ──────────────────────────────
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    setIsDraggingOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // Only fire if leaving the canvas entirely
-    if (!canvasWrapperRef.current?.contains(e.relatedTarget as Node)) {
-      setIsDraggingOver(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-
-    // Read asset data from dataTransfer (set by AssetPalette)
-    let raw = e.dataTransfer.getData("application/json");
-    if (!raw) raw = e.dataTransfer.getData("text/plain");
-
-    // Fallback to window global if dataTransfer is empty (some browser quirks)
-    if (!raw && (window as any).__draggedAsset) {
-      raw = JSON.stringify((window as any).__draggedAsset);
-    }
-    delete (window as any).__draggedAsset;
-
-    if (!raw) {
-      console.warn("No drag data found");
-      return;
-    }
-
-    let dragData: { uid: string; name: string; source: string };
-    try {
-      dragData = JSON.parse(raw);
-    } catch {
-      console.error("Bad drag JSON:", raw);
-      return;
-    }
-
-    // Raycast drop position onto floor plane
-    let dropPos = { x: 0, y: 0, z: 0 };
-    if (canvasWrapperRef.current && floorRef.current && cameraRef.current) {
-      const rect = canvasWrapperRef.current.getBoundingClientRect();
-      const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), cameraRef.current);
-      const hits = raycaster.intersectObject(floorRef.current);
-      if (hits.length > 0) {
-        dropPos = { x: hits[0].point.x, y: 0, z: hits[0].point.z };
-      } else {
-        // Fallback: random position near center
-        dropPos = { x: (Math.random() - 0.5) * 10, y: 0, z: (Math.random() - 0.5) * 10 };
-      }
-    }
-
-    setDropStatus(`Placing ${dragData.name}...`);
-
-    try {
-      const resp = await fetch(`${API_BASE}/api/sketchfab/drag-drop`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          asset_uid: dragData.uid,
-          drop_position: dropPos,
-          surface_normal: { x: 0, y: 1, z: 0 },
-          room_context: "interior",
-          auto_orient: true,
-          auto_scale: true,
-        }),
-      });
-
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const placement = await resp.json();
-
-      if (placement.placement_id) {
-        setPlacedAssets((prev) => [
-          ...prev,
-          {
-            placement_id: placement.placement_id,
-            asset_uid: placement.asset_uid,
-            position: [placement.position.x, placement.position.y, placement.position.z],
-            rotation: [placement.rotation.x || 0, placement.rotation.y || 0, placement.rotation.z || 0],
-            scale: placement.scale || 1,
-            glb_url: placement.glb_url,
-            local_path: placement.local_path,
-            name: dragData.name,
-          },
-        ]);
-        setDropStatus(`✓ ${dragData.name} placed`);
-        setTimeout(() => setDropStatus(null), 2500);
-      }
-    } catch (err) {
-      console.error("Drop placement failed:", err);
-      setDropStatus("Drop failed — check console");
-      setTimeout(() => setDropStatus(null), 3000);
-    }
-  }, [API_BASE]);
+// ─── Building meshes ──────────────────────────────────────────────────────────
+function BuildingMesh({ mesh, materials }: { mesh: any; materials: any[] }) {
+  const mat = materials.find((m: any) => (m.id || m.material_id) === mesh.material_id);
+  const color = mat?.color_hex || "#c8cdd4";
+  const roughness = mat?.roughness ?? 0.8;
+  const metalness = mat?.metallic ?? mat?.metalness ?? 0.05;
+  const transmission = mat?.transmission ?? 0;
+  const opacity = mat?.opacity ?? 1;
+  const transparent = !!(mat?.transparent || transmission > 0 || opacity < 1);
+  const s = mesh.scale || [1, 1, 1];
 
   return (
-    <div className="relative w-full h-full">
+    <mesh position={mesh.position} rotation={mesh.rotation || [0, 0, 0]} castShadow receiveShadow>
+      {mesh.type === "prism" || mesh.type === "cone"
+        ? <coneGeometry args={[s[0] / 2, s[1], 4]} />
+        : <boxGeometry args={s} />}
+      {transparent || transmission > 0
+        ? <meshPhysicalMaterial color={color} roughness={roughness} metalness={metalness}
+            transparent opacity={opacity} transmission={transmission} thickness={0.4} ior={1.45} />
+        : <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />}
+    </mesh>
+  );
+}
 
-      {/* Drop status toast */}
-      {dropStatus && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-neutral-900/95 border border-blue-500/50 text-white text-xs px-4 py-2 rounded-lg shadow-xl">
-          {dropStatus}
+function ProceduralScene() {
+  const geo = useStore((s) => s.geometryData);
+  const manifest = useStore((s) => s.assetManifest);
+  const filter = useStore((s) => s.visibleComponentGroup);
+  const materials = manifest?.materials || [];
+  if (!geo?.meshes?.length) return <EmptyBuilding />;
+  const meshes = geo.meshes.filter((m: any) => filter === "All" || m.component_group === filter);
+  return (
+    <group>
+      {meshes.map((m: any) => (
+        <MeshBoundary key={m.id}><BuildingMesh mesh={m} materials={materials} /></MeshBoundary>
+      ))}
+    </group>
+  );
+}
+
+// ─── Empty placeholder ────────────────────────────────────────────────────────
+function EmptyBuilding() {
+  const mesh = useRef<THREE.Mesh>(null!);
+  useFrame(({ clock }) => {
+    if (mesh.current) {
+      mesh.current.rotation.y = clock.getElapsedTime() * 0.3;
+      mesh.current.position.y = 2 + Math.sin(clock.getElapsedTime() * 0.8) * 0.2;
+    }
+  });
+  return (
+    <group>
+      <mesh ref={mesh} position={[0, 2, 0]} castShadow>
+        <boxGeometry args={[3, 4, 3]} />
+        <meshPhysicalMaterial color="#e2e8f0" roughness={0.3} metalness={0.1} wireframe />
+      </mesh>
+      <Html center position={[0, 5.5, 0]}>
+        <div className="text-center pointer-events-none select-none">
+          <p className="text-[11px] font-semibold text-slate-500 bg-white/80 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-slate-200 whitespace-nowrap">
+            Describe your building to get started
+          </p>
         </div>
-      )}
+      </Html>
+      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[2.5, 3.5, 32]} />
+        <meshStandardMaterial color="#7c93c3" transparent opacity={0.15} />
+      </mesh>
+    </group>
+  );
+}
 
-      {/* Placed asset count */}
-      {placedAssets.length > 0 && (
-        <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
-          <div className="bg-neutral-900/90 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white">
-            {placedAssets.length} asset{placedAssets.length !== 1 ? "s" : ""} placed
-          </div>
-          <button
-            onClick={() => setPlacedAssets([])}
-            className="bg-neutral-900/90 border border-red-700/50 text-red-400 hover:text-red-300 rounded-lg px-2 py-1.5 text-xs transition"
-          >
-            Clear
-          </button>
+// ─── Placed Sketchfab Asset (placeholder box + thumbnail label) ───────────────
+function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect: (id: string) => void }) {
+  const selected = useStore((s) => s.selectedAssetUid) === asset.placement_id;
+  const mesh = useRef<THREE.Mesh>(null!);
+  const s = asset.scale || 1;
+
+  // Guess bounding box from asset category
+  const size: [number, number, number] = [s * 1.2, s * 0.8, s * 1.2];
+
+  return (
+    <group
+      position={[asset.position.x, asset.position.y, asset.position.z]}
+      rotation={[0, asset.rotation?.y || 0, 0]}
+      onClick={(e) => { e.stopPropagation(); onSelect(asset.placement_id); }}
+    >
+      {/* Shadow plane */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <planeGeometry args={[size[0] * 1.2, size[2] * 1.2]} />
+        <meshStandardMaterial color="#000" transparent opacity={0.08} />
+      </mesh>
+      {/* Placeholder box */}
+      <mesh ref={mesh} position={[0, size[1] / 2, 0]} castShadow>
+        <boxGeometry args={size} />
+        <meshStandardMaterial
+          color={selected ? "#7c93c3" : "#e2e8f0"}
+          roughness={0.6}
+          metalness={0.1}
+          transparent opacity={0.85}
+        />
+      </mesh>
+      {/* Selection outline */}
+      {selected && (
+        <mesh position={[0, size[1] / 2, 0]}>
+          <boxGeometry args={[size[0] + 0.05, size[1] + 0.05, size[2] + 0.05]} />
+          <meshBasicMaterial color="#7c93c3" wireframe />
+        </mesh>
+      )}
+      {/* Label */}
+      <Html position={[0, size[1] + 0.4, 0]} center>
+        <div className="pointer-events-none select-none flex flex-col items-center gap-1">
+          {asset.thumbnail && (
+            <img src={asset.thumbnail} alt={asset.name} draggable={false}
+              className="w-10 h-10 rounded-md object-cover shadow-md border-2 border-white" />
+          )}
+          <span className="text-[9px] font-semibold bg-white/90 text-slate-700 px-2 py-0.5 rounded-full shadow-sm border border-slate-200 whitespace-nowrap max-w-[100px] truncate">
+            {asset.name}
+          </span>
         </div>
-      )}
+      </Html>
+    </group>
+  );
+}
 
-      {/* Canvas wrapper — this div receives native drag events */}
-      <div
-        ref={canvasWrapperRef}
-        className={`w-full h-full transition-all ${isDraggingOver ? "ring-2 ring-blue-500 ring-inset" : ""}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        {/* Drop overlay hint */}
-        {isDraggingOver && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 bg-blue-500/10">
-            <div className="bg-neutral-900/90 border border-blue-500/50 rounded-xl px-6 py-4 text-center">
-              <p className="text-blue-400 font-semibold text-sm">Drop to place asset</p>
-              <p className="text-neutral-500 text-xs mt-1">Model will be downloaded & placed in scene</p>
-            </div>
-          </div>
-        )}
-
-        <Canvas
-          shadows
-          camera={{ position: [15, 12, 15], fov: 60 }}
-          gl={{ antialias: true, alpha: false, toneMapping: THREE.ACESFilmicToneMapping }}
-          onCreated={({ gl, camera }) => {
-            gl.setClearColor("#0a0a0a");
-            gl.shadowMap.enabled = true;
-            gl.shadowMap.type = THREE.PCFSoftShadowMap;
-            // Store camera ref for drop raycasting
-            cameraRef.current = camera;
-          }}
-        >
-          <color attach="background" args={["#0a0a0a"]} />
-          <fog attach="fog" args={["#0a0a0a", 30, 90]} />
-
-          <ambientLight intensity={0.4} />
-          <hemisphereLight intensity={0.3} groundColor="#1a1a1a" />
-          <directionalLight
-            position={[10, 20, 10]}
-            intensity={1.5}
-            castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
-            shadow-camera-far={60}
-            shadow-camera-left={-25}
-            shadow-camera-right={25}
-            shadow-camera-top={25}
-            shadow-camera-bottom={-25}
-          />
-
-          <Environment preset="city" />
-          <ContactShadows position={[0, 0.01, 0]} opacity={0.4} scale={50} blur={2} />
-
-          <CameraController />
-          <Ground />
-          <ProceduralBuilding />
-          <PlacedAssets assets={placedAssets} />
-
-          {/* Invisible floor plane for raycasting drop position */}
-          <FloorPlane planeRef={floorRef} />
-
-          {enableOrbit && <OrbitControls makeDefault target={[0, 1.5, 0]} maxPolarAngle={Math.PI / 2} />}
-          <Grid
-            position={[0, 0, 0]}
-            args={[100, 100]}
-            cellSize={1}
-            cellColor="#333"
-            sectionSize={5}
-            sectionColor="#444"
-            fadeDistance={40}
-          />
-        </Canvas>
+// ─── Drop overlay (shows while dragging) ──────────────────────────────────────
+function DropOverlay({ active }: { active: boolean }) {
+  if (!active) return null;
+  return (
+    <div className="absolute inset-0 z-20 pointer-events-none border-4 border-dashed border-[#7c93c3]/60 rounded-lg flex items-center justify-center">
+      <div className="bg-white/90 backdrop-blur rounded-2xl px-6 py-4 shadow-xl border border-[#7c93c3]/30 flex flex-col items-center gap-2">
+        <div className="w-10 h-10 rounded-full bg-[#7c93c3]/15 flex items-center justify-center">
+          <svg className="w-5 h-5 text-[#7c93c3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <p className="text-sm font-semibold text-slate-700">Drop to place in scene</p>
+        <p className="text-[10px] text-slate-400">Asset will appear on the ground</p>
       </div>
+    </div>
+  );
+}
+
+// ─── Main viewer ──────────────────────────────────────────────────────────────
+export default function ThreeJSViewer() {
+  const isDrone = useStore((s) => s.isDroneFlying);
+  const proj = useStore((s) => s.activeProjection);
+  const canOrbit = !isDrone && !proj.startsWith("orthographic") && !proj.startsWith("oblique");
+  const placedAssets = useStore((s) => s.placedAssets);
+  const addPlacedAsset = useStore((s) => s.addPlacedAsset);
+  const setSelectedAssetUid = useStore((s) => s.setSelectedAssetUid);
+  const removePlacedAsset = useStore((s) => s.removePlacedAsset);
+
+  const [isDragOver, setIsDragOver] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const assetCounter = useRef(0);
+
+  // Convert 2D screen drop position → approximate 3D world position on Y=0 plane
+  const screenTo3D = useCallback((clientX: number, clientY: number): { x: number; y: number; z: number } => {
+    const el = containerRef.current;
+    if (!el) return { x: 0, y: 0, z: 0 };
+    const rect = el.getBoundingClientRect();
+    // Normalise to [-1, 1]
+    const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const nz = ((clientY - rect.top) / rect.height) * 2 - 1;
+    // Map to approximate world space (camera at ~18,8,18 looking at 0,3,0)
+    // This is a heuristic projection onto y=0 plane
+    const spreadX = 12, spreadZ = 10;
+    return { x: nx * spreadX, y: 0, z: nz * spreadZ };
+  }, []);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => setIsDragOver(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      const pos = screenTo3D(e.clientX, e.clientY);
+      // Spread assets so they don't stack
+      const offset = assetCounter.current * 1.5;
+      assetCounter.current++;
+      addPlacedAsset({
+        placement_id: `placed-${Date.now()}-${data.uid}`,
+        uid: data.uid,
+        name: data.name,
+        thumbnail: data.thumbnail || "",
+        position: { x: pos.x + offset * Math.cos(offset), y: 0, z: pos.z + offset * Math.sin(offset) },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: 1.0,
+        room_context: data.room_context || "exterior",
+      });
+    } catch (err) {
+      console.warn("Drop parse error:", err);
+    }
+  };
+
+  // Keyboard: Delete selected asset
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key === "Delete" || e.key === "Backspace") && document.activeElement?.tagName !== "INPUT") {
+        const sel = useStore.getState().selectedAssetUid;
+        if (sel) { removePlacedAsset(sel); setSelectedAssetUid(null); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [removePlacedAsset, setSelectedAssetUid]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="absolute inset-0"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onClick={() => setSelectedAssetUid(null)}
+    >
+      <DropOverlay active={isDragOver} />
+
+      {/* Placed assets count badge */}
+      {placedAssets.length > 0 && (
+        <div className="absolute bottom-4 left-4 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-full px-3 py-1 text-[10px] font-medium text-slate-600 shadow-sm flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 bg-[#7c93c3] rounded-full" />
+          {placedAssets.length} asset{placedAssets.length !== 1 ? "s" : ""} placed
+          <button
+            onClick={(e) => { e.stopPropagation(); useStore.getState().clearPlacedAssets(); }}
+            className="ml-1 text-slate-400 hover:text-rose-500 transition"
+            title="Clear all"
+          >×</button>
+        </div>
+      )}
+
+      <Canvas
+        camera={{ position: [18, 8, 18], fov: 60, near: 0.1, far: 1000 }}
+        shadows={{ type: THREE.PCFSoftShadowMap }}
+        gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true }}
+        dpr={[1, 2]}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <React.Suspense fallback={null}>
+          <Sky sunPosition={[100, 40, 100]} turbidity={8} rayleigh={0.5} mieCoefficient={0.005} mieDirectionalG={0.8} />
+          <color attach="background" args={["#dbeafe"]} />
+
+          <ambientLight intensity={0.55} color="#fff8f0" />
+          <directionalLight position={[25, 40, 20]} intensity={1.5} castShadow
+            shadow-mapSize={[2048, 2048]} shadow-camera-far={120}
+            shadow-camera-left={-30} shadow-camera-right={30}
+            shadow-camera-top={30} shadow-camera-bottom={-30}
+            shadow-bias={-0.0005} />
+          <directionalLight position={[-15, 20, -15]} intensity={0.35} color="#c7d4f5" />
+          <hemisphereLight args={["#b9d4f7", "#6aab6a", 0.5]} />
+          <Environment preset="dawn" />
+
+          <MeshBoundary><Ground /></MeshBoundary>
+          <MeshBoundary><Trees /></MeshBoundary>
+          <MeshBoundary><ProceduralScene /></MeshBoundary>
+
+          {/* Placed Sketchfab assets */}
+          {placedAssets.map((asset) => (
+            <MeshBoundary key={asset.placement_id}>
+              <PlacedAssetMesh asset={asset} onSelect={setSelectedAssetUid} />
+            </MeshBoundary>
+          ))}
+
+          <ContactShadows position={[0, 0.02, 0]} opacity={0.55} scale={60} blur={3} far={12} resolution={512} color="#334155" />
+
+          {canOrbit && (
+            <OrbitControls target={[0, 3, 0]} maxPolarAngle={Math.PI / 2 - 0.05}
+              minDistance={6} maxDistance={60} enableDamping dampingFactor={0.07} />
+          )}
+          <CameraController />
+        </React.Suspense>
+      </Canvas>
     </div>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useStore } from "@/lib/store";
-import { Search, Layers, TreePine, Sofa, Armchair, Lamp, Upload, X, GripVertical } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Search, X, GripVertical, Upload, Sofa, TreePine,
+  Layers, Armchair, ChefHat, Bath, Loader2, Package,
+  ExternalLink, AlertCircle,
+} from "lucide-react";
 
-// ====================================================
-// TYPES
-// ====================================================
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface SketchfabAsset {
   uid: string;
@@ -15,297 +16,283 @@ interface SketchfabAsset {
   author: string;
   is_downloadable: boolean;
   tags: string[];
+  embed_url?: string;
 }
 
-interface CatalogItem {
-  query: string;
-  category: string | null;
+const API_BASE = "https://ai-architect-production-1e57.up.railway.app";
+
+// Fallback: query Sketchfab public search directly from browser (no auth needed)
+async function searchSketchfabDirect(query: string, count = 20): Promise<SketchfabAsset[]> {
+  try {
+    const url = `https://api.sketchfab.com/v3/models?q=${encodeURIComponent(query)}&count=${count}&sort_by=relevance&downloadable=true`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Sketchfab API error");
+    const data = await res.json();
+    return (data.results || []).map((m: any) => ({
+      uid: m.uid,
+      name: m.name || "Untitled",
+      thumbnail: m.thumbnails?.images?.[0]?.url || "",
+      author: m.user?.displayName || "Unknown",
+      is_downloadable: m.isDownloadable ?? false,
+      tags: (m.tags || []).map((t: any) => t.name || t),
+      embed_url: `https://sketchfab.com/models/${m.uid}/embed?autospin=0&autostart=0`,
+    }));
+  } catch {
+    return [];
+  }
 }
 
-// ====================================================
-// ASSET PALETTE — Sidebar with drag-and-drop source
-// ====================================================
+// ─── Room catalog ──────────────────────────────────────────────────────────────
 
-export default function AssetPalette() {
-  const [activeTab, setActiveTab] = useState<"interior" | "exterior">("interior");
-  const [activeRoom, setActiveRoom] = useState("living");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [assets, setAssets] = useState<SketchfabAsset[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [draggingAsset, setDraggingAsset] = useState<SketchfabAsset | null>(null);
+const CATALOG = {
+  interior: {
+    living:   { icon: Sofa,    label: "Living",   queries: ["modern sofa", "coffee table", "floor lamp", "tv stand", "rug carpet"] },
+    bedroom:  { icon: Armchair,label: "Bedroom",  queries: ["double bed", "wardrobe", "nightstand", "dresser mirror", "table lamp"] },
+    kitchen:  { icon: ChefHat, label: "Kitchen",  queries: ["refrigerator", "kitchen stove", "dining table", "kitchen island", "sink faucet"] },
+    bathroom: { icon: Bath,    label: "Bathroom", queries: ["toilet", "shower cabin", "bathroom vanity", "bathtub freestanding", "towel rack"] },
+  },
+  exterior: {
+    landscape:{ icon: TreePine,label: "Landscape",queries: ["realistic tree", "bush hedge", "flower pot", "garden bench", "fountain"] },
+    outdoor:  { icon: Sofa,    label: "Outdoor",  queries: ["outdoor chair", "bbq grill", "patio table", "parasol umbrella", "planter box"] },
+    facade:   { icon: Layers,  label: "Facade",   queries: ["front door", "balcony railing", "window frame", "garage door", "awning canopy"] },
+  },
+};
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
+// ─── AssetCard ────────────────────────────────────────────────────────────────
 
-  // Fetch catalog or search results
-  const fetchAssets = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      let url: string;
-      let body: any;
-
-      if (searchQuery.trim()) {
-        url = `${API_BASE}/api/assets/search`;
-        body = {
-          query: searchQuery,
-          context: activeTab,
-          max_results: 24
-        };
-      } else {
-        url = `${API_BASE}/api/assets/catalog/${activeRoom}`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-        // Search each catalog item
-        const allResults: SketchfabAsset[] = [];
-        for (const item of data.items || []) {
-          const searchResp = await fetch(`${API_BASE}/api/assets/search`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: item.query,
-              category: item.category,
-              context: activeTab,
-              max_results: 4
-            })
-          });
-          const searchData = await searchResp.json();
-          allResults.push(...searchData);
-        }
-        setAssets(allResults.slice(0, 24));
-        setIsLoading(false);
-        return;
-      }
-
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const data = await resp.json();
-      setAssets(data);
-    } catch (e) {
-      console.error("Asset fetch error:", e);
-    }
-    setIsLoading(false);
-  }, [searchQuery, activeTab, activeRoom, API_BASE]);
-
-  useEffect(() => {
-    fetchAssets();
-  }, [fetchAssets]);
-
-  // Handle drag start
-  const handleDragStart = (e: React.DragEvent, asset: SketchfabAsset) => {
-    setDraggingAsset(asset);
-
-    const payload = JSON.stringify({
-      uid: asset.uid,
-      name: asset.name,
-      source: "sketchfab"
-    });
-
-    // Primary: HTML5 dataTransfer (read by ThreeJSViewer onDrop)
-    e.dataTransfer.setData("application/json", payload);
-    e.dataTransfer.setData("text/plain", payload); // fallback for some browsers
-    e.dataTransfer.effectAllowed = "copy";
-
-    // Also store on window as belt-and-suspenders fallback
-    (window as any).__draggedAsset = { uid: asset.uid, name: asset.name, source: "sketchfab" };
-
-    // Drag image from thumbnail
-    if (asset.thumbnail) {
-      const img = new Image();
-      img.src = asset.thumbnail;
-      e.dataTransfer.setDragImage(img, 32, 32);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggingAsset(null);
-  };
-
-  const interiorRooms = [
-    { id: "living", label: "Living Room", icon: Sofa },
-    { id: "bedroom", label: "Bedroom", icon: Armchair },
-    { id: "kitchen", label: "Kitchen", icon: Lamp },
-    { id: "bathroom", label: "Bathroom", icon: Layers }
-  ];
-
-  const exteriorRooms = [
-    { id: "landscape", label: "Landscape", icon: TreePine },
-    { id: "facade", label: "Facade", icon: Layers },
-    { id: "outdoor", label: "Outdoor", icon: Sofa }
-  ];
-
-  const rooms = activeTab === "interior" ? interiorRooms : exteriorRooms;
+function AssetCard({ asset, onDragStart }: { asset: SketchfabAsset; onDragStart: (e: React.DragEvent, a: SketchfabAsset) => void }) {
+  const [imgOk, setImgOk] = useState(true);
 
   return (
-    <div className="w-80 h-full bg-neutral-900 border-r border-neutral-700 flex flex-col">
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, asset)}
+      className="group relative bg-white border border-slate-200 rounded-xl overflow-hidden cursor-grab active:cursor-grabbing hover:border-[#7c93c3] hover:shadow-md transition-all duration-150"
+      title={`${asset.name} — drag to scene`}
+    >
+      {/* Thumbnail */}
+      <div className="aspect-square bg-slate-100 relative overflow-hidden">
+        {asset.thumbnail && imgOk ? (
+          <img
+            src={asset.thumbnail}
+            alt={asset.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            draggable={false}
+            onError={() => setImgOk(false)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Package className="w-8 h-8 text-slate-300" />
+          </div>
+        )}
+        {/* Drag handle hint */}
+        <div className="absolute inset-0 bg-[#7c93c3]/0 group-hover:bg-[#7c93c3]/10 transition-colors flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-lg px-2 py-1 text-[9px] font-medium text-slate-600 flex items-center gap-1">
+            <GripVertical className="w-3 h-3" />Drag to scene
+          </div>
+        </div>
+        {asset.is_downloadable && (
+          <div className="absolute top-1.5 right-1.5 bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+            GLB
+          </div>
+        )}
+      </div>
+      {/* Info */}
+      <div className="p-2">
+        <p className="text-[10px] font-semibold text-slate-700 truncate">{asset.name}</p>
+        <p className="text-[9px] text-slate-400 truncate">{asset.author}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main palette ─────────────────────────────────────────────────────────────
+
+export default function AssetPalette({ onClose }: { onClose?: () => void }) {
+  const [tab, setTab] = useState<"interior" | "exterior">("interior");
+  const [room, setRoom] = useState("living");
+  const [search, setSearch] = useState("");
+  const [assets, setAssets] = useState<SketchfabAsset[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Ensure selected room exists in current tab
+  useEffect(() => {
+    const rooms = Object.keys(CATALOG[tab]);
+    if (!rooms.includes(room)) setRoom(rooms[0]);
+  }, [tab, room]);
+
+  const loadAssets = useCallback(async (q: string, roomKey: string, tabKey: "interior" | "exterior") => {
+    setLoading(true);
+    setApiError(false);
+    try {
+      let results: SketchfabAsset[] = [];
+
+      if (q.trim()) {
+        // Use Sketchfab directly for free-text search
+        results = await searchSketchfabDirect(q, 24);
+      } else {
+        // Load first query from catalog (most representative)
+        const catalog = CATALOG[tabKey] as any;
+        const entry = catalog[roomKey];
+        if (entry) {
+          results = await searchSketchfabDirect(entry.queries[0], 24);
+        }
+      }
+
+      setAssets(results);
+      if (results.length === 0) setApiError(true);
+    } catch {
+      setApiError(true);
+    }
+    setLoading(false);
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => loadAssets(search, room, tab), 400);
+    return () => clearTimeout(debounceRef.current);
+  }, [search, room, tab, loadAssets]);
+
+  const handleDragStart = (e: React.DragEvent, asset: SketchfabAsset) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({
+      uid: asset.uid,
+      name: asset.name,
+      thumbnail: asset.thumbnail,
+      author: asset.author,
+      source: "sketchfab",
+      embed_url: asset.embed_url,
+      room_context: room,
+      tab_context: tab,
+    }));
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const rooms = CATALOG[tab] as any;
+
+  return (
+    <div className="w-[280px] h-full flex flex-col bg-white border-r border-slate-200 shadow-xl">
       {/* Header */}
-      <div className="p-4 border-b border-neutral-700">
-        <h2 className="text-sm font-semibold text-white mb-3">Asset Library</h2>
-
-        {/* Tab Switch */}
-        <div className="flex bg-neutral-800 rounded-lg p-1 mb-3">
-          <button
-            onClick={() => setActiveTab("interior")}
-            className={`flex-1 py-1.5 text-xs rounded-md transition ${
-              activeTab === "interior" ? "bg-blue-600 text-white" : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            Interior
-          </button>
-          <button
-            onClick={() => setActiveTab("exterior")}
-            className={`flex-1 py-1.5 text-xs rounded-md transition ${
-              activeTab === "exterior" ? "bg-emerald-600 text-white" : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            Exterior
-          </button>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+        <div>
+          <h2 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <Package className="w-3.5 h-3.5 text-[#7c93c3]" />
+            Asset Library
+          </h2>
+          <p className="text-[9px] text-slate-400 mt-0.5">Powered by Sketchfab • Drag to 3D scene</p>
         </div>
+        {onClose && (
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
 
-        {/* Room Selector */}
-        <div className="flex gap-1.5 flex-wrap">
-          {rooms.map((room) => {
-            const Icon = room.icon;
-            return (
-              <button
-                key={room.id}
-                onClick={() => setActiveRoom(room.id)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs transition ${
-                  activeRoom === room.id
-                    ? activeTab === "interior"
-                      ? "bg-blue-600/20 text-blue-400 border border-blue-600/40"
-                      : "bg-emerald-600/20 text-emerald-400 border border-emerald-600/40"
-                    : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-                }`}
-              >
-                <Icon size={12} />
-                {room.label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Interior / Exterior tabs */}
+      <div className="flex bg-slate-50 m-3 rounded-lg p-0.5 border border-slate-200">
+        {(["interior", "exterior"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-1.5 rounded-md text-[10px] font-semibold transition capitalize ${
+              tab === t ? "bg-white shadow-sm text-[#7c93c3] border border-slate-200" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >{t}</button>
+        ))}
+      </div>
+
+      {/* Room tabs */}
+      <div className="flex gap-1 px-3 pb-2 overflow-x-auto scrollbar-hide">
+        {Object.entries(rooms).map(([key, val]: any) => {
+          const Icon = val.icon;
+          return (
+            <button
+              key={key}
+              onClick={() => setRoom(key)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-medium whitespace-nowrap transition border ${
+                room === key
+                  ? tab === "interior"
+                    ? "bg-[#7c93c3]/15 text-[#5a6e9c] border-[#7c93c3]/40"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              {val.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
-      <div className="p-3 border-b border-neutral-700">
+      <div className="px-3 pb-3">
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search Sketchfab..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-neutral-800 text-white text-xs pl-8 pr-3 py-2 rounded-md border border-neutral-700 focus:border-blue-500 focus:outline-none"
+            placeholder={`Search ${tab} assets…`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-8 py-2 text-[11px] text-slate-700 placeholder-slate-400 outline-none focus:border-[#7c93c3] focus:ring-1 focus:ring-[#7c93c3]/20 transition"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"
-            >
-              <X size={12} />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Asset Grid */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+      {/* Asset grid */}
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-32 gap-2 text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin text-[#7c93c3]" />
+            <p className="text-[10px]">Loading from Sketchfab…</p>
+          </div>
+        ) : apiError ? (
+          <div className="flex flex-col items-center justify-center h-32 gap-2 text-slate-400 px-4 text-center">
+            <AlertCircle className="w-5 h-5 text-amber-400" />
+            <p className="text-[10px]">Couldn't load assets. Check your internet connection.</p>
+            <button onClick={() => loadAssets(search, room, tab)}
+              className="text-[10px] text-[#7c93c3] hover:underline">Retry</button>
           </div>
         ) : assets.length === 0 ? (
-          <div className="text-center py-8 text-neutral-500 text-xs">
-            No assets found. Try a different search.
+          <div className="flex flex-col items-center justify-center h-32 gap-2 text-slate-400 text-center">
+            <Package className="w-5 h-5" />
+            <p className="text-[10px]">No assets found. Try a different search.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {assets.map((asset) => (
-              <div
-                key={asset.uid}
-                draggable
-                onDragStart={(e) => handleDragStart(e, asset)}
-                onDragEnd={handleDragEnd}
-                className={`group relative bg-neutral-800 rounded-lg overflow-hidden cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-500/50 transition ${
-                  draggingAsset?.uid === asset.uid ? "opacity-50" : ""
-                }`}
-              >
-                {/* Thumbnail */}
-                <div className="aspect-square bg-neutral-700 relative">
-                  {asset.thumbnail ? (
-                    <img
-                      src={asset.thumbnail}
-                      alt={asset.name}
-                      className="w-full h-full object-cover"
-                      draggable={false}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-neutral-600">
-                      <Layers size={20} />
-                    </div>
-                  )}
-                  {/* Drag Handle */}
-                  <div className="absolute top-1 right-1 bg-black/60 rounded p-1 opacity-0 group-hover:opacity-100 transition">
-                    <GripVertical size={10} className="text-white" />
-                  </div>
-                  {/* Downloadable Badge */}
-                  {asset.is_downloadable && (
-                    <div className="absolute bottom-1 left-1 bg-green-600/80 text-white text-[9px] px-1.5 py-0.5 rounded">
-                      GLB
-                    </div>
-                  )}
-                </div>
-                {/* Info */}
-                <div className="p-2">
-                  <p className="text-[10px] text-white truncate font-medium">{asset.name}</p>
-                  <p className="text-[9px] text-neutral-500 truncate">{asset.author}</p>
-                </div>
-              </div>
+              <AssetCard key={asset.uid} asset={asset} onDragStart={handleDragStart} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Upload Zone */}
-      <div className="p-3 border-t border-neutral-700">
-        <label className="flex items-center justify-center gap-2 w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg cursor-pointer transition text-xs text-neutral-400 hover:text-white">
-          <Upload size={14} />
-          Upload GLB / OBJ
-          <input
-            type="file"
-            accept=".glb,.gltf,.obj,.fbx"
-            className="hidden"
+      {/* Upload your own */}
+      <div className="px-3 py-3 border-t border-slate-100">
+        <label className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 hover:bg-slate-100 border border-dashed border-slate-300 hover:border-[#7c93c3] rounded-xl cursor-pointer transition text-[10px] text-slate-500 hover:text-slate-700">
+          <Upload className="w-3.5 h-3.5" />
+          Upload your GLB / OBJ model
+          <input type="file" accept=".glb,.gltf,.obj,.fbx" className="hidden"
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
-              const formData = new FormData();
-              formData.append("file", file);
-              formData.append("room_type", activeRoom);
-              formData.append("name", file.name);
-              try {
-                const resp = await fetch(`${API_BASE}/api/assets/upload`, {
-                  method: "POST",
-                  body: formData
-                });
-                const data = await resp.json();
-                if (data.ready) {
-                  // Add to local assets immediately
-                  setAssets(prev => [{
-                    uid: data.uid,
-                    name: data.name,
-                    thumbnail: "",
-                    author: "You",
-                    is_downloadable: true,
-                    tags: []
-                  }, ...prev]);
-                }
-              } catch (err) {
-                console.error("Upload failed:", err);
-              }
+              // Dispatch as a custom drag-drop event so ThreeJSViewer picks it up
+              window.dispatchEvent(new CustomEvent("asset-upload", {
+                detail: { name: file.name, uid: `upload-${Date.now()}`, source: "upload", file }
+              }));
             }}
           />
         </label>
+        <p className="text-center text-[9px] text-slate-400 mt-1.5">
+          <ExternalLink className="w-2.5 h-2.5 inline mr-0.5" />
+          <a href="https://sketchfab.com/search?type=models&downloadable=true" target="_blank" rel="noopener noreferrer" className="hover:text-[#7c93c3]">Browse more on Sketchfab</a>
+        </p>
       </div>
     </div>
   );

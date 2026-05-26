@@ -10,7 +10,7 @@ import BuildingLoader from "@/components/BuildingLoader";
 import AssetPalette from "@/components/AssetPalette";
 import {
   Box, Eye, Filter, Layers, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Settings2,
+  CheckCircle2, AlertTriangle, Settings2, Package, X,
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
 
@@ -86,18 +86,7 @@ export default function WorkspacePage() {
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
             NBC Auditor Active
           </div>
-          {/* Asset Library toggle */}
-          <button
-            onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-              isAssetPaletteOpen
-                ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                : "bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600"
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            Asset Library
-          </button>
+
         </header>
 
         {/* ── Body ── */}
@@ -168,7 +157,7 @@ export default function WorkspacePage() {
           {/* ── Asset Palette — floating overlay over 3D viewer ── */}
           {isAssetPaletteOpen && (
             <div className="absolute left-[340px] top-0 bottom-0 z-30 shadow-2xl">
-              <AssetPalette />
+              <AssetPalette onClose={() => setAssetPaletteOpen(false)} />
             </div>
           )}
 
@@ -176,8 +165,24 @@ export default function WorkspacePage() {
           <section className="flex-1 relative min-h-0 overflow-hidden">
             <ThreeJSViewer />
 
+            {/* Asset Library floating toggle button */}
+            <button
+              onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
+              className={`absolute top-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border shadow-lg backdrop-blur-md transition-all duration-200 ${
+                isAssetPaletteOpen
+                  ? "left-[284px] bg-[#7c93c3] text-white border-[#7c93c3]"
+                  : "left-4 bg-white/80 text-slate-700 border-slate-200/60 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+              }`}
+              style={{ top: isAssetPaletteOpen ? "auto" : undefined, bottom: isAssetPaletteOpen ? "auto" : undefined }}
+            >
+              {isAssetPaletteOpen
+                ? <><X className="w-3.5 h-3.5" />Close Library</>
+                : <><Package className="w-3.5 h-3.5" />Asset Library</>
+              }
+            </button>
+
             {/* Camera Projections overlay — top left */}
-            <div className="absolute top-4 left-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-60">
+            <div className={`absolute top-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-60 transition-all duration-200 ${isAssetPaletteOpen ? "left-[300px]" : "left-[140px]"}`}>
               <div className="flex items-center gap-1.5 mb-2">
                 <Eye className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Camera Projections</span>
