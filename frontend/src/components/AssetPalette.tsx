@@ -95,16 +95,27 @@ export default function AssetPalette() {
   // Handle drag start
   const handleDragStart = (e: React.DragEvent, asset: SketchfabAsset) => {
     setDraggingAsset(asset);
-    e.dataTransfer.setData("application/json", JSON.stringify({
+
+    const payload = JSON.stringify({
       uid: asset.uid,
       name: asset.name,
       source: "sketchfab"
-    }));
+    });
+
+    // Primary: HTML5 dataTransfer (read by ThreeJSViewer onDrop)
+    e.dataTransfer.setData("application/json", payload);
+    e.dataTransfer.setData("text/plain", payload); // fallback for some browsers
     e.dataTransfer.effectAllowed = "copy";
-    // Set a drag image (optional)
-    const img = new Image();
-    img.src = asset.thumbnail;
-    e.dataTransfer.setDragImage(img, 32, 32);
+
+    // Also store on window as belt-and-suspenders fallback
+    (window as any).__draggedAsset = { uid: asset.uid, name: asset.name, source: "sketchfab" };
+
+    // Drag image from thumbnail
+    if (asset.thumbnail) {
+      const img = new Image();
+      img.src = asset.thumbnail;
+      e.dataTransfer.setDragImage(img, 32, 32);
+    }
   };
 
   const handleDragEnd = () => {
