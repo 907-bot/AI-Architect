@@ -181,7 +181,7 @@ export const useStore = create<ArchitectStore>((set) => ({
   // NEW defaults
   placedAssets: [],
   selectedAssetUid: null,
-  isAssetPaletteOpen: true,
+  isAssetPaletteOpen: false,
 
   setProjectId: (id) => set({ projectId: id }),
   setPrompt: (prompt) => set({ currentPrompt: prompt }),

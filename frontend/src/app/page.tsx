@@ -59,7 +59,7 @@ export default function WorkspacePage() {
     visibleComponentGroup, setVisibleComponentGroup,
     complianceData, isGenerating,
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
-    isAssetPaletteOpen,
+    isAssetPaletteOpen, setAssetPaletteOpen,
   } = useStore();
 
   return (
@@ -86,10 +86,22 @@ export default function WorkspacePage() {
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
             NBC Auditor Active
           </div>
+          {/* Asset Library toggle */}
+          <button
+            onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              isAssetPaletteOpen
+                ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                : "bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Asset Library
+          </button>
         </header>
 
         {/* ── Body ── */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
           {/* ── Left Panel: Chat ── */}
           <aside className="w-[340px] flex flex-col bg-white border-r border-slate-100 min-h-0 z-10">
@@ -153,8 +165,12 @@ export default function WorkspacePage() {
             </div>
           </aside>
 
-          {/* ── Asset Palette ── */}
-          {isAssetPaletteOpen && <AssetPalette />}
+          {/* ── Asset Palette — floating overlay over 3D viewer ── */}
+          {isAssetPaletteOpen && (
+            <div className="absolute left-[340px] top-0 bottom-0 z-30 shadow-2xl">
+              <AssetPalette />
+            </div>
+          )}
 
           {/* ── Right Panel: 3D Viewer ── */}
           <section className="flex-1 relative min-h-0 overflow-hidden">

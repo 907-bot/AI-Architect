@@ -271,8 +271,6 @@ function useDropRaycaster(
 export default function ThreeJSViewer() {
   const isDroneFlying = useStore((s) => s.isDroneFlying);
   const activeProjection = useStore((s) => s.activeProjection);
-  const isAssetPaletteOpen = useStore((s) => s.isAssetPaletteOpen);
-  const setAssetPaletteOpen = useStore((s) => s.setAssetPaletteOpen);
 
   const [placedAssets, setPlacedAssets] = useState<PlacedAsset[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -392,13 +390,6 @@ export default function ThreeJSViewer() {
 
   return (
     <div className="relative w-full h-full">
-      {/* Toggle Asset Palette button */}
-      <button
-        onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
-        className="absolute top-4 left-4 z-20 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-white text-xs px-3 py-2 rounded-lg transition flex items-center gap-2 shadow-lg"
-      >
-        <span>{isAssetPaletteOpen ? "◀ Hide Assets" : "▶ Asset Library"}</span>
-      </button>
 
       {/* Drop status toast */}
       {dropStatus && (
