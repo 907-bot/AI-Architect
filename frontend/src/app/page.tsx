@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import ChatPanel from "@/components/ChatPanel";
 import PromptBar from "@/components/PromptBar";
@@ -13,6 +13,7 @@ import {
   CheckCircle2, AlertTriangle, Settings2, Package, X,
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
+import { API_BASE, DEFAULT_MVP_PROMPT, fallbackVillaGeometry, normalizeMvpResponse } from "@/lib/mvpScene";
 
 const ThreeJSViewer = dynamic(() => import("@/components/ThreeJSViewer"), {
   ssr: false,
@@ -61,6 +62,44 @@ export default function WorkspacePage() {
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
     isAssetPaletteOpen, setAssetPaletteOpen,
   } = useStore();
+  const booted = useRef(false);
+
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+
+    const store = useStore.getState();
+    store.setGeneratedGlbPath(null);
+    store.updateScene(
+      { ...fallbackVillaGeometry() },
+      { drone_path: [
+        { index: 0, position: [18, 8, 18], look_at: [0, 2, 0], duration_s: 4 },
+        { index: 1, position: [-18, 8, -18], look_at: [0, 2, 0], duration_s: 4 },
+      ]},
+      { materials: fallbackVillaGeometry().materials },
+      { compliant: true, issues: [], actual_far: 1.1, allowed_far: 2.5, actual_coverage_pct: 42, allowed_coverage_pct: 60 }
+    );
+
+    fetch(`${API_BASE}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: DEFAULT_MVP_PROMPT }),
+    })
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
+      .then((data) => {
+        const generated = normalizeMvpResponse(data);
+        const next = useStore.getState();
+        next.setLatestToon(generated.toon);
+        next.setGeneratedGlbPath(generated.glbPath);
+        next.updateScene(generated.geometry, generated.sceneConfig, generated.assets, generated.compliance || undefined);
+      })
+      .catch(() => {
+        useStore.getState().addAgentLog({
+          agent: "mvp",
+          message: "Using built-in villa preview because the local backend was not reachable.",
+        });
+      });
+  }, []);
 
   return (
     <>

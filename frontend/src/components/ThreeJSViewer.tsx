@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, ContactShadows, Environment, Sky, Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore, PlacedAsset } from "@/lib/store";
+import { API_BASE } from "@/lib/mvpScene";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 class MeshBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { err: boolean }> {
@@ -141,6 +142,13 @@ function ProceduralScene() {
       {(meshes || []).map((m: any) => (
         <MeshBoundary key={m.id}><BuildingMesh mesh={m} materials={materials} /></MeshBoundary>
       ))}
+      {filter === "All" && (geo.rooms || []).map((room: any) => (
+        <Html key={room.id || room.name} center position={[room.x, 3.85, room.y || 0]}>
+          <div className="pointer-events-none select-none rounded-full border border-slate-200 bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow-sm whitespace-nowrap">
+            {(room.name || room.id || "room").replaceAll("_", " ")}
+          </div>
+        </Html>
+      ))}
     </group>
   );
 }
@@ -234,7 +242,6 @@ function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect: (i
   const selected = useStore((s) => s.selectedAssetUid) === asset.placement_id;
   const s = asset.scale || 1;
   const size: [number, number, number] = [s * 1.2, s * 0.8, s * 1.2];
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
 
   // Build the GLB URL — prefer local cached file, then remote URL, then public fallback
   const glbUrl = (() => {
@@ -410,7 +417,6 @@ export default function ThreeJSViewer() {
 
     // Call backend to download & cache the GLB, get the URL
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
       const resp = await fetch(`${API_BASE}/api/sketchfab/drag-drop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -418,7 +424,7 @@ export default function ThreeJSViewer() {
           asset_uid: data.uid,
           drop_position: { x: pos.x, y: 0, z: pos.z },
           surface_normal: { x: 0, y: 1, z: 0 },
-          room_context: "interior",
+          room_context: data.room_context || data.tab_context || "interior",
           auto_orient: true,
           auto_scale: true,
         }),
@@ -503,8 +509,10 @@ export default function ThreeJSViewer() {
           <MeshBoundary><Ground /></MeshBoundary>
           <MeshBoundary><Trees /></MeshBoundary>
           {generatedGlbPath ? (
-            <MeshBoundary>
-              <GeneratedGLB path={generatedGlbPath} />
+            <MeshBoundary fallback={<ProceduralScene />}>
+              <React.Suspense fallback={<ProceduralScene />}>
+                <GeneratedGLB path={generatedGlbPath} />
+              </React.Suspense>
             </MeshBoundary>
           ) : (
             <MeshBoundary><ProceduralScene /></MeshBoundary>

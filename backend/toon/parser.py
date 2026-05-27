@@ -54,6 +54,29 @@ class _Parser:
         return Room(name=name, width=width, depth=depth, height=height)
 
     def _layout_rooms(self, rooms: list[Room]) -> None:
+        living_rooms = [room for room in rooms if room.room_type == "living_room"]
+        other_rooms = [room for room in rooms if room.room_type != "living_room"]
+
+        if living_rooms and other_rooms:
+            living = living_rooms[0]
+            living.x = 0.0
+            living.z = -living.depth / 2
+
+            cursor_x = 0.0
+            for room in other_rooms:
+                room.x = cursor_x + room.width / 2
+                room.z = room.depth / 2 + 0.4
+                cursor_x += room.width
+
+            total_width = cursor_x
+            for room in other_rooms:
+                room.x -= total_width / 2
+
+            for extra in living_rooms[1:]:
+                extra.x = living.x + living.width + extra.width / 2
+                extra.z = living.z
+            return
+
         cursor_x = 0.0
         max_depth = max((room.depth for room in rooms), default=0.0)
         for room in rooms:

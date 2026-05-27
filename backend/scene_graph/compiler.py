@@ -6,7 +6,7 @@ from backend.toon.models import SceneGraph
 MATERIALS = [
     {"id": "floor_concrete", "color_hex": "#b8bec8", "roughness": 0.9},
     {"id": "wall_plaster", "color_hex": "#eef1f4", "roughness": 0.82},
-    {"id": "roof_dark", "color_hex": "#4b5563", "roughness": 0.75},
+    {"id": "roof_dark", "color_hex": "#4b5563", "roughness": 0.75, "opacity": 0.72, "transparent": True},
     {"id": "glass_clear", "color_hex": "#bfe7ff", "roughness": 0.08, "transmission": 0.7, "opacity": 0.42, "transparent": True},
     {"id": "wood_warm", "color_hex": "#a16207", "roughness": 0.7},
     {"id": "fabric_blue", "color_hex": "#4068a8", "roughness": 0.9},

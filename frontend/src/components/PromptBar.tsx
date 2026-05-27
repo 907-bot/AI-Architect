@@ -4,8 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { useStore } from "@/lib/store";
 import axios from "axios";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE, normalizeMvpResponse } from "@/lib/mvpScene";
 
 const SUGGESTIONS = [
   "Modern 3-floor villa with pool and garage",
@@ -75,25 +74,17 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
     }
 
     try {
-      const response = await axios.post(`${API}/api/generate`, { prompt });
+      const response = await axios.post(`${API_BASE}/api/generate`, { prompt });
       const result = response.data?.data || response.data;
-      const geo = result?.geometry;
-      const compliance = result?.compliance || null;
+      const generated = normalizeMvpResponse(result);
+      const geo = generated.geometry;
+      const compliance = generated.compliance;
       const msg = response.data?.message || "";
 
       if (geo) {
-        const materials = (geo.materials || []).map((m: any) => ({ ...m, id: m.id || m.material_id }));
-        setGeneratedGlbPath(result?.glb_path || null);
-        setLatestToon(result?.toon || null);
-        updateScene(
-          { meshes: geo.meshes || [] },
-          { drone_path: [
-            { index: 0, position: [18, 8, 18], look_at: [0, 2, 0], duration_s: 4 },
-            { index: 1, position: [-18, 8, -18], look_at: [0, 2, 0], duration_s: 4 },
-          ]},
-          { materials },
-          compliance
-        );
+        setGeneratedGlbPath(generated.glbPath);
+        setLatestToon(generated.toon);
+        updateScene(generated.geometry, generated.sceneConfig, generated.assets, compliance || undefined);
 
         // Build a natural-language summary
         const p = prompt.toLowerCase();

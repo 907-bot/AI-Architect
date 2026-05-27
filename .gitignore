@@ -12,6 +12,8 @@ yarn-debug.log*
 yarn-error.log*
 frontend/.next/
 frontend/out/
+.local/
+exports/
 
 # Python
 __pycache__/
