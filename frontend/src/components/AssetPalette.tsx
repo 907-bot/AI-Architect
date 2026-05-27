@@ -255,7 +255,7 @@ export default function AssetPalette({ onClose }: { onClose?: () => void }) {
         ) : apiError ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2 text-slate-400 px-4 text-center">
             <AlertCircle className="w-5 h-5 text-amber-400" />
-            <p className="text-[10px]">Couldn't load assets. Check your internet connection.</p>
+            <p className="text-[10px]">Could not load assets. Check your internet connection.</p>
             <button onClick={() => loadAssets(search, room, tab)}
               className="text-[10px] text-[#7c93c3] hover:underline">Retry</button>
           </div>

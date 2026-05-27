@@ -58,8 +58,8 @@ def test_scene_validator_positive():
 
 def test_scene_validator_negative_dimensions():
     room = make_valid_room("r3")
-    room.width = 2
-    room.depth = 2
+    room.width = 1.0   # below 2m minimum → invalid
+    room.depth = 1.0
     room.height = 5
     scene = SceneGraph(
         rooms=[room],

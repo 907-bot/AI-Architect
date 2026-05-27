@@ -6,8 +6,9 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import structlog
 import uuid
+import asyncio
 
-from backend.sketchfab_client import get_sketchfab_manager
+from backend.sketchfab_client import get_sketchfab_manager, CACHE_DIR
 
 log = structlog.get_logger()
 router = APIRouter()
@@ -154,76 +155,61 @@ async def place_asset(request: PlaceAssetRequest):
 async def drag_drop_asset(request: DragDropRequest):
     """
     Handle drag-and-drop from asset palette to 3D canvas.
-
-    The frontend raycasts against the floor/room mesh and sends:
-    - drop_position: exact 3D point where user released
-    - surface_normal: orientation of the surface (for auto-orient)
-    - room_context: which room the drop landed in
-
-    Backend returns placement with auto-corrections:
-    - Snap to floor (y = 0 or room floor height)
-    - Auto-rotate to face room center
-    - Auto-scale based on room type
+    Returns placement data immediately — GLB download happens async in background.
+    Frontend uses public fallback GLBs while the real model downloads.
     """
     manager = get_sketchfab_manager()
-    asset = await manager.get_asset(request.asset_uid)
-    if not asset:
+
+    # Get metadata only (fast — no download)
+    meta = await manager.direct.get_model_details(request.asset_uid)
+    if not meta:
         raise HTTPException(status_code=404, detail="Asset not found")
 
     pos = request.drop_position.copy()
-
-    # 1. Snap to floor (assume floor at y=0, or room-specific)
     if request.room_context in ["bedroom", "living", "kitchen", "bathroom"]:
-        pos["y"] = 0.0  # Interior floor
+        pos["y"] = 0.0
     elif request.room_context == "exterior":
-        pos["y"] = 0.05  # Slightly above ground
+        pos["y"] = 0.05
 
-    # 2. Auto-orient: rotate to face room center (0,0,0) or surface normal
     rotation = {"x": 0, "y": 0, "z": 0}
     if request.auto_orient and request.surface_normal:
-        # Simple: face toward negative Z, or align to surface
-        nx, ny, nz = request.surface_normal["x"], request.surface_normal["y"], request.surface_normal["z"]
-        if ny > 0.9:  # Horizontal surface (floor)
-            # Face toward scene center
-            dx, dz = -pos["x"], -pos["z"]
-            angle = __import__("math").atan2(dx, dz)
-            rotation["y"] = angle
-        else:
-            # Wall or sloped — align to normal
-            rotation["x"] = nx * 90
-            rotation["z"] = nz * 90
+        import math
+        nx, ny, nz = request.surface_normal.get("x",0), request.surface_normal.get("y",1), request.surface_normal.get("z",0)
+        if ny > 0.9:
+            dx, dz = -pos.get("x",0), -pos.get("z",0)
+            rotation["y"] = math.atan2(dx, dz)
 
-    # 3. Auto-scale based on room context
-    scale = 1.0
+    scale = 1.5
     if request.auto_scale and request.room_context:
-        scales = {
-            "bedroom": {"bed": 1.0, "wardrobe": 1.0, "lamp": 0.3},
-            "living": {"sofa": 1.2, "tv": 0.8, "table": 0.9},
-            "kitchen": {"fridge": 1.0, "stove": 0.8, "sink": 0.7},
-            "bathroom": {"toilet": 0.8, "shower": 1.0, "sink": 0.6},
-            "exterior": {"tree": 2.0, "car": 1.5, "bench": 0.8}
-        }
-        # Use asset name to guess type
-        name_lower = asset.get("name", "").lower()
-        room_scales = scales.get(request.room_context, {})
-        for key, val in room_scales.items():
-            if key in name_lower:
-                scale = val
-                break
+        scale_map = {"bedroom": 1.0, "living": 1.2, "kitchen": 0.9, "bathroom": 0.8, "exterior": 2.0}
+        scale = scale_map.get(request.room_context, 1.5)
+
+    # Check if already cached
+    cache_path = CACHE_DIR / f"{request.asset_uid}.glb"
+
+    # Trigger background download if we have a token
+    local_path = None
+    glb_url = None
+    if cache_path.exists():
+        local_path = str(cache_path)
+        glb_url = None  # frontend builds URL from local_path
+    else:
+        # Start background download — don't wait for it
+        asyncio.create_task(manager.get_or_download(request.asset_uid))
 
     placement = AssetPlacementResponse(
         placement_id=str(uuid.uuid4()),
         asset_uid=request.asset_uid,
-        scene_id="current",  # Should come from session
+        scene_id="current",
         position=pos,
         rotation=rotation,
         scale=scale,
-        glb_url=asset.get("download_url"),
-        local_path=asset.get("local_path"),
+        glb_url=glb_url,
+        local_path=local_path,
         bounds={"width": scale, "height": scale * 0.5, "depth": scale}
     )
 
-    log.info("drag_drop_placed", uid=request.asset_uid, pos=pos, room=request.room_context)
+    log.info("drag_drop_placed", uid=request.asset_uid, cached=cache_path.exists())
     return placement
 
 

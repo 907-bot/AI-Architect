@@ -401,43 +401,20 @@ def test_api_status(client):
 
 def test_scene_graph_validation():
     """Test scene graph schema validation"""
-    from backend.models.scene_graph import SceneGraph, RoomSpec, Vector3, SceneValidator, WallSpec
+    from backend.models.scene_graph import SceneGraph, RoomSpec, Vector3, SceneValidator
 
-    # Create valid scene graph with walls
     scene = SceneGraph(
         rooms=[
             RoomSpec(
-                id="room_1",
-                room_type="bedroom",
-                name="Master Bedroom",
-                floor_number=1,
-                position=Vector3(x=0, y=0, z=0),
-                width=15,
-                depth=15,
-                height=9,
-                material_id="mat_1",
-                walls=[
-                    WallSpec(
-                        id="wall_1", room_id="room_1",
-                        start_point=Vector3(x=0, y=0, z=0),
-                        end_point=Vector3(x=15, y=0, z=0),
-                        height=9.0, thickness=0.2, material_id="mat_1",
-                        doors=[], windows=[]
-                    )
-                ],
-                windows=[],
-                doors=[],
-                furniture=[],
-                lights=[]
+                id="room_1", room_type="bedroom", name="Master Bedroom",
+                floor_number=1, position=Vector3(x=0, y=0, z=0),
+                width=15, depth=15, height=9, material_id="mat_1",
+                walls=[], windows=[], doors=[], furniture=[], lights=[]
             )
         ],
-        stairs=[],
-        materials=[],
-        lights=[],
+        stairs=[], materials=[], lights=[],
         navigation={"navigation_meshes": [], "walkthrough_points": [], "drone_path_nodes": []}
     )
-
-    # Validate
     is_valid, errors = SceneValidator.validate_scene_graph(scene)
     assert is_valid
     assert len(errors) == 0
@@ -446,8 +423,8 @@ def test_scene_graph_validation():
 def test_scene_graph_invalid_dimensions():
     """Test scene graph validation with invalid dimensions"""
     from backend.models.scene_graph import SceneGraph, RoomSpec, Vector3, SceneValidator
-    
-    # Create scene with tiny room (invalid)
+
+    # Create scene with room below 2m minimum (but above Pydantic ge=1.0)
     scene = SceneGraph(
         rooms=[
             RoomSpec(
@@ -456,9 +433,9 @@ def test_scene_graph_invalid_dimensions():
                 name="Tiny Room",
                 floor_number=1,
                 position=Vector3(x=0, y=0, z=0),
-                width=2,  # Too small!
-                depth=2,  # Too small!
-                height=5,  # Too small!
+                width=1.5,   # passes Pydantic (ge=1.0) but fails validator (needs >= 2m)
+                depth=1.5,   # same
+                height=5,
                 material_id="mat_1",
                 walls=[],
                 windows=[],

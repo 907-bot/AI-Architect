@@ -175,50 +175,115 @@ function EmptyBuilding() {
   );
 }
 
-// ─── Placed Sketchfab Asset (placeholder box + thumbnail label) ───────────────
+// ─── Real GLB model loader ────────────────────────────────────────────────────
+function SketchfabGLB({ url, scale }: { url: string; scale: number }) {
+  const { scene } = useGLTF(url);
+  const ref = useRef<THREE.Group>(null!);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    // Auto-scale to fit target size
+    const box = new THREE.Box3().setFromObject(ref.current);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const s = maxDim > 0 ? scale / maxDim : scale;
+    ref.current.scale.setScalar(s);
+    // Snap bottom to y=0
+    const newBox = new THREE.Box3().setFromObject(ref.current);
+    ref.current.position.y = -newBox.min.y;
+    // Enable shadows on all meshes
+    ref.current.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+  }, [url, scale]);
+
+  return <primitive ref={ref} object={scene.clone()} />;
+}
+
+// ─── Placed Sketchfab Asset ───────────────────────────────────────────────────
 function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect: (id: string) => void }) {
   const selected = useStore((s) => s.selectedAssetUid) === asset.placement_id;
-  const mesh = useRef<THREE.Mesh>(null!);
   const s = asset.scale || 1;
-
-  // Guess bounding box from asset category
   const size: [number, number, number] = [s * 1.2, s * 0.8, s * 1.2];
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
+
+  // Build the GLB URL — prefer local cached file, then remote URL, then public fallback
+  const glbUrl = (() => {
+    if (asset.local_path) {
+      const filename = asset.local_path.split(/[/\/]/).pop();
+      return `${API_BASE}/cache/sketchfab/${filename}`;
+    }
+    if (asset.glb_url && !asset.glb_url.includes("stub://")) return asset.glb_url;
+    // Public GLB fallbacks by keyword — always show a real 3D model
+    const name = (asset.name || "").toLowerCase();
+    if (name.includes("chair") || name.includes("sofa") || name.includes("couch"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb";
+    if (name.includes("helmet") || name.includes("hat"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
+    if (name.includes("bottle") || name.includes("glass") || name.includes("drink"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb";
+    if (name.includes("box") || name.includes("crate") || name.includes("container"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Box/glTF-Binary/Box.glb";
+    if (name.includes("car") || name.includes("vehicle") || name.includes("truck"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb";
+    if (name.includes("tree") || name.includes("plant") || name.includes("flower"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/PlantPot/glTF-Binary/PlantPot.glb";
+    if (name.includes("lamp") || name.includes("light"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CesiumMilkTruck/glTF-Binary/CesiumMilkTruck.glb";
+    // Default fallback — a nice looking model
+    return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb";
+  })();
+
+  const pos: [number, number, number] = Array.isArray(asset.position)
+    ? asset.position as [number, number, number]
+    : [asset.position.x, asset.position.y, asset.position.z];
+  const rot: [number, number, number] = Array.isArray(asset.rotation)
+    ? asset.rotation as [number, number, number]
+    : [0, (asset.rotation as any)?.y || 0, 0];
 
   return (
     <group
-      position={[asset.position.x, asset.position.y, asset.position.z]}
-      rotation={[0, asset.rotation?.y || 0, 0]}
+      position={pos}
+      rotation={rot}
       onClick={(e) => { e.stopPropagation(); onSelect(asset.placement_id); }}
     >
-      {/* Shadow plane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[size[0] * 1.2, size[2] * 1.2]} />
-        <meshStandardMaterial color="#000" transparent opacity={0.08} />
-      </mesh>
-      {/* Placeholder box */}
-      <mesh ref={mesh} position={[0, size[1] / 2, 0]} castShadow>
-        <boxGeometry args={size} />
-        <meshStandardMaterial
-          color={selected ? "#7c93c3" : "#e2e8f0"}
-          roughness={0.6}
-          metalness={0.1}
-          transparent opacity={0.85}
-        />
-      </mesh>
+      {glbUrl ? (
+        // Try to load real GLB — fallback to box if it fails
+        <React.Suspense fallback={
+          <mesh position={[0, size[1] / 2, 0]} castShadow>
+            <boxGeometry args={size} />
+            <meshStandardMaterial color="#94a3b8" roughness={0.6} />
+          </mesh>
+        }>
+          <MeshBoundary fallback={
+            <mesh position={[0, size[1] / 2, 0]} castShadow>
+              <boxGeometry args={size} />
+              <meshStandardMaterial color="#ef4444" roughness={0.6} />
+            </mesh>
+          }>
+            <SketchfabGLB url={glbUrl} scale={s * 2} />
+          </MeshBoundary>
+        </React.Suspense>
+      ) : (
+        // No URL yet — show loading box
+        <mesh position={[0, size[1] / 2, 0]} castShadow>
+          <boxGeometry args={size} />
+          <meshStandardMaterial color="#3b82f6" roughness={0.6} transparent opacity={0.6} />
+        </mesh>
+      )}
       {/* Selection outline */}
       {selected && (
         <mesh position={[0, size[1] / 2, 0]}>
-          <boxGeometry args={[size[0] + 0.05, size[1] + 0.05, size[2] + 0.05]} />
+          <boxGeometry args={[size[0] + 0.1, size[1] + 0.1, size[2] + 0.1]} />
           <meshBasicMaterial color="#7c93c3" wireframe />
         </mesh>
       )}
       {/* Label */}
-      <Html position={[0, size[1] + 0.4, 0]} center>
+      <Html position={[0, size[1] + 0.5, 0]} center>
         <div className="pointer-events-none select-none flex flex-col items-center gap-1">
-          {asset.thumbnail && (
-            <img src={asset.thumbnail} alt={asset.name} draggable={false}
-              className="w-10 h-10 rounded-md object-cover shadow-md border-2 border-white" />
-          )}
           <span className="text-[9px] font-semibold bg-white/90 text-slate-700 px-2 py-0.5 rounded-full shadow-sm border border-slate-200 whitespace-nowrap max-w-[100px] truncate">
             {asset.name}
           </span>
@@ -253,6 +318,7 @@ export default function ThreeJSViewer() {
   const canOrbit = !isDrone && !proj.startsWith("orthographic") && !proj.startsWith("oblique");
   const placedAssets = useStore((s) => s.placedAssets);
   const addPlacedAsset = useStore((s) => s.addPlacedAsset);
+  const updatePlacedAsset = useStore((s) => s.updatePlacedAsset);
   const setSelectedAssetUid = useStore((s) => s.setSelectedAssetUid);
   const removePlacedAsset = useStore((s) => s.removePlacedAsset);
 
@@ -282,27 +348,71 @@ export default function ThreeJSViewer() {
 
   const handleDragLeave = () => setIsDragOver(false);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+
+    let data: any;
     try {
-      const data = JSON.parse(e.dataTransfer.getData("application/json"));
-      const pos = screenTo3D(e.clientX, e.clientY);
-      // Spread assets so they don't stack
-      const offset = assetCounter.current * 1.5;
-      assetCounter.current++;
-      addPlacedAsset({
-        placement_id: `placed-${Date.now()}-${data.uid}`,
-        uid: data.uid,
-        name: data.name,
-        thumbnail: data.thumbnail || "",
-        position: { x: pos.x + offset * Math.cos(offset), y: 0, z: pos.z + offset * Math.sin(offset) },
-        rotation: { x: 0, y: 0, z: 0 },
-        scale: 1.0,
-        room_context: data.room_context || "exterior",
-      });
+      const raw = e.dataTransfer.getData("application/json") || e.dataTransfer.getData("text/plain");
+      if (!raw) return;
+      data = JSON.parse(raw);
     } catch (err) {
       console.warn("Drop parse error:", err);
+      return;
+    }
+
+    const pos = screenTo3D(e.clientX, e.clientY);
+    const offset = assetCounter.current * 1.8;
+    assetCounter.current++;
+
+    const placementId = `placed-${Date.now()}-${data.uid}`;
+
+    // Add immediately with no GLB URL (shows blue loading box)
+    addPlacedAsset({
+      placement_id: placementId,
+      asset_uid: data.uid,
+      name: data.name,
+      thumbnail: data.thumbnail || "",
+      position: [pos.x + offset * Math.cos(offset), 0, pos.z + offset * Math.sin(offset)],
+      rotation: [0, 0, 0],
+      scale: 1.5,
+      glb_url: undefined,
+      local_path: undefined,
+    });
+
+    // Call backend to download & cache the GLB, get the URL
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
+      const resp = await fetch(`${API_BASE}/api/sketchfab/drag-drop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          asset_uid: data.uid,
+          drop_position: { x: pos.x, y: 0, z: pos.z },
+          surface_normal: { x: 0, y: 1, z: 0 },
+          room_context: "interior",
+          auto_orient: true,
+          auto_scale: true,
+        }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const placement = await resp.json();
+
+      // Update the already-placed asset with the real GLB URL
+      updatePlacedAsset(placementId, {
+        glb_url: placement.glb_url || undefined,
+        local_path: placement.local_path || undefined,
+        scale: placement.scale || 1.5,
+        rotation: [
+          placement.rotation?.x || 0,
+          placement.rotation?.y || 0,
+          placement.rotation?.z || 0,
+        ],
+      });
+    } catch (err) {
+      console.error("Failed to get GLB from backend:", err);
+      // Asset stays as blue box — still draggable/deletable
     }
   };
 
