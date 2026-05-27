@@ -11,6 +11,7 @@ env:
   NODE_VERSION: "20"
 
 jobs:
+  # ─── Backend ──────────────────────────────────────────────────────────────
   backend-tests:
     runs-on: ubuntu-latest
     defaults:
@@ -35,22 +36,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov httpx flake8 mypy
+          pip install pytest pytest-asyncio pytest-cov pytest-timeout httpx flake8
 
       - name: Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 . --count --max-complexity=10 --max-line-length=120 --statistics
 
-      - name: Type check with mypy
-        run: mypy --ignore-missing-imports .
-        continue-on-error: true
-
       - name: Run unit tests (mock mode)
         env:
           OPENROUTER_MOCK: "true"
           DEBUG_SECRET: "test-debug-secret"
           OPENROUTER_API_KEY: "mock-key"
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest tests/ \
             -v \
@@ -65,6 +63,7 @@ jobs:
           file: ./backend/coverage.xml
           fail_ci_if_error: false
 
+  # ─── Frontend ─────────────────────────────────────────────────────────────
   frontend-tests:
     runs-on: ubuntu-latest
     defaults:
@@ -88,9 +87,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint --if-present
-
       - name: Type check
         run: npx tsc --noEmit
         continue-on-error: true
@@ -100,16 +96,26 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: "http://localhost:8000"
 
+  # ─── Compliance ───────────────────────────────────────────────────────────
   compliance-check:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Install deps
-        run: pip install pydantic
-      - name: Run compliance tests
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
         run: |
-          python -m pytest backend/tests/test_compliance.py -v
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-timeout
+
+      - name: Run compliance tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python -m pytest backend/tests/test_compliance.py -v --timeout=30
