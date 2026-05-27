@@ -5,7 +5,7 @@ import { Send, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { useStore } from "@/lib/store";
 import axios from "axios";
 
-const API = "https://ai-architect-production-1e57.up.railway.app";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const SUGGESTIONS = [
   "Modern 3-floor villa with pool and garage",
@@ -19,13 +19,15 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
   const [suggIdx, setSuggIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { projectId, clientId, isGenerating, plotLat, plotLng, plotWidth, plotDepth } = useStore();
+  const isGenerating = useStore((s) => s.isGenerating);
   const setIsGenerating = useStore((s) => s.setIsGenerating);
   const clearAgentLogs = useStore((s) => s.clearAgentLogs);
   const addAgentLog = useStore((s) => s.addAgentLog);
   const updateScene = useStore((s) => s.updateScene);
   const addChatMessage = useStore((s) => s.addChatMessage);
   const updateChatMessage = useStore((s) => s.updateChatMessage);
+  const setGeneratedGlbPath = useStore((s) => s.setGeneratedGlbPath);
+  const setLatestToon = useStore((s) => s.setLatestToon);
 
   // Cycle suggestion placeholder
   useEffect(() => {
@@ -73,30 +75,16 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
     }
 
     try {
-      const response = await axios.post(`${API}/api/agents/generate_simple`, {
-        prompt,
-        project_id: projectId,
-        client_id: clientId,
-        plot_lat: plotLat,
-        plot_lng: plotLng,
-        plot_width: plotWidth,
-        plot_depth: plotDepth,
-        wall_color: buildConfig?.wallColor || "white",
-        roof_style: buildConfig?.roofStyle || "gable",
-        window_glass: buildConfig?.windowGlass || "clear",
-        floors: buildConfig?.floors ?? 2,
-        has_balcony: buildConfig?.balcony ?? true,
-        has_garage: buildConfig?.garage ?? true,
-        has_pool: buildConfig?.pool ?? false,
-        has_garden: buildConfig?.garden ?? true,
-      });
-
-      const geo = response.data?.scene_data?.geometry;
-      const compliance = response.data?.scene_data?.compliance || null;
+      const response = await axios.post(`${API}/api/generate`, { prompt });
+      const result = response.data?.data || response.data;
+      const geo = result?.geometry;
+      const compliance = result?.compliance || null;
       const msg = response.data?.message || "";
 
       if (geo) {
         const materials = (geo.materials || []).map((m: any) => ({ ...m, id: m.id || m.material_id }));
+        setGeneratedGlbPath(result?.glb_path || null);
+        setLatestToon(result?.toon || null);
         updateScene(
           { meshes: geo.meshes || [] },
           { drone_path: [
@@ -120,7 +108,8 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         const btype = p.includes("villa") ? "villa" : p.includes("apartment") ? "apartment" : p.includes("bungalow") ? "bungalow" : "house";
 
         const summary = [
-          `✓ Built! Your **${floors}-floor ${btype}** is ready.`,
+          `Built. Your **${floors}-floor ${btype}** is ready.`,
+          result?.glb_path ? `GLB exported at ${result.glb_path}.` : "Blender was not available to the API, so the viewer is showing compiled procedural geometry.",
           features.length ? `Features: ${features.join(", ")}.` : "",
           compliance
             ? compliance.compliant
@@ -143,7 +132,7 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         });
         addAgentLog({ agent: "orchestrator", message: msg || "Generation complete" });
       } else {
-        updateChatMessage(aiId, { content: "⚠️ Backend returned no geometry. Try rephrasing your prompt.", isStreaming: false });
+        updateChatMessage(aiId, { content: "Backend returned no geometry. Try rephrasing your prompt.", isStreaming: false });
       }
     } catch (err) {
       // Fallback mock so UI always shows something
@@ -165,8 +154,9 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         ]},
         { compliant:false, issues:["Backend unavailable — showing demo model"], actual_far:1.2, allowed_far:2.5, actual_coverage_pct:38, allowed_coverage_pct:60, vastu_suggestions:["Main entrance recommended facing North or East."] }
       );
+      setGeneratedGlbPath(null);
       updateChatMessage(aiId, {
-        content: "⚠️ Couldn't reach the server — showing a demo model. Check your connection and try again.",
+        content: "Could not reach the local server, so I am showing a demo model. Start FastAPI with uvicorn backend.main:app --reload.",
         isStreaming: false,
       });
     } finally {

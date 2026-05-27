@@ -6,6 +6,21 @@ export interface AgentUpdate {
   data?: any;
 }
 
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  isStreaming?: boolean;
+  buildingSummary?: {
+    type?: string;
+    floors?: number;
+    features?: string[];
+    compliant?: boolean;
+    far?: number;
+    coverage?: number;
+  };
+}
+
 export interface Room {
   id: string;
   name: string;
@@ -93,6 +108,9 @@ export type ProjectionType =
 // FIXED: Match backend component_group names exactly
 export type ComponentGroupFilter =
   | "All"
+  | "Floor Slabs"
+  | "Walls"
+  | "Interior"
   | "Foundation"
   | "Structure"      // was "Floor Slabs"
   | "Exterior"       // was "Walls"
@@ -111,9 +129,12 @@ interface ArchitectStore {
   currentPrompt: string;
   isGenerating: boolean;
   agentLogs: AgentUpdate[];
+  chatMessages: ChatMessage[];
   geometryData: GeometryData | null;
   sceneConfig: SceneConfig | null;
   assetManifest: AssetManifest | null;
+  generatedGlbPath: string | null;
+  latestToon: string | null;
   dronePath: Keyframe[] | null;
   isDroneFlying: boolean;
   currentDroneKeyframe: number;
@@ -141,6 +162,10 @@ interface ArchitectStore {
   addAgentLog: (log: AgentUpdate) => void;
   clearAgentLogs: () => void;
   updateScene: (geometry: GeometryData, config: SceneConfig, assets: AssetManifest, compliance?: ComplianceData) => void;
+  setGeneratedGlbPath: (path: string | null) => void;
+  setLatestToon: (toon: string | null) => void;
+  addChatMessage: (message: Omit<ChatMessage, "id">) => string;
+  updateChatMessage: (id: string, updates: Partial<ChatMessage>) => void;
   setDroneFlying: (flying: boolean) => void;
   setDroneKeyframe: (index: number) => void;
   setPlotData: (lat: number, lng: number, w: number, d: number) => void;
@@ -163,9 +188,18 @@ export const useStore = create<ArchitectStore>((set) => ({
   currentPrompt: "",
   isGenerating: false,
   agentLogs: [],
+  chatMessages: [
+    {
+      id: "welcome",
+      role: "assistant",
+      content: "Describe a house and I will compile it through the local TOON pipeline.",
+    },
+  ],
   geometryData: null,
   sceneConfig: null,
   assetManifest: null,
+  generatedGlbPath: null,
+  latestToon: null,
   dronePath: null,
   isDroneFlying: false,
   currentDroneKeyframe: 0,
@@ -195,6 +229,18 @@ export const useStore = create<ArchitectStore>((set) => ({
     dronePath: config?.drone_path || null,
     complianceData: compliance || null
   }),
+  setGeneratedGlbPath: (path) => set({ generatedGlbPath: path }),
+  setLatestToon: (toon) => set({ latestToon: toon }),
+  addChatMessage: (message) => {
+    const id = `${message.role}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    set((state) => ({ chatMessages: [...state.chatMessages, { ...message, id }] }));
+    return id;
+  },
+  updateChatMessage: (id, updates) => set((state) => ({
+    chatMessages: state.chatMessages.map((message) =>
+      message.id === id ? { ...message, ...updates } : message
+    )
+  })),
   setDroneFlying: (flying) => set({ isDroneFlying: flying }),
   setDroneKeyframe: (index) => set({ currentDroneKeyframe: index }),
   setPlotData: (lat, lng, w, d) => set({ plotLat: lat, plotLng: lng, plotWidth: w, plotDepth: d }),

@@ -42,7 +42,7 @@ const PROJECTIONS: { key: ProjectionType; label: string }[] = [
   { key: "oblique_cabinet", label: "Cabinet" },
 ];
 
-const COMPONENTS: ComponentGroupFilter[] = ["All", "Foundation", "Floor Slabs", "Walls", "Windows", "Roof"];
+const COMPONENTS: ComponentGroupFilter[] = ["All", "Foundation", "Floor Slabs", "Walls", "Windows", "Roof", "Interior"];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 

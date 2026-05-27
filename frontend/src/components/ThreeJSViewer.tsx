@@ -203,6 +203,32 @@ function SketchfabGLB({ url, scale }: { url: string; scale: number }) {
   return <primitive ref={ref} object={scene.clone()} />;
 }
 
+function GeneratedGLB({ path }: { path: string }) {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+  const { scene } = useGLTF(url);
+  const ref = useRef<THREE.Group>(null!);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const box = new THREE.Box3().setFromObject(ref.current);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = maxDim > 0 ? 16 / maxDim : 1;
+    ref.current.scale.setScalar(scale);
+    const nextBox = new THREE.Box3().setFromObject(ref.current);
+    ref.current.position.y = -nextBox.min.y;
+    ref.current.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+  }, [path]);
+
+  return <primitive ref={ref} object={scene.clone()} />;
+}
+
 // ─── Placed Sketchfab Asset ───────────────────────────────────────────────────
 function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect: (id: string) => void }) {
   const selected = useStore((s) => s.selectedAssetUid) === asset.placement_id;
@@ -321,6 +347,7 @@ export default function ThreeJSViewer() {
   const updatePlacedAsset = useStore((s) => s.updatePlacedAsset);
   const setSelectedAssetUid = useStore((s) => s.setSelectedAssetUid);
   const removePlacedAsset = useStore((s) => s.removePlacedAsset);
+  const generatedGlbPath = useStore((s) => s.generatedGlbPath);
 
   const [isDragOver, setIsDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -475,7 +502,13 @@ export default function ThreeJSViewer() {
 
           <MeshBoundary><Ground /></MeshBoundary>
           <MeshBoundary><Trees /></MeshBoundary>
-          <MeshBoundary><ProceduralScene /></MeshBoundary>
+          {generatedGlbPath ? (
+            <MeshBoundary>
+              <GeneratedGLB path={generatedGlbPath} />
+            </MeshBoundary>
+          ) : (
+            <MeshBoundary><ProceduralScene /></MeshBoundary>
+          )}
 
           {/* Placed Sketchfab assets */}
           {(placedAssets || []).map((asset) => (
