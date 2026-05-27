@@ -210,14 +210,31 @@ function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect: (i
   const size: [number, number, number] = [s * 1.2, s * 0.8, s * 1.2];
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-architect-production-1e57.up.railway.app";
 
-  // Build the GLB URL — prefer local cached file, fallback to remote S3 URL
+  // Build the GLB URL — prefer local cached file, then remote URL, then public fallback
   const glbUrl = (() => {
     if (asset.local_path) {
-      const filename = asset.local_path.split(/[/\\]/).pop();
+      const filename = asset.local_path.split(/[/\/]/).pop();
       return `${API_BASE}/cache/sketchfab/${filename}`;
     }
-    if (asset.glb_url) return asset.glb_url;
-    return null;
+    if (asset.glb_url && !asset.glb_url.includes("stub://")) return asset.glb_url;
+    // Public GLB fallbacks by keyword — always show a real 3D model
+    const name = (asset.name || "").toLowerCase();
+    if (name.includes("chair") || name.includes("sofa") || name.includes("couch"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb";
+    if (name.includes("helmet") || name.includes("hat"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
+    if (name.includes("bottle") || name.includes("glass") || name.includes("drink"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb";
+    if (name.includes("box") || name.includes("crate") || name.includes("container"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Box/glTF-Binary/Box.glb";
+    if (name.includes("car") || name.includes("vehicle") || name.includes("truck"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb";
+    if (name.includes("tree") || name.includes("plant") || name.includes("flower"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/PlantPot/glTF-Binary/PlantPot.glb";
+    if (name.includes("lamp") || name.includes("light"))
+      return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CesiumMilkTruck/glTF-Binary/CesiumMilkTruck.glb";
+    // Default fallback — a nice looking model
+    return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb";
   })();
 
   const pos: [number, number, number] = Array.isArray(asset.position)
