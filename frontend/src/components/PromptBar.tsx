@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { useStore } from "@/lib/store";
 import axios from "axios";
-import { API_BASE, normalizeMvpResponse } from "@/lib/mvpScene";
+import { API_BASE, fallbackVillaGeometry, normalizeMvpResponse } from "@/lib/mvpScene";
 
 const SUGGESTIONS = [
   "Modern 3-floor villa with pool and garage",
@@ -100,7 +100,8 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
 
         const summary = [
           `Built. Your **${floors}-floor ${btype}** is ready.`,
-          result?.glb_path ? `GLB exported at ${result.glb_path}.` : "Blender was not available to the API, so the viewer is showing compiled procedural geometry.",
+          result?.glb_path ? `Blender exported ${result.glb_path}; viewer is synchronized to the SceneGraph layout.` : "Blender was not available to the API, so the viewer is showing compiled procedural geometry.",
+          result?.planner ? `Planner: ${result.planner}.` : "",
           features.length ? `Features: ${features.join(", ")}.` : "",
           compliance
             ? compliance.compliant
@@ -126,28 +127,19 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         updateChatMessage(aiId, { content: "Backend returned no geometry. Try rephrasing your prompt.", isStreaming: false });
       }
     } catch (err) {
-      // Fallback mock so UI always shows something
-      const fallbackMeshes = [
-        { id: "foundation", component_group: "Foundation", type: "box", position: [0,-0.15,0] as [number,number,number], scale: [11,0.3,15] as [number,number,number], material_id: "concrete" },
-        { id: "walls", component_group: "Walls", type: "box", position: [0,2.5,0] as [number,number,number], scale: [10,5,14] as [number,number,number], material_id: "plaster_white" },
-        { id: "roof", component_group: "Roof", type: "box", position: [0,5.2,0] as [number,number,number], scale: [11,0.25,15] as [number,number,number], material_id: "concrete_dark" },
-        { id: "window_f", component_group: "Windows", type: "box", position: [0,2.8,7.1] as [number,number,number], scale: [3,1.4,0.1] as [number,number,number], material_id: "glass_clear" },
-        { id: "window_b", component_group: "Windows", type: "box", position: [0,2.8,-7.1] as [number,number,number], scale: [3,1.4,0.1] as [number,number,number], material_id: "glass_clear" },
-      ];
-      updateScene(
-        { meshes: fallbackMeshes },
-        { drone_path: [{ index:0, position:[18,8,18], look_at:[0,2,0], duration_s:4 }] },
-        { materials: [
-          { id:"plaster_white", color_hex:"#f5f5f0", roughness:0.85 },
-          { id:"concrete", color_hex:"#b0b8c4", roughness:0.9 },
-          { id:"concrete_dark", color_hex:"#8c9ab0", roughness:0.85 },
-          { id:"glass_clear", color_hex:"#d0e8f0", roughness:0.05, transmission:0.9, opacity:0.35, transparent:true },
-        ]},
-        { compliant:false, issues:["Backend unavailable — showing demo model"], actual_far:1.2, allowed_far:2.5, actual_coverage_pct:38, allowed_coverage_pct:60, vastu_suggestions:["Main entrance recommended facing North or East."] }
-      );
+      const fallback = normalizeMvpResponse({ geometry: fallbackVillaGeometry() });
+      updateScene(fallback.geometry, fallback.sceneConfig, fallback.assets, {
+        compliant: false,
+        issues: ["Backend unavailable - showing local SceneGraph fallback"],
+        actual_far: 1.2,
+        allowed_far: 2.5,
+        actual_coverage_pct: 38,
+        allowed_coverage_pct: 60,
+      });
       setGeneratedGlbPath(null);
+      setLatestToon(null);
       updateChatMessage(aiId, {
-        content: "Could not reach the local server, so I am showing a demo model. Start FastAPI with uvicorn backend.main:app --reload.",
+        content: "Could not reach the local server, so I am showing the built-in architectural fallback. Start the MVP backend on port 8000, and start Ollama if you want local AI TOON planning.",
         isStreaming: false,
       });
     } finally {

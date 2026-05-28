@@ -211,6 +211,60 @@ function SketchfabGLB({ url, scale }: { url: string; scale: number }) {
   return <primitive ref={ref} object={scene.clone()} />;
 }
 
+function LocalAssetFallback({ asset, size }: { asset: PlacedAsset; size: [number, number, number] }) {
+  const name = (asset.name || "").toLowerCase();
+  if (name.includes("tree") || name.includes("plant") || name.includes("bush")) {
+    return (
+      <group>
+        <mesh position={[0, 0.55, 0]} castShadow>
+          <cylinderGeometry args={[0.12, 0.18, 1.1, 8]} />
+          <meshStandardMaterial color="#8b5a2b" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 1.35, 0]} castShadow>
+          <coneGeometry args={[0.8, 1.5, 10]} />
+          <meshStandardMaterial color="#3f8f46" roughness={0.85} />
+        </mesh>
+      </group>
+    );
+  }
+  if (name.includes("sofa") || name.includes("chair") || name.includes("couch")) {
+    return (
+      <group>
+        <mesh position={[0, 0.35, 0]} castShadow>
+          <boxGeometry args={[size[0] * 1.2, 0.45, size[2] * 0.75]} />
+          <meshStandardMaterial color="#4068a8" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0.75, -size[2] * 0.35]} castShadow>
+          <boxGeometry args={[size[0] * 1.2, 0.75, 0.18]} />
+          <meshStandardMaterial color="#315487" roughness={0.9} />
+        </mesh>
+      </group>
+    );
+  }
+  if (name.includes("table") || name.includes("desk")) {
+    return (
+      <group>
+        <mesh position={[0, 0.65, 0]} castShadow>
+          <boxGeometry args={[size[0] * 1.2, 0.12, size[2] * 0.8]} />
+          <meshStandardMaterial color="#a16207" roughness={0.7} />
+        </mesh>
+        {[[-0.45, -0.3], [0.45, -0.3], [-0.45, 0.3], [0.45, 0.3]].map(([x, z], index) => (
+          <mesh key={index} position={[x, 0.32, z]} castShadow>
+            <boxGeometry args={[0.08, 0.65, 0.08]} />
+            <meshStandardMaterial color="#7c3f10" roughness={0.75} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+  return (
+    <mesh position={[0, size[1] / 2, 0]} castShadow>
+      <boxGeometry args={size} />
+      <meshStandardMaterial color="#94a3b8" roughness={0.6} />
+    </mesh>
+  );
+}
+
 function GeneratedGLB({ path }: { path: string }) {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
@@ -250,7 +304,8 @@ function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect: (i
       return `${API_BASE}/cache/sketchfab/${filename}`;
     }
     if (asset.glb_url && !asset.glb_url.includes("stub://")) return asset.glb_url;
-    // Public GLB fallbacks by keyword — always show a real 3D model
+    if (!asset.glb_url && !asset.local_path) return "";
+    // Public GLB fallbacks by keyword only when a remote URL was provided but failed upstream.
     const name = (asset.name || "").toLowerCase();
     if (name.includes("chair") || name.includes("sofa") || name.includes("couch"))
       return "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb";
@@ -301,11 +356,7 @@ function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect: (i
           </MeshBoundary>
         </React.Suspense>
       ) : (
-        // No URL yet — show loading box
-        <mesh position={[0, size[1] / 2, 0]} castShadow>
-          <boxGeometry args={size} />
-          <meshStandardMaterial color="#3b82f6" roughness={0.6} transparent opacity={0.6} />
-        </mesh>
+        <LocalAssetFallback asset={asset} size={size} />
       )}
       {/* Selection outline */}
       {selected && (
@@ -511,15 +562,7 @@ export default function ThreeJSViewer() {
 
           <MeshBoundary><Ground /></MeshBoundary>
           <MeshBoundary><Trees /></MeshBoundary>
-          {generatedGlbPath ? (
-            <MeshBoundary fallback={<ProceduralScene />}>
-              <React.Suspense fallback={<ProceduralScene />}>
-                <GeneratedGLB path={generatedGlbPath} />
-              </React.Suspense>
-            </MeshBoundary>
-          ) : (
-            <MeshBoundary><ProceduralScene /></MeshBoundary>
-          )}
+          <MeshBoundary><ProceduralScene /></MeshBoundary>
 
           {/* Placed Sketchfab assets */}
           {(placedAssets || []).map((asset) => (

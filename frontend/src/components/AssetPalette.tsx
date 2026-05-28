@@ -19,7 +19,34 @@ interface SketchfabAsset {
   embed_url?: string;
 }
 
-const API_BASE = "https://ai-architect-production-1e57.up.railway.app";
+const LOCAL_ASSETS: Record<string, SketchfabAsset[]> = {
+  living: [
+    { uid: "local-sofa", name: "Local Modern Sofa", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["sofa", "local"] },
+    { uid: "local-coffee-table", name: "Local Coffee Table", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["table", "local"] },
+    { uid: "local-armchair", name: "Local Armchair", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["chair", "local"] },
+  ],
+  bedroom: [
+    { uid: "local-bed", name: "Local Double Bed", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["bed", "local"] },
+    { uid: "local-nightstand", name: "Local Nightstand Table", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["table", "local"] },
+  ],
+  kitchen: [
+    { uid: "local-dining-table", name: "Local Dining Table", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["table", "local"] },
+    { uid: "local-kitchen-island", name: "Local Kitchen Island", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["table", "local"] },
+  ],
+  bathroom: [
+    { uid: "local-vanity", name: "Local Bathroom Vanity", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["bathroom", "local"] },
+  ],
+  landscape: [
+    { uid: "local-tree", name: "Local Garden Tree", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["tree", "local"] },
+    { uid: "local-planter", name: "Local Planter", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["plant", "local"] },
+  ],
+  outdoor: [
+    { uid: "local-patio-table", name: "Local Patio Table", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["table", "local"] },
+  ],
+  facade: [
+    { uid: "local-front-door", name: "Local Front Door", thumbnail: "", author: "AI Architect", is_downloadable: false, tags: ["door", "local"] },
+  ],
+};
 
 // Fallback: query Sketchfab public search directly from browser (no auth needed)
 async function searchSketchfabDirect(query: string, count = 20): Promise<SketchfabAsset[]> {
@@ -141,10 +168,13 @@ export default function AssetPalette({ onClose }: { onClose?: () => void }) {
         }
       }
 
+      if (results.length === 0) {
+        results = LOCAL_ASSETS[roomKey] || LOCAL_ASSETS.living;
+      }
       setAssets(results);
-      if (results.length === 0) setApiError(true);
     } catch {
-      setApiError(true);
+      setAssets(LOCAL_ASSETS[roomKey] || LOCAL_ASSETS.living);
+      setApiError(false);
     }
     setLoading(false);
   }, []);
