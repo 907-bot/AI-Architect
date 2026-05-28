@@ -1,0 +1,111 @@
+{
+  "mcpServers": {
+    "ai-architect-blender-stdio": {
+      "transport": "stdio",
+      "command": "cd /workspace/project/AI-Architect && PYTHONPATH=/workspace/project/AI-Architect python -m backend.blender.mcp_server",
+      "description": "AI Architect - Blender 3D house generation via stdio (for ChatGPT desktop)",
+      "env": {
+        "PYTHONPATH": "/workspace/project/AI-Architect"
+      }
+    },
+    "ai-architect-blender-http": {
+      "transport": "url",
+      "url": "http://localhost:8765",
+      "description": "AI Architect - Blender 3D house generation via HTTP (for API clients)",
+      "headers": {}
+    }
+  },
+  "instructions": {
+    "name": "AI Architect Blender Tools",
+    "description": "Generate 3D architectural models from text prompts using Blender. The AI Architect system creates house designs with rooms, walls, doors, windows, and roofs.",
+    "capabilities": [
+      "Generate complete house models from scene graph descriptions",
+      "Create individual rooms with proper dimensions",
+      "Add roofs (flat, gable, hip styles)",
+      "Export to GLB format for web viewing",
+      "Apply architectural styles (modern, villa, colonial, etc.)"
+    ],
+    "tools": [
+      {
+        "name": "generate_house",
+        "description": "Generate a complete 3D house model from a scene graph",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "scene_graph": {
+              "type": "object",
+              "description": "Scene graph containing house layout with rooms"
+            },
+            "filename": {
+              "type": "string",
+              "description": "Output filename for GLB export",
+              "default": "house.glb"
+            },
+            "style": {
+              "type": "string",
+              "description": "Architectural style (modern, villa, colonial, contemporary, craftsman)",
+              "default": "modern"
+            }
+          },
+          "required": ["scene_graph"]
+        }
+      },
+      {
+        "name": "create_room",
+        "description": "Create an individual room in the scene",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "scene_graph": {
+              "type": "object",
+              "description": "Current scene graph"
+            },
+            "room_name": {
+              "type": "string",
+              "description": "Name of the room to create"
+            }
+          },
+          "required": ["scene_graph", "room_name"]
+        }
+      },
+      {
+        "name": "create_roof",
+        "description": "Add a roof to the house",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "scene_graph": {
+              "type": "object",
+              "description": "Scene graph with house structure"
+            },
+            "roof_style": {
+              "type": "string",
+              "description": "Roof style (flat, gable, hip)",
+              "default": "flat"
+            }
+          },
+          "required": ["scene_graph"]
+        }
+      },
+      {
+        "name": "export_glb",
+        "description": "Export the current scene to GLB format",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "scene_graph": {
+              "type": "object",
+              "description": "Scene graph to export"
+            },
+            "filename": {
+              "type": "string",
+              "description": "Output filename",
+              "default": "house.glb"
+            }
+          },
+          "required": ["scene_graph"]
+        }
+      }
+    ]
+  }
+}

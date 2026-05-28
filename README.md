@@ -212,4 +212,126 @@ docker-compose up -d
 <div align="center">
   <p>Built with ❤️ using FastAPI, Next.js, LangGraph, Three.js, Supabase, and OpenRouter.</p>
   <p><strong>AI Architect</strong> — Empowering creators with spatial intelligence.</p>
-</div># Railway deploy test
+</div>
+
+---
+
+## 🔌 MCP Integration (ChatGPT + Blender)
+
+AI Architect supports **Model Context Protocol (MCP)** for seamless integration with ChatGPT and other AI assistants.
+
+### Quick Setup
+
+#### Option 1: Stdio Transport (Recommended for ChatGPT Desktop)
+
+1. **Copy the config file** to your ChatGPT MCP settings directory:
+   ```bash
+   cp mcp_config.json ~/.config/codeium/mcp_config.json
+   # or for Claude/ChatGPT:
+   cp mcp_config.json ~/.claude/mcp_config.json
+   ```
+
+2. **Start the MCP server** (in a terminal):
+   ```bash
+   cd /workspace/project/AI-Architect
+   PYTHONPATH=/workspace/project/AI-Architect python -m backend.blender.mcp_server
+   ```
+
+3. **In ChatGPT**, use the Blender tools to generate houses:
+   ```
+   "Generate a modern 3-bedroom villa with pool"
+   "Add a garage to the current design"
+   "Export the model to GLB format"
+   ```
+
+#### Option 2: HTTP Transport (For API Clients)
+
+1. **Start the HTTP server**:
+   ```bash
+   cd /workspace/project/AI-Architect
+   PYTHONPATH=/workspace/project/AI-Architect python -m backend.blender.mcp_http_server
+   ```
+
+2. **Update mcp_config.json** to point to your server URL:
+   ```json
+   {
+     "mcpServers": {
+       "ai-architect-blender-http": {
+         "transport": "url",
+         "url": "http://YOUR_SERVER_IP:8765"
+       }
+     }
+   }
+   ```
+
+3. **Access tools via HTTP API**:
+   ```bash
+   curl -X POST http://localhost:8765/tools/generate_house \
+     -H "Content-Type: application/json" \
+     -d '{"scene_graph": {...}, "style": "modern"}'
+   ```
+
+### Available MCP Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `generate_house` | Generate complete 3D house | scene_graph, filename, style, render_quality |
+| `create_room` | Add room to design | scene_graph, room_name, room_type, dimensions |
+| `create_roof` | Add roof structure | scene_graph, roof_style, roof_height |
+| `export_glb` | Export to GLB | scene_graph, filename, apply_color_grading |
+| `get_scene_info` | Get scene metadata | scene_graph |
+
+### Full Pipeline
+
+```
+User Prompt (ChatGPT)
+        ↓
+Ollama / Llama 3.1 → TOON Script
+        ↓
+Scene Graph (Rooms, Walls, Doors, Windows)
+        ↓
+Blender (3D Model with Color Grading)
+        ↓
+GLB Export → Frontend
+        ↓
+Web Viewer (Three.js + Interactive Floor Plan)
+```
+
+### Example Usage
+
+```python
+# Via MCP tools
+scene_graph = {
+    "house": {
+        "name": "modern_villa",
+        "style": "modern",
+        "rooms": [
+            {"name": "living_room", "width": 8, "depth": 6, "height": 3},
+            {"name": "bedroom_1", "width": 5, "depth": 5, "height": 3},
+            {"name": "kitchen", "width": 4, "depth": 4, "height": 3}
+        ]
+    }
+}
+
+result = generate_house(scene_graph, "villa.glb", style="villa")
+# Returns: {"status": "success", "glb_path": "exports/villa.glb", ...}
+```
+
+### Troubleshooting
+
+**MCP Server won't start?**
+```bash
+# Check Python path
+export PYTHONPATH=/workspace/project/AI-Architect
+
+# Verify dependencies
+pip install fastmcp fastapi uvicorn
+
+# Run with debug
+python -m backend.blender.mcp_server --verbose
+```
+
+**ChatGPT can't see tools?**
+1. Copy `mcp_config.json` to correct location
+2. Restart ChatGPT desktop app
+3. Check server is running (`curl http://localhost:8765/health`)

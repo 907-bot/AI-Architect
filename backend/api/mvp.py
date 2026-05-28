@@ -105,9 +105,9 @@ async def blender_status():
     return {"available": False, "reason": "Blender not found in PATH"}
 
 
-@router.get("/styles")
+@router.get("/house-styles")
 async def get_house_styles():
-    """Get available house styles"""
+    """Get available house styles for Blender rendering"""
     return {
         "styles": [
             {
