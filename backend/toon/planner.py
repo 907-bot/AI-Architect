@@ -12,19 +12,21 @@ def prompt_to_toon(prompt: str) -> str:
     style = next((word for word in STYLE_WORDS if word in text), "modern")
     roof = next((word for word in ROOF_WORDS if word in text), "flat")
     bedroom_count = _count_before_word(text, "bedroom", default=1 if "bedroom" in text else 2)
-    wants_dining = "dining" in text
-    wants_kitchen = "kitchen" in text
+    bathroom_count = _count_before_word(text, "bathroom", default=1)
+    wants_dining = "dining" in text or "villa" in text or "family" in text
+    wants_kitchen = "kitchen" in text or "villa" in text or "house" in text
 
-    rooms = [("living_room", "8x6")]
-    rooms.extend((f"bedroom_{i + 1}", "5x5") for i in range(bedroom_count))
+    rooms = [("living_room", "living_room", "8x6"), ("hallway", "hallway", "2x5")]
+    rooms.extend((f"bedroom_{i + 1}", "bedroom", "5x5") for i in range(bedroom_count))
+    rooms.extend((f"bathroom_{i + 1}", "bathroom", "3x3") for i in range(bathroom_count))
     if wants_kitchen:
-        rooms.append(("kitchen", "4x4"))
+        rooms.append(("kitchen", "kitchen", "4x4"))
     if wants_dining:
-        rooms.append(("dining_room", "5x4"))
+        rooms.append(("dining_room", "dining_room", "5x4"))
 
     lines = [f"HOUSE {style}_house {{", f"  STYLE {style}"]
-    for name, size in rooms:
-        lines.extend(["", f"  ROOM {name} {{", f"    size {size}", "  }"])
+    for name, room_type, size in rooms:
+        lines.extend(["", f"  ROOM {name} {{", f"    type {room_type}", f"    size {size}", "  }"])
     lines.extend(["", f"  ROOF {roof}", "}"])
     return "\n".join(lines)
 

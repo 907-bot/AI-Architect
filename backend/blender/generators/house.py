@@ -30,7 +30,7 @@ def create_room(scene_or_room: SceneGraph | Room, room: Room | None = None) -> l
     objects.append(create_wall(target, "left"))
     objects.append(create_wall(target, "right"))
     objects.extend(create_windows(target))
-    objects.append(create_door(target))
+    objects.extend(create_door(target))
     objects.extend(create_interior(target))
     return objects
 
@@ -59,25 +59,34 @@ def create_wall(room: Room, side: str):
 def create_windows(room: Room) -> list[Any]:
     bpy = _bpy()
     mats = _materials(bpy)
-    width = min(2.2, room.width * 0.45)
-    y = room.height * 0.58
-    return [
-        _cube(bpy, f"{room.name}_front_window", (room.x, y, room.z + room.depth / 2 + 0.02), (width, 1.0, 0.05), mats["glass"], bevel=0.02),
-        _cube(bpy, f"{room.name}_back_window", (room.x, y, room.z - room.depth / 2 - 0.02), (width, 1.0, 0.05), mats["glass"], bevel=0.02),
-    ]
+    objects = []
+    for index, window in enumerate(room.windows):
+        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.0, y=room.height * 0.58)
+        objects.append(_cube(bpy, f"{room.name}_window_{index}", position, scale, mats["glass"], bevel=0.02))
+    return objects
 
 
-def create_door(room: Room):
+def create_door(room: Room) -> list[Any]:
     bpy = _bpy()
     mats = _materials(bpy)
-    return _cube(
-        bpy,
-        f"{room.name}_door",
-        (room.x - min(room.width * 0.25, 1.5), 1.05, room.z + room.depth / 2 + 0.04),
-        (0.9, 2.1, 0.07),
-        mats["wood"],
-        bevel=0.03,
-    )
+    objects = []
+    seen = set()
+    for door in room.doors:
+        if door.id in seen:
+            continue
+        seen.add(door.id)
+        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.1, y=1.05)
+        objects.append(_cube(bpy, f"{room.name}_{door.id}", position, scale, mats["wood"], bevel=0.03))
+    if not objects:
+        objects.append(_cube(
+            bpy,
+            f"{room.name}_entry_door",
+            (room.x - min(room.width * 0.25, 1.5), 1.05, room.bottom - 0.04),
+            (0.9, 2.1, 0.07),
+            mats["wood"],
+            bevel=0.03,
+        ))
+    return objects
 
 
 def create_interior(room: Room) -> list[Any]:
@@ -119,6 +128,19 @@ def create_roof(scene: SceneGraph):
         mats["roof"],
         bevel=0.08,
     )
+
+
+def _opening_transform(room: Room, side: str, x: float, y_plan: float, width: float, height: float, y: float):
+    thickness = 0.08
+    if side == "front":
+        return (x, y, room.bottom - 0.04), (width, height, thickness)
+    if side == "back":
+        return (x, y, room.top + 0.04), (width, height, thickness)
+    if side == "left":
+        return (room.left - 0.04, y, y_plan), (thickness, height, width)
+    if side == "right":
+        return (room.right + 0.04, y, y_plan), (thickness, height, width)
+    return (x, y, y_plan), (width, height, thickness)
 
 
 def _cube(

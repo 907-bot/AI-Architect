@@ -24,10 +24,60 @@ export interface ChatMessage {
 export interface Room {
   id: string;
   name: string;
+  type?: string;
   x: number;
   y: number;
   width_m: number;
   height_m: number;
+  depth_m?: number;
+  area_m2?: number;
+}
+
+export interface FloorPlanRoom {
+  id: string;
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  area_m2?: number;
+}
+
+export interface FloorPlanWall {
+  id: string;
+  room: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  thickness: number;
+}
+
+export interface FloorPlanOpening {
+  id: string;
+  room?: string;
+  room_a?: string;
+  room_b?: string;
+  x: number;
+  y: number;
+  width: number;
+  side: string;
+}
+
+export interface CirculationPath {
+  from: string;
+  to: string;
+  points: { x: number; y: number }[];
+}
+
+export interface FloorPlanData {
+  rooms: FloorPlanRoom[];
+  walls: FloorPlanWall[];
+  doors: FloorPlanOpening[];
+  windows: FloorPlanOpening[];
+  adjacency: { from: string; to: string }[];
+  circulation: CirculationPath[];
 }
 
 export interface Mesh {
@@ -43,6 +93,9 @@ export interface Mesh {
 export interface GeometryData {
   meshes?: Mesh[];
   rooms?: Room[];
+  floor_plan?: FloorPlanData;
+  adjacency?: { from: string; to: string }[];
+  circulation?: CirculationPath[];
   style?: string;
   total_height_m?: number;
 }
@@ -115,6 +168,7 @@ export type ComponentGroupFilter =
   | "Structure"      // was "Floor Slabs"
   | "Exterior"       // was "Walls"
   | "Windows"
+  | "Doors"
   | "Roof"
   | "Entrance"
   | "Pool"

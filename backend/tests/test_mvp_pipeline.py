@@ -31,8 +31,11 @@ def test_prompt_to_scene_graph_to_viewer_geometry():
     scene = parse_toon(toon)
     geometry = compile_scene(scene)
 
-    assert len(scene.house.rooms) == 4
+    assert len(scene.house.rooms) >= 8
     assert geometry["meshes"]
+    assert geometry["floor_plan"]["rooms"]
+    assert geometry["floor_plan"]["doors"]
+    assert geometry["floor_plan"]["windows"]
     assert any(mesh["component_group"] == "Roof" for mesh in geometry["meshes"])
 
 

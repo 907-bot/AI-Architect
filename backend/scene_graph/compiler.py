@@ -17,7 +17,13 @@ def compile_scene(scene: SceneGraph) -> dict:
     meshes = []
     rooms = scene.house.rooms
     if not rooms:
-        return {"meshes": [], "rooms": [], "style": scene.house.style, "materials": MATERIALS}
+        return {
+            "meshes": [],
+            "rooms": [],
+            "floor_plan": {"rooms": [], "walls": [], "doors": [], "windows": [], "circulation": [], "adjacency": []},
+            "style": scene.house.style,
+            "materials": MATERIALS,
+        }
 
     min_x = min(room.x - room.width / 2 for room in rooms)
     max_x = max(room.x + room.width / 2 for room in rooms)
@@ -31,9 +37,10 @@ def compile_scene(scene: SceneGraph) -> dict:
 
     for index, room in enumerate(rooms):
         prefix = f"room_{index}_{room.name}"
-        meshes.append(_mesh(f"{prefix}_floor", "Floor Slabs", [room.x, 0.03, room.z], [room.width, 0.06, room.depth], "floor_concrete"))
-        meshes.extend(_room_walls(prefix, room.x, room.z, room.width, room.depth, room.height))
-        meshes.extend(_room_windows(prefix, room.x, room.z, room.width, room.depth, room.height))
+        meshes.append(_mesh(f"{prefix}_floor", "Floor Slabs", [room.x, 0.03, room.y], [room.width, 0.06, room.depth], "floor_concrete"))
+        meshes.extend(_room_walls(prefix, room.x, room.y, room.width, room.depth, room.height))
+        meshes.extend(_room_windows(prefix, room))
+        meshes.extend(_room_doors(prefix, room))
         meshes.extend(_interiors(prefix, room))
 
     roof_y = height + 0.2
@@ -43,9 +50,22 @@ def compile_scene(scene: SceneGraph) -> dict:
     return {
         "meshes": meshes,
         "rooms": [
-            {"id": room.name, "name": room.name, "x": room.x, "y": room.z, "width_m": room.width, "height_m": room.depth}
+            {
+                "id": room.name,
+                "name": room.name,
+                "type": room.room_type,
+                "x": room.x,
+                "y": room.y,
+                "width_m": room.width,
+                "height_m": room.depth,
+                "depth_m": room.depth,
+                "area_m2": round(room.width * room.depth, 2),
+            }
             for room in rooms
         ],
+        "floor_plan": _floor_plan(scene),
+        "adjacency": [{"from": left, "to": right} for left, right in scene.house.adjacency],
+        "circulation": scene.house.circulation,
         "materials": MATERIALS,
         "style": scene.house.style,
         "roof": scene.house.roof.kind,
@@ -63,21 +83,99 @@ def _room_walls(prefix: str, x: float, z: float, width: float, depth: float, hei
     ]
 
 
-def _room_windows(prefix: str, x: float, z: float, width: float, depth: float, height: float) -> list[dict]:
-    return [
-        _mesh(f"{prefix}_window_front", "Windows", [x, height * 0.58, z + depth / 2 + 0.02], [min(2.2, width * 0.45), 1.0, 0.05], "glass_clear"),
-        _mesh(f"{prefix}_window_back", "Windows", [x, height * 0.58, z - depth / 2 - 0.02], [min(2.2, width * 0.45), 1.0, 0.05], "glass_clear"),
-    ]
+def _room_windows(prefix: str, room) -> list[dict]:
+    meshes = []
+    for index, window in enumerate(room.windows):
+        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.0, y=room.height * 0.58)
+        meshes.append(_mesh(f"{prefix}_window_{index}", "Windows", position, scale, "glass_clear"))
+    return meshes
+
+
+def _room_doors(prefix: str, room) -> list[dict]:
+    meshes = []
+    seen = set()
+    for door in room.doors:
+        if door.id in seen:
+            continue
+        seen.add(door.id)
+        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.1, y=1.05)
+        meshes.append(_mesh(f"{prefix}_{door.id}", "Doors", position, scale, "wood_warm"))
+    return meshes
 
 
 def _interiors(prefix: str, room) -> list[dict]:
     if room.room_type == "bedroom":
-        return [_mesh(f"{prefix}_bed", "Interior", [room.x, 0.32, room.z], [2.0, 0.55, 1.6], "fabric_blue")]
+        return [_mesh(f"{prefix}_bed", "Interior", [room.x, 0.32, room.y], [2.0, 0.55, 1.6], "fabric_blue")]
     if room.room_type == "living_room":
-        return [_mesh(f"{prefix}_sofa", "Interior", [room.x, 0.45, room.z], [2.4, 0.8, 0.9], "fabric_blue")]
+        return [_mesh(f"{prefix}_sofa", "Interior", [room.x, 0.45, room.y], [2.4, 0.8, 0.9], "fabric_blue")]
     if room.room_type == "dining_room":
-        return [_mesh(f"{prefix}_table", "Interior", [room.x, 0.45, room.z], [1.8, 0.12, 1.0], "wood_warm")]
+        return [_mesh(f"{prefix}_table", "Interior", [room.x, 0.45, room.y], [1.8, 0.12, 1.0], "wood_warm")]
     return []
+
+
+def _floor_plan(scene: SceneGraph) -> dict:
+    rooms = scene.house.rooms
+    walls = []
+    doors = []
+    windows = []
+    for room in rooms:
+        walls.extend([
+            {"id": f"{room.name}_north", "room": room.name, "x1": room.left, "y1": room.top, "x2": room.right, "y2": room.top, "thickness": 0.18},
+            {"id": f"{room.name}_south", "room": room.name, "x1": room.left, "y1": room.bottom, "x2": room.right, "y2": room.bottom, "thickness": 0.18},
+            {"id": f"{room.name}_west", "room": room.name, "x1": room.left, "y1": room.bottom, "x2": room.left, "y2": room.top, "thickness": 0.18},
+            {"id": f"{room.name}_east", "room": room.name, "x1": room.right, "y1": room.bottom, "x2": room.right, "y2": room.top, "thickness": 0.18},
+        ])
+        for door in room.doors:
+            if door.room_a != room.name:
+                continue
+            doors.append({
+                "id": door.id,
+                "room_a": door.room_a,
+                "room_b": door.room_b,
+                "x": door.x,
+                "y": door.y,
+                "width": door.width,
+                "side": door.side,
+            })
+        windows.extend([
+            {"id": window.id, "room": window.room, "x": window.x, "y": window.y, "width": window.width, "side": window.side}
+            for window in room.windows
+        ])
+
+    return {
+        "rooms": [
+            {
+                "id": room.name,
+                "name": room.name,
+                "type": room.room_type,
+                "x": room.x,
+                "y": room.y,
+                "width": room.width,
+                "depth": room.depth,
+                "height": room.height,
+                "area_m2": round(room.width * room.depth, 2),
+            }
+            for room in rooms
+        ],
+        "walls": walls,
+        "doors": doors,
+        "windows": windows,
+        "adjacency": [{"from": left, "to": right} for left, right in scene.house.adjacency],
+        "circulation": scene.house.circulation,
+    }
+
+
+def _opening_transform(room, side: str, x: float, y_plan: float, width: float, height: float, y: float) -> tuple[list[float], list[float]]:
+    thickness = 0.08
+    if side == "front":
+        return [x, y, room.bottom - 0.04], [width, height, thickness]
+    if side == "back":
+        return [x, y, room.top + 0.04], [width, height, thickness]
+    if side == "left":
+        return [room.left - 0.04, y, y_plan], [thickness, height, width]
+    if side == "right":
+        return [room.right + 0.04, y, y_plan], [thickness, height, width]
+    return [x, y, y_plan], [width, height, thickness]
 
 
 def _mesh(mesh_id: str, group: str, position: list[float], scale: list[float], material: str, mesh_type: str = "box") -> dict:

@@ -8,8 +8,9 @@ import ConfigPanel from "@/components/ConfigPanel";
 import DroneCamera from "@/components/DroneCamera";
 import BuildingLoader from "@/components/BuildingLoader";
 import AssetPalette from "@/components/AssetPalette";
+import FloorPlanView from "@/components/FloorPlanView";
 import {
-  Box, Eye, Filter, Layers, ChevronDown, ChevronUp,
+  Box, Eye, Filter, Layers, ChevronDown, ChevronUp, Cuboid, Map,
   CheckCircle2, AlertTriangle, Settings2, Package, X,
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
@@ -43,7 +44,7 @@ const PROJECTIONS: { key: ProjectionType; label: string }[] = [
   { key: "oblique_cabinet", label: "Cabinet" },
 ];
 
-const COMPONENTS: ComponentGroupFilter[] = ["All", "Foundation", "Floor Slabs", "Walls", "Windows", "Roof", "Interior"];
+const COMPONENTS: ComponentGroupFilter[] = ["All", "Foundation", "Floor Slabs", "Walls", "Doors", "Windows", "Roof", "Interior"];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ export default function WorkspacePage() {
   });
   const [showConfig, setShowConfig] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [viewMode, setViewMode] = useState<"model" | "plan">("model");
 
   const {
     activeProjection, setActiveProjection,
@@ -61,6 +63,7 @@ export default function WorkspacePage() {
     complianceData, isGenerating,
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
     isAssetPaletteOpen, setAssetPaletteOpen,
+    geometryData,
   } = useStore();
   const booted = useRef(false);
 
@@ -202,7 +205,29 @@ export default function WorkspacePage() {
 
           {/* ── Right Panel: 3D Viewer ── */}
           <section className="flex-1 relative min-h-0 overflow-hidden">
-            <ThreeJSViewer />
+            {viewMode === "model" ? <ThreeJSViewer /> : <FloorPlanView floorPlan={geometryData?.floor_plan} />}
+
+            <div className="absolute top-4 left-4 z-20 flex rounded-lg border border-slate-200/70 bg-white/85 p-1 shadow-lg backdrop-blur-md">
+              <button
+                onClick={() => setViewMode("model")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
+                  viewMode === "model" ? "bg-[#7c93c3] text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Cuboid className="h-3.5 w-3.5" />3D Model
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode("plan");
+                  setActiveProjection("orthographic_top");
+                }}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
+                  viewMode === "plan" ? "bg-[#7c93c3] text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Map className="h-3.5 w-3.5" />Floor Plan
+              </button>
+            </div>
 
             {/* Asset Library floating toggle button */}
             <button
@@ -210,7 +235,7 @@ export default function WorkspacePage() {
               className={`absolute top-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border shadow-lg backdrop-blur-md transition-all duration-200 ${
                 isAssetPaletteOpen
                   ? "left-[284px] bg-[#7c93c3] text-white border-[#7c93c3]"
-                  : "left-4 bg-white/80 text-slate-700 border-slate-200/60 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+                  : "left-[190px] bg-white/80 text-slate-700 border-slate-200/60 hover:border-[#7c93c3] hover:text-[#7c93c3]"
               }`}
               style={{ top: isAssetPaletteOpen ? "auto" : undefined, bottom: isAssetPaletteOpen ? "auto" : undefined }}
             >
@@ -221,7 +246,7 @@ export default function WorkspacePage() {
             </button>
 
             {/* Camera Projections overlay — top left */}
-            <div className={`absolute top-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-60 transition-all duration-200 ${isAssetPaletteOpen ? "left-[300px]" : "left-[140px]"}`}>
+            <div className={`absolute top-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-60 transition-all duration-200 ${isAssetPaletteOpen ? "left-[300px]" : "left-[320px]"}`}>
               <div className="flex items-center gap-1.5 mb-2">
                 <Eye className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Camera Projections</span>

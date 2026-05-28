@@ -32,6 +32,9 @@ export function normalizeMvpResponse(raw: any): {
     geometry: {
       meshes: geometry.meshes || [],
       rooms: geometry.rooms || [],
+      floor_plan: geometry.floor_plan,
+      adjacency: geometry.adjacency || geometry.floor_plan?.adjacency || [],
+      circulation: geometry.circulation || geometry.floor_plan?.circulation || [],
       style: geometry.style || "modern",
       total_height_m: geometry.total_height_m || 3,
     },
@@ -51,9 +54,13 @@ export function normalizeMvpResponse(raw: any): {
 export function fallbackVillaGeometry(): any {
   const rooms = [
     { name: "living_room", x: 0, z: -3, width: 8, depth: 6, type: "living_room" },
+    { name: "hallway", x: 0, z: 1.25, width: 2, depth: 3.5, type: "hallway" },
     { name: "bedroom_1", x: -5, z: 2.9, width: 5, depth: 5, type: "bedroom" },
     { name: "bedroom_2", x: 0, z: 2.9, width: 5, depth: 5, type: "bedroom" },
     { name: "bedroom_3", x: 5, z: 2.9, width: 5, depth: 5, type: "bedroom" },
+    { name: "bathroom_1", x: -9, z: 2.9, width: 3, depth: 3, type: "bathroom" },
+    { name: "kitchen", x: 7, z: -3, width: 4, depth: 4, type: "kitchen" },
+    { name: "dining_room", x: 7, z: 1.6, width: 5, depth: 4, type: "dining_room" },
   ];
   const meshes: any[] = [
     mesh("foundation", "Foundation", [0, -0.15, 0], [16, 0.3, 11.5], "floor_concrete"),
@@ -82,11 +89,24 @@ export function fallbackVillaGeometry(): any {
     rooms: rooms.map((room) => ({
       id: room.name,
       name: room.name,
+      type: room.type,
       x: room.x,
       y: room.z,
       width_m: room.width,
       height_m: room.depth,
+      depth_m: room.depth,
+      area_m2: Math.round(room.width * room.depth),
     })),
+    floor_plan: fallbackFloorPlan(rooms),
+    adjacency: [
+      { from: "living_room", to: "hallway" },
+      { from: "living_room", to: "kitchen" },
+      { from: "kitchen", to: "dining_room" },
+      { from: "hallway", to: "bedroom_1" },
+      { from: "hallway", to: "bedroom_2" },
+      { from: "hallway", to: "bedroom_3" },
+      { from: "hallway", to: "bathroom_1" },
+    ],
     materials: fallbackMaterials,
     style: "modern",
     roof: "flat",
@@ -96,4 +116,47 @@ export function fallbackVillaGeometry(): any {
 
 function mesh(id: string, group: string, position: number[], scale: number[], material_id: string) {
   return { id, component_group: group, type: "box", position, scale, material_id };
+}
+
+function fallbackFloorPlan(rooms: any[]) {
+  const adjacency = [
+    { from: "living_room", to: "hallway" },
+    { from: "living_room", to: "kitchen" },
+    { from: "kitchen", to: "dining_room" },
+    { from: "hallway", to: "bedroom_1" },
+    { from: "hallway", to: "bedroom_2" },
+    { from: "hallway", to: "bedroom_3" },
+    { from: "hallway", to: "bathroom_1" },
+  ];
+  const byName = Object.fromEntries(rooms.map((room) => [room.name, room]));
+  return {
+    rooms: rooms.map((room) => ({
+      id: room.name,
+      name: room.name,
+      type: room.type,
+      x: room.x,
+      y: room.z,
+      width: room.width,
+      depth: room.depth,
+      area_m2: Math.round(room.width * room.depth),
+    })),
+    walls: rooms.flatMap((room) => [
+      { id: `${room.name}_north`, room: room.name, x1: room.x - room.width / 2, y1: room.z + room.depth / 2, x2: room.x + room.width / 2, y2: room.z + room.depth / 2, thickness: 0.18 },
+      { id: `${room.name}_south`, room: room.name, x1: room.x - room.width / 2, y1: room.z - room.depth / 2, x2: room.x + room.width / 2, y2: room.z - room.depth / 2, thickness: 0.18 },
+      { id: `${room.name}_west`, room: room.name, x1: room.x - room.width / 2, y1: room.z - room.depth / 2, x2: room.x - room.width / 2, y2: room.z + room.depth / 2, thickness: 0.18 },
+      { id: `${room.name}_east`, room: room.name, x1: room.x + room.width / 2, y1: room.z - room.depth / 2, x2: room.x + room.width / 2, y2: room.z + room.depth / 2, thickness: 0.18 },
+    ]),
+    doors: adjacency.map((edge, index) => {
+      const from = byName[edge.from];
+      const to = byName[edge.to];
+      return { id: `door_${index}`, room_a: edge.from, room_b: edge.to, x: (from.x + to.x) / 2, y: (from.z + to.z) / 2, width: 0.9, side: "back" };
+    }),
+    windows: rooms.map((room) => ({ id: `${room.name}_window`, room: room.name, x: room.x, y: room.z + room.depth / 2, width: Math.min(2.4, room.width * 0.4), side: "back" })),
+    adjacency,
+    circulation: adjacency.map((edge) => {
+      const from = byName[edge.from];
+      const to = byName[edge.to];
+      return { from: edge.from, to: edge.to, points: [{ x: from.x, y: from.z }, { x: to.x, y: to.z }] };
+    }),
+  };
 }

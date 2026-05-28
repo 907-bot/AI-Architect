@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from backend.toon.models import House, Room, Roof, SceneGraph
+from backend.scene_graph.layout import optimize_layout
 
 
 class ToonParseError(ValueError):
@@ -28,19 +29,26 @@ class _Parser:
                 house.style = self._identifier()
             elif token == "ROOM":
                 house.rooms.append(self._room())
+            elif token == "ADJACENT":
+                left = self._identifier()
+                right = self._identifier()
+                house.adjacency.append((left, right))
             elif token == "ROOF":
                 house.roof = Roof(kind=self._identifier())
             else:
                 raise ToonParseError(f"Unexpected token {token!r}")
         self._expect("}")
-        self._layout_rooms(house.rooms)
+        optimize_layout(house)
         return SceneGraph(house=house)
 
     def _room(self) -> Room:
         name = self._identifier()
+        room_type = None
         width = 4.0
         depth = 4.0
         height = 3.0
+        x = None
+        y = None
         self._expect("{")
         while not self._peek("}"):
             key = self._next()
@@ -48,46 +56,22 @@ class _Parser:
                 width, depth = self._dimensions(self._next())
             elif key == "height":
                 height = float(self._next())
+            elif key == "type":
+                room_type = self._identifier()
+            elif key in {"position", "at"}:
+                x, y = self._dimensions(self._next())
             else:
                 raise ToonParseError(f"Unsupported ROOM property {key!r}")
         self._expect("}")
-        return Room(name=name, width=width, depth=depth, height=height)
-
-    def _layout_rooms(self, rooms: list[Room]) -> None:
-        living_rooms = [room for room in rooms if room.room_type == "living_room"]
-        other_rooms = [room for room in rooms if room.room_type != "living_room"]
-
-        if living_rooms and other_rooms:
-            living = living_rooms[0]
-            living.x = 0.0
-            living.z = -living.depth / 2
-
-            cursor_x = 0.0
-            for room in other_rooms:
-                room.x = cursor_x + room.width / 2
-                room.z = room.depth / 2 + 0.4
-                cursor_x += room.width
-
-            total_width = cursor_x
-            for room in other_rooms:
-                room.x -= total_width / 2
-
-            for extra in living_rooms[1:]:
-                extra.x = living.x + living.width + extra.width / 2
-                extra.z = living.z
-            return
-
-        cursor_x = 0.0
-        max_depth = max((room.depth for room in rooms), default=0.0)
-        for room in rooms:
-            room.x = cursor_x + room.width / 2
-            room.z = max_depth / 2
-            cursor_x += room.width
-
-        total_width = cursor_x
-        for room in rooms:
-            room.x -= total_width / 2
-            room.z -= max_depth / 2
+        return Room(
+            name=name,
+            width=width,
+            depth=depth,
+            height=height,
+            x=x or 0.0,
+            y=y or 0.0,
+            room_type_hint=room_type,
+        )
 
     def _dimensions(self, value: str) -> tuple[float, float]:
         if "x" not in value:

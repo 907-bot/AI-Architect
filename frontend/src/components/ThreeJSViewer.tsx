@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, Component, ErrorInfo, ReactNode, useMemo, useState, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Environment, Sky, Html, useGLTF } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Environment, Sky, Html, useGLTF, OrthographicCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore, PlacedAsset } from "@/lib/store";
 import { API_BASE } from "@/lib/mvpScene";
@@ -505,6 +505,9 @@ export default function ThreeJSViewer() {
           <directionalLight position={[-15, 20, -15]} intensity={0.35} color="#c7d4f5" />
           <hemisphereLight args={["#b9d4f7", "#6aab6a", 0.5]} />
           <Environment preset="dawn" />
+          {proj === "orthographic_top" && (
+            <OrthographicCamera makeDefault position={[0, 40, 0.01]} zoom={38} near={0.1} far={200} />
+          )}
 
           <MeshBoundary><Ground /></MeshBoundary>
           <MeshBoundary><Trees /></MeshBoundary>

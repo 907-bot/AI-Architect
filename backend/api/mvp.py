@@ -11,8 +11,8 @@ from pydantic import BaseModel
 
 from backend.scene_graph import compile_scene
 from backend.toon.editor import edit_toon
+from backend.toon.ollama import prompt_to_toon_with_ollama
 from backend.toon.parser import parse_toon
-from backend.toon.planner import prompt_to_toon
 
 
 router = APIRouter()
@@ -23,6 +23,7 @@ EXPORTS_DIR = ROOT / "exports"
 class GenerateRequest(BaseModel):
     prompt: Optional[str] = None
     toon: Optional[str] = None
+    ollama_model: Optional[str] = None
 
 
 class EditRequest(BaseModel):
@@ -41,11 +42,17 @@ class DragDropRequest(BaseModel):
 
 @router.post("/generate")
 async def generate(body: GenerateRequest):
-    toon = body.toon or prompt_to_toon(body.prompt or "Modern 2 bedroom house")
+    planner = "provided-toon"
+    if body.toon:
+        toon = body.toon
+    else:
+        toon, planner = prompt_to_toon_with_ollama(body.prompt or "Modern 2 bedroom house", body.ollama_model)
     scene = parse_toon(toon)
     geometry = compile_scene(scene)
     glb_path = _export_with_blender(toon, "house")
-    return _response(toon, scene.to_dict(), geometry, glb_path)
+    payload = _response(toon, scene.to_dict(), geometry, glb_path)
+    payload["planner"] = planner
+    return payload
 
 
 @router.post("/edit")
