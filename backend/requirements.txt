@@ -14,9 +14,9 @@ langchain-core>=0.3.0
 langchain-community>=0.3.0
 langchain-openai>=0.3.0
 
-# MCP
-fastmcp>=0.4.0
-mcp>=1.2.0
+# MCP (Optional, requires Python >= 3.10)
+# fastmcp>=0.4.0
+# mcp>=1.2.0
 
 # Database
 supabase>=2.11.0

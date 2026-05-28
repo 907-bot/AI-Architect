@@ -27,9 +27,9 @@ export interface Room {
   type?: string;
   x: number;
   y: number;
-  width_m: number;
-  height_m: number;
-  depth_m?: number;
+  width: number;
+  height: number;
+  depth: number;
   area_m2?: number;
 }
 

@@ -74,6 +74,7 @@ def generate_detailed_building(
     ceiling_height = 0.15  # Ceiling thickness
     
     meshes = []
+    rooms = []  # For SceneGraph compatibility
     
     # Select materials based on style
     style_materials = {
@@ -121,7 +122,26 @@ def generate_detailed_building(
             "scale": [pw * 0.96, floor_height - 0.05, pd * 0.96],
             "material_id": wall_mat
         })
-    
+        
+        # Create room data for this floor (simplified - one room per floor for now)
+        room_width = pw * 0.9
+        room_depth = pd * 0.9
+        room_x = 0
+        room_y = y_pos
+        room_depth_z = 0  # Centered
+        
+        rooms.append({
+            "id": f"room_floor_{floor}",
+            "name": f"Floor {floor + 1}",
+            "type": "living_room" if floor == 0 else "bedroom",
+            "x": room_x,
+            "y": room_y,
+            "z": room_depth_z,
+            "width": room_width,
+            "depth": room_depth,
+            "height": floor_height - 0.1,  # Slightly less than floor height for ceiling
+            "area_m2": room_width * room_depth
+        })
     # ========== 3. WINDOWS WITH GLASS + FRAMES ==========
     num_windows = min(beds + 1, 5)  # More windows for more bedrooms
     win_width = pw * 0.2

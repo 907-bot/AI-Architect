@@ -252,6 +252,23 @@ class NavigationSpec(BaseModel):
 
 
 # =====================================================
+# ADJACENCY AND CIRCULATION
+# =====================================================
+
+
+class AdjacencySpec(BaseModel):
+    from_room: str
+    to_room: str
+
+
+class CirculationSpec(BaseModel):
+    id: str
+    from_room: str
+    to_room: str
+    points: List[Vector3]
+
+
+# =====================================================
 # COMPLETE SCENE GRAPH — CANONICAL SOURCE OF TRUTH
 # =====================================================
 
@@ -266,6 +283,8 @@ class SceneGraph(BaseModel):
     materials: List[MaterialSpec] = []
     lights: List[LightSpec] = []
     navigation: NavigationSpec = NavigationSpec()
+    adjacency: List[AdjacencySpec] = []
+    circulation: List[CirculationSpec] = []
     total_area: Optional[float] = None
     room_count: Optional[int] = None
     wall_count: Optional[int] = None
