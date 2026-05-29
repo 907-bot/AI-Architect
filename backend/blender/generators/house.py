@@ -24,7 +24,8 @@ def create_room(scene_or_room: SceneGraph | Room, room: Room | None = None) -> l
         raise TypeError("create_room expects a Room or SceneGraph plus Room")
 
     objects = []
-    objects.append(_cube(bpy, f"{target.name}_floor", (target.x, 0.03, target.z), (target.width, 0.06, target.depth), mats["floor"]))
+    floor_offset = target.floor * target.height
+    objects.append(_cube(bpy, f"{target.name}_floor", (target.x, floor_offset + 0.03, target.z), (target.width, 0.06, target.depth), mats["floor"]))
     objects.append(create_wall(target, "front"))
     objects.append(create_wall(target, "back"))
     objects.append(create_wall(target, "left"))
@@ -39,17 +40,18 @@ def create_wall(room: Room, side: str):
     bpy = _bpy()
     mats = _materials(bpy)
     thickness = 0.18
+    floor_offset = room.floor * room.height
     if side == "front":
-        position = (room.x, room.height / 2, room.z + room.depth / 2)
+        position = (room.x, floor_offset + room.height / 2, room.z + room.depth / 2)
         scale = (room.width, room.height, thickness)
     elif side == "back":
-        position = (room.x, room.height / 2, room.z - room.depth / 2)
+        position = (room.x, floor_offset + room.height / 2, room.z - room.depth / 2)
         scale = (room.width, room.height, thickness)
     elif side == "left":
-        position = (room.x - room.width / 2, room.height / 2, room.z)
+        position = (room.x - room.width / 2, floor_offset + room.height / 2, room.z)
         scale = (thickness, room.height, room.depth)
     elif side == "right":
-        position = (room.x + room.width / 2, room.height / 2, room.z)
+        position = (room.x + room.width / 2, floor_offset + room.height / 2, room.z)
         scale = (thickness, room.height, room.depth)
     else:
         raise ValueError(f"Unknown wall side {side!r}")
@@ -60,8 +62,9 @@ def create_windows(room: Room) -> list[Any]:
     bpy = _bpy()
     mats = _materials(bpy)
     objects = []
+    floor_offset = room.floor * room.height
     for index, window in enumerate(room.windows):
-        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.0, y=room.height * 0.58)
+        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.0, y=floor_offset + room.height * 0.58)
         objects.append(_cube(bpy, f"{room.name}_window_{index}", position, scale, mats["glass"], bevel=0.02))
     return objects
 
@@ -71,17 +74,18 @@ def create_door(room: Room) -> list[Any]:
     mats = _materials(bpy)
     objects = []
     seen = set()
+    floor_offset = room.floor * room.height
     for door in room.doors:
         if door.id in seen:
             continue
         seen.add(door.id)
-        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.1, y=1.05)
+        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.1, y=floor_offset + 1.05)
         objects.append(_cube(bpy, f"{room.name}_{door.id}", position, scale, mats["wood"], bevel=0.03))
     if not objects:
         objects.append(_cube(
             bpy,
             f"{room.name}_entry_door",
-            (room.x - min(room.width * 0.25, 1.5), 1.05, room.bottom - 0.04),
+            (room.x - min(room.width * 0.25, 1.5), floor_offset + 1.05, room.bottom - 0.04),
             (0.9, 2.1, 0.07),
             mats["wood"],
             bevel=0.03,
@@ -92,21 +96,22 @@ def create_door(room: Room) -> list[Any]:
 def create_interior(room: Room) -> list[Any]:
     bpy = _bpy()
     mats = _materials(bpy)
+    floor_offset = room.floor * room.height
     if room.room_type == "bedroom":
         return [
-            _cube(bpy, f"{room.name}_bed_base", (room.x, 0.28, room.z), (2.0, 0.45, 1.55), mats["fabric"], bevel=0.08),
-            _cube(bpy, f"{room.name}_pillow", (room.x, 0.62, room.z - 0.45), (1.65, 0.18, 0.35), mats["wall"], bevel=0.09),
-            _cube(bpy, f"{room.name}_nightstand", (room.x + 1.45, 0.35, room.z - 0.35), (0.55, 0.7, 0.55), mats["wood"], bevel=0.04),
+            _cube(bpy, f"{room.name}_bed_base", (room.x, floor_offset + 0.28, room.z), (2.0, 0.45, 1.55), mats["fabric"], bevel=0.08),
+            _cube(bpy, f"{room.name}_pillow", (room.x, floor_offset + 0.62, room.z - 0.45), (1.65, 0.18, 0.35), mats["wall"], bevel=0.09),
+            _cube(bpy, f"{room.name}_nightstand", (room.x + 1.45, floor_offset + 0.35, room.z - 0.35), (0.55, 0.7, 0.55), mats["wood"], bevel=0.04),
         ]
     if room.room_type == "living_room":
         return [
-            _cube(bpy, f"{room.name}_sofa", (room.x - 1.0, 0.42, room.z), (2.5, 0.75, 0.9), mats["fabric"], bevel=0.08),
-            _cube(bpy, f"{room.name}_coffee_table", (room.x + 1.5, 0.28, room.z), (1.4, 0.18, 0.75), mats["wood"], bevel=0.04),
-            _cube(bpy, f"{room.name}_tv_wall", (room.x, 1.1, room.z - room.depth / 2 + 0.08), (2.2, 1.1, 0.08), mats["metal"], bevel=0.03),
+            _cube(bpy, f"{room.name}_sofa", (room.x - 1.0, floor_offset + 0.42, room.z), (2.5, 0.75, 0.9), mats["fabric"], bevel=0.08),
+            _cube(bpy, f"{room.name}_coffee_table", (room.x + 1.5, floor_offset + 0.28, room.z), (1.4, 0.18, 0.75), mats["wood"], bevel=0.04),
+            _cube(bpy, f"{room.name}_tv_wall", (room.x, floor_offset + 1.1, room.z - room.depth / 2 + 0.08), (2.2, 1.1, 0.08), mats["metal"], bevel=0.03),
         ]
     if room.room_type == "dining_room":
         return [
-            _cube(bpy, f"{room.name}_dining_table", (room.x, 0.45, room.z), (1.8, 0.12, 1.0), mats["wood"], bevel=0.04),
+            _cube(bpy, f"{room.name}_dining_table", (room.x, floor_offset + 0.45, room.z), (1.8, 0.12, 1.0), mats["wood"], bevel=0.04),
         ]
     return []
 
@@ -119,11 +124,11 @@ def create_roof(scene: SceneGraph):
     max_x = max(room.x + room.width / 2 for room in rooms)
     min_z = min(room.z - room.depth / 2 for room in rooms)
     max_z = max(room.z + room.depth / 2 for room in rooms)
-    height = max(room.height for room in rooms)
+    max_height = max(room.floor * room.height + room.height for room in rooms)
     return _cube(
         bpy,
         "roof",
-        (0, height + 0.2, 0),
+        (0, max_height + 0.2, 0),
         ((max_x - min_x) + 1.2, 0.4, (max_z - min_z) + 1.2),
         mats["roof"],
         bevel=0.08,

@@ -31,19 +31,20 @@ def compile_scene(scene: SceneGraph) -> dict:
     max_z = max(room.z + room.depth / 2 for room in rooms)
     total_width = max_x - min_x
     total_depth = max_z - min_z
-    height = max(room.height for room in rooms)
+    max_building_height = max(room.floor * room.height + room.height for room in rooms)
 
     meshes.append(_mesh("foundation", "Foundation", [0, -0.15, 0], [total_width + 1, 0.3, total_depth + 1], "floor_concrete"))
 
     for index, room in enumerate(rooms):
         prefix = f"room_{index}_{room.name}"
-        meshes.append(_mesh(f"{prefix}_floor", "Floor Slabs", [room.x, 0.03, room.y], [room.width, 0.06, room.depth], "floor_concrete"))
-        meshes.extend(_room_walls(prefix, room.x, room.y, room.width, room.depth, room.height))
+        floor_offset = room.floor * room.height
+        meshes.append(_mesh(f"{prefix}_floor", "Floor Slabs", [room.x, floor_offset + 0.03, room.y], [room.width, 0.06, room.depth], "floor_concrete"))
+        meshes.extend(_room_walls(prefix, room.x, room.y, room.width, room.depth, room.height, floor_offset))
         meshes.extend(_room_windows(prefix, room))
         meshes.extend(_room_doors(prefix, room))
         meshes.extend(_interiors(prefix, room))
 
-    roof_y = height + 0.2
+    roof_y = max_building_height + 0.2
     roof_type = "prism" if scene.house.roof.kind in {"gable", "hip"} else "box"
     meshes.append(_mesh("roof", "Roof", [0, roof_y, 0], [total_width + 1.2, 0.4 if roof_type == "box" else 1.2, total_depth + 1.2], "roof_dark", roof_type))
 
@@ -69,24 +70,25 @@ def compile_scene(scene: SceneGraph) -> dict:
         "materials": MATERIALS,
         "style": scene.house.style,
         "roof": scene.house.roof.kind,
-        "total_height_m": height,
+        "total_height_m": max_building_height,
     }
 
 
-def _room_walls(prefix: str, x: float, z: float, width: float, depth: float, height: float) -> list[dict]:
+def _room_walls(prefix: str, x: float, z: float, width: float, depth: float, height: float, floor_offset: float = 0.0) -> list[dict]:
     thickness = 0.18
     return [
-        _mesh(f"{prefix}_wall_front", "Walls", [x, height / 2, z + depth / 2], [width, height, thickness], "wall_plaster"),
-        _mesh(f"{prefix}_wall_back", "Walls", [x, height / 2, z - depth / 2], [width, height, thickness], "wall_plaster"),
-        _mesh(f"{prefix}_wall_left", "Walls", [x - width / 2, height / 2, z], [thickness, height, depth], "wall_plaster"),
-        _mesh(f"{prefix}_wall_right", "Walls", [x + width / 2, height / 2, z], [thickness, height, depth], "wall_plaster"),
+        _mesh(f"{prefix}_wall_front", "Walls", [x, floor_offset + height / 2, z + depth / 2], [width, height, thickness], "wall_plaster"),
+        _mesh(f"{prefix}_wall_back", "Walls", [x, floor_offset + height / 2, z - depth / 2], [width, height, thickness], "wall_plaster"),
+        _mesh(f"{prefix}_wall_left", "Walls", [x - width / 2, floor_offset + height / 2, z], [thickness, height, depth], "wall_plaster"),
+        _mesh(f"{prefix}_wall_right", "Walls", [x + width / 2, floor_offset + height / 2, z], [thickness, height, depth], "wall_plaster"),
     ]
 
 
 def _room_windows(prefix: str, room) -> list[dict]:
     meshes = []
+    floor_offset = room.floor * room.height
     for index, window in enumerate(room.windows):
-        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.0, y=room.height * 0.58)
+        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.0, y=floor_offset + room.height * 0.58)
         meshes.append(_mesh(f"{prefix}_window_{index}", "Windows", position, scale, "glass_clear"))
     return meshes
 
@@ -94,22 +96,24 @@ def _room_windows(prefix: str, room) -> list[dict]:
 def _room_doors(prefix: str, room) -> list[dict]:
     meshes = []
     seen = set()
+    floor_offset = room.floor * room.height
     for door in room.doors:
         if door.id in seen:
             continue
         seen.add(door.id)
-        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.1, y=1.05)
+        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.1, y=floor_offset + 1.05)
         meshes.append(_mesh(f"{prefix}_{door.id}", "Doors", position, scale, "wood_warm"))
     return meshes
 
 
 def _interiors(prefix: str, room) -> list[dict]:
+    floor_offset = room.floor * room.height
     if room.room_type == "bedroom":
-        return [_mesh(f"{prefix}_bed", "Interior", [room.x, 0.32, room.y], [2.0, 0.55, 1.6], "fabric_blue")]
+        return [_mesh(f"{prefix}_bed", "Interior", [room.x, floor_offset + 0.32, room.y], [2.0, 0.55, 1.6], "fabric_blue")]
     if room.room_type == "living_room":
-        return [_mesh(f"{prefix}_sofa", "Interior", [room.x, 0.45, room.y], [2.4, 0.8, 0.9], "fabric_blue")]
+        return [_mesh(f"{prefix}_sofa", "Interior", [room.x, floor_offset + 0.45, room.y], [2.4, 0.8, 0.9], "fabric_blue")]
     if room.room_type == "dining_room":
-        return [_mesh(f"{prefix}_table", "Interior", [room.x, 0.45, room.y], [1.8, 0.12, 1.0], "wood_warm")]
+        return [_mesh(f"{prefix}_table", "Interior", [room.x, floor_offset + 0.45, room.y], [1.8, 0.12, 1.0], "wood_warm")]
     return []
 
 

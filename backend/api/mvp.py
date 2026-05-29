@@ -56,6 +56,10 @@ async def generate(body: GenerateRequest):
     
     # Export with Blender using enhanced builder
     glb_path = _export_with_enhanced_blender(toon, scene, body.style or "modern", body.render_quality or "medium")
+    if not glb_path:
+        print("Enhanced Docker Blender not available. Falling back to local Blender.")
+        glb_path = _export_with_blender(toon, "house")
+    
     payload = _response(toon, scene.to_dict(), geometry, glb_path)
     payload["planner"] = planner
     payload["style"] = body.style or "modern"
@@ -67,7 +71,12 @@ async def generate(body: GenerateRequest):
 async def edit(body: EditRequest):
     toon, scene, changed = edit_toon(body.toon, body.instruction)
     geometry = compile_scene(scene)
+    
     glb_path = _export_with_enhanced_blender(toon, scene, "modern", "medium")
+    if not glb_path:
+        print("Enhanced Docker Blender not available. Falling back to local Blender.")
+        glb_path = _export_with_blender(toon, "house")
+        
     payload = _response(toon, scene.to_dict(), geometry, glb_path)
     payload["changed"] = changed
     return payload
