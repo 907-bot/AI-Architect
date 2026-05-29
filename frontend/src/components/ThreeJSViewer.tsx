@@ -555,7 +555,8 @@ export default function ThreeJSViewer() {
             shadow-bias={-0.0005} />
           <directionalLight position={[-15, 20, -15]} intensity={0.35} color="#c7d4f5" />
           <hemisphereLight args={["#b9d4f7", "#6aab6a", 0.5]} />
-          <Environment preset="dawn" />
+          {/* Using Sky instead of Environment to avoid HDR loading issues */}
+          <Sky sunPosition={[100, 20, 100]} turbidity={0.3} rayleigh={0.5} />
           {proj === "orthographic_top" && (
             <OrthographicCamera makeDefault position={[0, 40, 0.01]} zoom={38} near={0.1} far={200} />
           )}
