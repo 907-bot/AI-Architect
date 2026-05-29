@@ -162,6 +162,24 @@ class ApiResponseWrapperMiddleware(BaseHTTPMiddleware):
         return JSONResponse(envelope, status_code=response.status_code)
 
 
+# =====================================================
+# MIDDLEWARE
+# =====================================================
+
+# NOTE: FastAPI applies middleware in reverse registration order.
+# CORSMiddleware must be registered FIRST so it runs first on every request,
+# including OPTIONS preflight — before ApiResponseWrapperMiddleware touches them.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Total-Count", "X-Page-Number"],
+)
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 app.add_middleware(ApiResponseWrapperMiddleware)
 
 
@@ -193,20 +211,7 @@ async def debug_db_init(body: DebugInitRequest):
         return {"status": "error", "detail": str(e)}
 
 
-# =====================================================
-# MIDDLEWARE
-# =====================================================
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Total-Count", "X-Page-Number"],
-)
-
-app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 # =====================================================

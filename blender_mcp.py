@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 import mcp
 
 # Set up MCP client connection
