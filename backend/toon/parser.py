@@ -17,6 +17,7 @@ class _Parser:
     def __init__(self, text: str):
         self.tokens = TOKEN_RE.findall(text)
         self.index = 0
+        self.current_floor = 0
 
     def parse(self) -> SceneGraph:
         self._expect("HOUSE")
@@ -29,6 +30,10 @@ class _Parser:
                 house.style = self._identifier()
             elif token == "ROOM":
                 house.rooms.append(self._room())
+            elif token == "FLOOR":
+                self.current_floor = int(self._next())
+            elif token == "FLOORS":
+                house.num_floors = int(self._next())
             elif token == "ADJACENT":
                 left = self._identifier()
                 right = self._identifier()
@@ -49,6 +54,7 @@ class _Parser:
         height = 3.0
         x = None
         y = None
+        floor = self.current_floor
         self._expect("{")
         while not self._peek("}"):
             key = self._next()
@@ -60,6 +66,8 @@ class _Parser:
                 room_type = self._identifier()
             elif key in {"position", "at"}:
                 x, y = self._dimensions(self._next())
+            elif key == "floor":
+                floor = int(self._next())
             else:
                 raise ToonParseError(f"Unsupported ROOM property {key!r}")
         self._expect("}")
@@ -71,6 +79,7 @@ class _Parser:
             x=x or 0.0,
             y=y or 0.0,
             room_type_hint=room_type,
+            floor=floor,
         )
 
     def _dimensions(self, value: str) -> tuple[float, float]:

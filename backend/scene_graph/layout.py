@@ -11,7 +11,74 @@ def optimize_layout(house: House) -> None:
     rooms = house.rooms
     if not rooms:
         return
+    
+    # Determine number of floors
+    num_floors = getattr(house, 'num_floors', 1) or 1
+    num_floors = max(num_floors, 1)
+    
+    # If multiple floors requested, distribute rooms
+    if num_floors > 1:
+        _distribute_rooms_to_floors(house, num_floors)
+    else:
+        # Single floor layout
+        _layout_single_floor(house)
+    
+    _build_adjacency(house)
+    _place_doors_and_windows(house)
+    _build_circulation(house)
 
+
+def _distribute_rooms_to_floors(house: House, num_floors: int) -> None:
+    """Distribute rooms across multiple floors"""
+    rooms = house.rooms
+    
+    # Categorize rooms by type
+    public_rooms = [r for r in rooms if r.room_type in PUBLIC_TYPES]
+    private_rooms = [r for r in rooms if r.room_type in PRIVATE_TYPES]
+    
+    # Floor assignment based on room type and count
+    floor_height = 3.0  # meters per floor
+    
+    # Ground floor: living, kitchen, dining, entrance
+    ground_floor_rooms = []
+    upper_floor_rooms = []
+    
+    # Assign rooms to floors
+    for room in rooms:
+        # Ground floor: living room, kitchen, dining, foyer
+        if room.room_type in {"living_room", "kitchen", "dining_room"}:
+            room.floor = 0
+            ground_floor_rooms.append(room)
+        # Upper floors: bedrooms, bathrooms
+        elif room.room_type in PRIVATE_TYPES:
+            # Distribute bedrooms across upper floors
+            upper_floor_rooms.append(room)
+        else:
+            # Other rooms go to ground floor
+            room.floor = 0
+            ground_floor_rooms.append(room)
+    
+    # Distribute private rooms to upper floors
+    rooms_per_floor = len(upper_floor_rooms) // max(num_floors - 1, 1)
+    for i, room in enumerate(upper_floor_rooms):
+        floor_idx = 1 + (i // max(rooms_per_floor, 1))
+        room.floor = min(floor_idx, num_floors - 1)
+    
+    # Layout rooms on each floor
+    for floor_idx in range(num_floors):
+        floor_rooms = [r for r in rooms if r.floor == floor_idx]
+        if floor_idx == 0:
+            # Ground floor layout
+            _layout_ground_floor(floor_rooms)
+        else:
+            # Upper floor layout (typically bedrooms)
+            _layout_upper_floor(floor_rooms, floor_idx)
+
+
+def _layout_single_floor(house: House) -> None:
+    """Layout for single floor building"""
+    rooms = house.rooms
+    
     living = _first(rooms, "living_room")
     bedrooms = [room for room in rooms if room.room_type == "bedroom"]
     bathrooms = [room for room in rooms if room.room_type == "bathroom"]
@@ -49,9 +116,42 @@ def optimize_layout(house: House) -> None:
         dining.x = side_x
         dining.y = (kitchens[0].top + dining.depth / 2 + 0.3) if kitchens else 0.0
 
-    _build_adjacency(house)
-    _place_doors_and_windows(house)
-    _build_circulation(house)
+
+def _layout_ground_floor(rooms: list[Room]) -> None:
+    """Layout rooms for ground floor"""
+    if not rooms:
+        return
+    
+    living = _first(rooms, "living_room")
+    kitchens = [room for room in rooms if room.room_type == "kitchen"]
+    dining = _first(rooms, "dining_room")
+    
+    if living:
+        living.x = 0.0
+        living.y = -living.depth / 2
+    
+    # Side rooms (kitchen, dining)
+    side_x = 6.0
+    if kitchens:
+        kitchens[0].x = side_x
+        kitchens[0].y = living.y if living else 0.0
+    if dining:
+        dining.x = side_x
+        dining.y = (kitchens[0].top + dining.depth / 2 + 0.3) if kitchens else 2.0
+
+
+def _layout_upper_floor(rooms: list[Room], floor_idx: int) -> None:
+    """Layout rooms for upper floors"""
+    if not rooms:
+        return
+    
+    # Stack bedrooms vertically
+    total_width = sum(room.width for room in rooms)
+    cursor = -total_width / 2
+    for room in rooms:
+        room.x = cursor + room.width / 2
+        room.y = 0.0
+        cursor += room.width
 
 
 def _build_adjacency(house: House) -> None:
