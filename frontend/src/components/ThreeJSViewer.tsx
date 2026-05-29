@@ -142,13 +142,32 @@ function ProceduralScene() {
       {(meshes || []).map((m: any) => (
         <MeshBoundary key={m.id}><BuildingMesh mesh={m} materials={materials} /></MeshBoundary>
       ))}
-      {filter === "All" && (geo.rooms || []).map((room: any) => (
-        <Html key={room.id || room.name} center position={[room.x, 3.85, room.y || 0]}>
-          <div className="pointer-events-none select-none rounded-full border border-slate-200 bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow-sm whitespace-nowrap">
-            {(room.name || room.id || "room").replaceAll("_", " ")}
-          </div>
-        </Html>
-      ))}
+      {filter === "All" && (geo.rooms || []).map((room: any) => {
+        const height = 3.2;
+        const labelY = room.y !== undefined && room.y !== null ? room.y : 0;
+        return (
+          <Html key={room.id || room.name} center position={[room.x, height + 0.8, labelY]}>
+            <div className="pointer-events-none select-none">
+              <div className="flex flex-col items-center gap-0.5">
+                {/* Room type badge */}
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-200 bg-white/95 shadow-md backdrop-blur-sm">
+                  <span className="text-[9px] font-semibold text-slate-700 uppercase tracking-wider">
+                    {room.type?.replace(/_/g, ' ') || room.name?.replace(/_/g, ' ') || 'Room'}
+                  </span>
+                </div>
+                {/* Room dimensions */}
+                <div className="px-2 py-0.5 rounded bg-slate-800/80 text-white text-[8px] font-mono">
+                  {room.width?.toFixed(1) || room.width_m?.toFixed(1)}m × {room.depth?.toFixed(1) || room.height_m?.toFixed(1)}m
+                </div>
+                {/* Room area */}
+                <div className="px-2 py-0.5 rounded bg-blue-600/90 text-white text-[8px] font-semibold">
+                  {room.area_m2 || Math.round((room.width || 1) * (room.depth || 1))} m²
+                </div>
+              </div>
+            </div>
+          </Html>
+        );
+      })}
     </group>
   );
 }
