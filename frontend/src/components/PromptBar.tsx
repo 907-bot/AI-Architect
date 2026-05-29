@@ -60,9 +60,10 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
 
     const steps = [
       { delay: 300,  text: "Planning layout and rooms…" },
-      { delay: 800,  text: "Generating 3D geometry…" },
-      { delay: 1400, text: "Applying materials and finishes…" },
-      { delay: 1900, text: "Running NBC compliance audit…" },
+      { delay: 800,  text: "Llama 3.1 is thinking — this takes ~20s…" },
+      { delay: 5000, text: "Generating 3D geometry…" },
+      { delay: 10000, text: "Applying materials and finishes…" },
+      { delay: 15000, text: "Running NBC compliance audit…" },
     ];
 
     // Animate agent progress in the AI bubble
@@ -74,7 +75,7 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
     }
 
     try {
-      const response = await axios.post(`${API_BASE}/api/generate`, { prompt });
+      const response = await axios.post(`${API_BASE}/api/generate`, { prompt }, { timeout: 60000 });
       const result = response.data?.data || response.data;
       const generated = normalizeMvpResponse(result);
       const geo = generated.geometry;

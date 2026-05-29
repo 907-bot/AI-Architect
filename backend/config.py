@@ -61,7 +61,8 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
     cors_origins: list[str] = [
-        "http://localhost:3000", 
+        "http://localhost:3000",
+        "http://localhost:3001",
         "https://ai-architect.vercel.app",
         "https://907-bot.github.io",
         "https://907-bot.github.io/AI-Architect",
