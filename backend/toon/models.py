@@ -55,6 +55,10 @@ class Room:
             return "kitchen"
         if "bath" in lowered:
             return "bathroom"
+        if "balcony" in lowered:
+            return "balcony"
+        if "garage" in lowered:
+            return "garage"
         return "room"
 
     @property
@@ -91,6 +95,8 @@ class Roof:
 class House:
     name: str
     style: str = "modern"
+    num_floors: int = 1
+    features: list[str] = field(default_factory=list)
     rooms: list[Room] = field(default_factory=list)
     roof: Roof = field(default_factory=Roof)
     adjacency: list[tuple[str, str]] = field(default_factory=list)
@@ -108,6 +114,8 @@ class SceneGraph:
             "house": {
                 "name": self.house.name,
                 "style": self.house.style,
+                "num_floors": self.house.num_floors,
+                "features": list(self.house.features),
                 "roof": {"kind": self.house.roof.kind},
                 "adjacency": [
                     {"from": left, "to": right}
@@ -206,6 +214,7 @@ class SceneGraph:
             house=House(
                 name=house_data.get("name", "house"),
                 style=house_data.get("style", "modern"),
+                num_floors=int(house_data.get("num_floors", 1) or 1),
                 rooms=rooms,
                 roof=Roof(house_data.get("roof", {}).get("kind", "flat")),
                 adjacency=adjacency,

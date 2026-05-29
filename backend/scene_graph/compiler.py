@@ -4,12 +4,16 @@ from backend.toon.models import SceneGraph
 
 
 MATERIALS = [
-    {"id": "floor_concrete", "color_hex": "#b8bec8", "roughness": 0.9},
-    {"id": "wall_plaster", "color_hex": "#eef1f4", "roughness": 0.82},
-    {"id": "roof_dark", "color_hex": "#4b5563", "roughness": 0.75, "opacity": 0.72, "transparent": True},
-    {"id": "glass_clear", "color_hex": "#bfe7ff", "roughness": 0.08, "transmission": 0.7, "opacity": 0.42, "transparent": True},
+    {"id": "floor_concrete", "color_hex": "#c4c9d2", "roughness": 0.85},
+    {"id": "wall_plaster", "color_hex": "#f3f4f6", "roughness": 0.75},
+    {"id": "facade_panel", "color_hex": "#d1d5db", "roughness": 0.55, "metalness": 0.15},
+    {"id": "facade_accent", "color_hex": "#64748b", "roughness": 0.45, "metalness": 0.25},
+    {"id": "roof_dark", "color_hex": "#374151", "roughness": 0.65},
+    {"id": "glass_clear", "color_hex": "#93c5fd", "roughness": 0.05, "transmission": 0.85, "opacity": 0.55, "transparent": True},
     {"id": "wood_warm", "color_hex": "#a16207", "roughness": 0.7},
     {"id": "fabric_blue", "color_hex": "#4068a8", "roughness": 0.9},
+    {"id": "pool_water", "color_hex": "#0ea5e9", "roughness": 0.1, "transmission": 0.6, "opacity": 0.75, "transparent": True},
+    {"id": "garage_metal", "color_hex": "#6b7280", "roughness": 0.4, "metalness": 0.35},
 ]
 
 
@@ -31,9 +35,35 @@ def compile_scene(scene: SceneGraph) -> dict:
     max_z = max(room.z + room.depth / 2 for room in rooms)
     total_width = max_x - min_x
     total_depth = max_z - min_z
-    max_building_height = max(room.floor * room.height + room.height for room in rooms)
+    floor_height = max(room.height for room in rooms) if rooms else 3.0
+    max_floor_index = max(room.floor for room in rooms)
+    num_floors = max(getattr(scene.house, "num_floors", 1) or 1, max_floor_index + 1)
+    max_building_height = num_floors * floor_height
+    center_x = (min_x + max_x) / 2
+    center_z = (min_z + max_z) / 2
+    features = getattr(scene.house, "features", []) or []
 
-    meshes.append(_mesh("foundation", "Foundation", [0, -0.15, 0], [total_width + 1, 0.3, total_depth + 1], "floor_concrete"))
+    meshes.append(_mesh("foundation", "Foundation", [center_x, -0.15, center_z], [total_width + 1.2, 0.3, total_depth + 1.2], "floor_concrete"))
+
+    # Unified tower envelope so multi-storey buildings read clearly in the viewer.
+    for floor_idx in range(num_floors):
+        y_base = floor_idx * floor_height
+        y_center = y_base + floor_height / 2
+        meshes.append(_mesh(
+            f"tower_shell_f{floor_idx}",
+            "Walls",
+            [center_x, y_center, center_z + total_depth / 2 - 0.05],
+            [total_width + 0.4, floor_height - 0.15, 0.22],
+            "facade_panel" if floor_idx % 2 == 0 else "facade_accent",
+        ))
+        for wx in (-total_width * 0.3, 0, total_width * 0.3):
+            meshes.append(_mesh(
+                f"tower_window_f{floor_idx}_{wx:.1f}",
+                "Windows",
+                [center_x + wx, y_base + floor_height * 0.55, center_z + total_depth / 2 + 0.02],
+                [1.6, 1.4, 0.06],
+                "glass_clear",
+            ))
 
     for index, room in enumerate(rooms):
         prefix = f"room_{index}_{room.name}"
@@ -44,9 +74,13 @@ def compile_scene(scene: SceneGraph) -> dict:
         meshes.extend(_room_doors(prefix, room))
         meshes.extend(_interiors(prefix, room))
 
-    roof_y = max_building_height + 0.2
-    roof_type = "prism" if scene.house.roof.kind in {"gable", "hip"} else "box"
-    meshes.append(_mesh("roof", "Roof", [0, roof_y, 0], [total_width + 1.2, 0.4 if roof_type == "box" else 1.2, total_depth + 1.2], "roof_dark", roof_type))
+    roof_y = max_building_height + 0.15
+    meshes.append(_mesh("roof", "Roof", [center_x, roof_y, center_z], [total_width + 1.4, 0.35, total_depth + 1.4], "roof_dark", "box"))
+
+    if "pool" in features:
+        meshes.append(_mesh("pool", "Foundation", [center_x + total_width / 2 + 2.5, 0.05, center_z], [4.5, 0.12, 3.0], "pool_water"))
+    if "garage" in features:
+        meshes.append(_mesh("garage", "Walls", [center_x - total_width / 2 - 2.0, 1.4, center_z + total_depth / 4], [4.0, 2.8, 3.5], "garage_metal"))
 
     return {
         "meshes": meshes,

@@ -119,9 +119,7 @@ function BuildingMesh({ mesh, materials }: { mesh: any; materials: any[] }) {
 
   return (
     <mesh position={mesh.position} rotation={mesh.rotation || [0, 0, 0]} castShadow receiveShadow>
-      {mesh.type === "prism" || mesh.type === "cone"
-        ? <coneGeometry args={[s[0] / 2, s[1], 4]} />
-        : <boxGeometry args={s} />}
+      <boxGeometry args={s} />
       {transparent || transmission > 0
         ? <meshPhysicalMaterial color={color} roughness={roughness} metalness={metalness}
             transparent opacity={opacity} transmission={transmission} thickness={0.4} ior={1.45} />
@@ -288,7 +286,11 @@ function GeneratedGLB({ path }: { path: string }) {
     });
   }, [path]);
 
-  return <primitive ref={ref} object={scene.clone()} />;
+  return (
+    <group key={path}>
+      <primitive ref={ref} object={scene.clone()} />
+    </group>
+  );
 }
 
 // ─── Placed Sketchfab Asset ───────────────────────────────────────────────────
@@ -523,6 +525,14 @@ export default function ThreeJSViewer() {
     >
       <DropOverlay active={isDragOver} />
 
+      {generatedGlbPath && (
+        <div className="absolute bottom-4 right-4 z-10 rounded-full border border-emerald-200 bg-white/90 px-3 py-1.5 text-[10px] font-semibold text-emerald-700 shadow-lg backdrop-blur flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Blender GLB
+          <span className="font-mono text-emerald-600/80">{generatedGlbPath.split("/").pop()}</span>
+        </div>
+      )}
+
       {/* Placed assets count badge */}
       {placedAssets.length > 0 && (
         <div className="absolute bottom-4 left-4 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-full px-3 py-1 text-[10px] font-medium text-slate-600 shadow-sm flex items-center gap-1.5">
@@ -563,7 +573,13 @@ export default function ThreeJSViewer() {
 
           <MeshBoundary><Ground /></MeshBoundary>
           <MeshBoundary><Trees /></MeshBoundary>
-          <MeshBoundary><ProceduralScene /></MeshBoundary>
+          {generatedGlbPath ? (
+            <MeshBoundary fallback={<ProceduralScene />}>
+              <GeneratedGLB path={generatedGlbPath} />
+            </MeshBoundary>
+          ) : (
+            <MeshBoundary><ProceduralScene /></MeshBoundary>
+          )}
 
           {/* Placed Sketchfab assets */}
           {(placedAssets || []).map((asset) => (

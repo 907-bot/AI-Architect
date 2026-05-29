@@ -16,6 +16,8 @@ from backend.scene_graph import compile_scene
 from backend.toon.editor import edit_toon
 from backend.toon.ollama import prompt_to_toon_with_ollama
 from backend.toon.parser import parse_toon
+from backend.toon.prompt_meta import infer_features, infer_floor_count, infer_style, is_highrise
+from backend.scene_graph.layout import _distribute_rooms_to_floors
 from backend.services.render_queue import render_queue
 
 
@@ -46,13 +48,39 @@ class DragDropRequest(BaseModel):
     auto_scale: bool = True
 
 
+def apply_prompt_metadata(scene, prompt: str = "") -> None:
+    """Align scene graph with explicit prompt requirements (floors, style, amenities)."""
+    if not prompt:
+        return
+    house = scene.house
+    house.features = list({*house.features, *infer_features(prompt)})
+    house.style = infer_style(prompt) or house.style
+    requested = infer_floor_count(prompt)
+    if requested and requested > house.num_floors:
+        house.num_floors = requested
+    if is_highrise(house.num_floors, house.features):
+        house.roof.kind = "flat"
+    if requested and requested > 1 and not any(room.floor > 0 for room in house.rooms):
+        _distribute_rooms_to_floors(house, house.num_floors)
+
+
 def assign_floors_to_scene(scene, prompt: str = ""):
     """Helper to assign floor numbers to rooms based on room names or prompt heuristics"""
+    apply_prompt_metadata(scene, prompt)
     rooms = scene.house.rooms
     if not rooms:
         return
+
+    # Respect explicit FLOOR / floor assignments from the planner or TOON parser.
+    if any(getattr(room, "floor", 0) > 0 for room in rooms):
+        return
         
     prompt_lower = prompt.lower() if prompt else ""
+    requested = infer_floor_count(prompt_lower)
+    if requested and requested > 1:
+        _distribute_rooms_to_floors(scene.house, min(requested, scene.house.num_floors or requested))
+        return
+
     is_two_story = any(w in prompt_lower for w in ["2 floor", "2 story", "two floor", "two story", "double story", "2-floor", "2-story"])
     is_three_story = any(w in prompt_lower for w in ["3 floor", "3 story", "three floor", "three story", "3-floor", "3-story"])
     
@@ -104,10 +132,18 @@ async def generate(body: GenerateRequest):
     
     scene = parse_toon(toon)
     assign_floors_to_scene(scene, body.prompt or "")
+    style = body.style or infer_style(body.prompt or "") or scene.house.style
+    scene.house.style = style
     geometry = compile_scene(scene)
     
     # Export with Blender using enhanced builder
-    glb_path = _export_with_enhanced_blender(toon, scene, body.style or "modern", body.render_quality or "medium")
+    glb_path = _export_with_enhanced_blender(
+        toon,
+        scene,
+        style,
+        body.render_quality or "medium",
+        body.prompt or "",
+    )
     if not glb_path:
         print("Enhanced Docker Blender not available. Falling back to local Blender.")
         glb_path = _export_with_blender(toon, "house")
@@ -363,7 +399,13 @@ def _check_docker_blender() -> tuple[bool, str]:
     return False, ""
 
 
-def _export_with_enhanced_blender(toon: str, scene, style: str = "modern", quality: str = "medium") -> str | None:
+def _export_with_enhanced_blender(
+    toon: str,
+    scene,
+    style: str = "modern",
+    quality: str = "medium",
+    prompt: str = "",
+) -> str | None:
     """Export using enhanced Blender builder with multi-floor support"""
     
     # Find Blender executable (local first, then Docker)
@@ -390,6 +432,11 @@ def _export_with_enhanced_blender(toon: str, scene, style: str = "modern", quali
     
     scene_dict = scene.to_dict()
     scene_dict['style'] = style
+    scene_dict['render_quality'] = quality
+    scene_dict['prompt'] = prompt
+    house_dict = scene_dict.get('house', scene_dict)
+    house_dict['features'] = list(getattr(scene.house, 'features', []) or infer_features(prompt))
+    house_dict['num_floors'] = getattr(scene.house, 'num_floors', 1)
     
     # Ensure floors information is present
     rooms = scene_dict.get('house', scene_dict).get('rooms', [])

@@ -129,7 +129,7 @@ export default function WorkspacePage() {
         setMcpStatus({ available: false });
         useStore.getState().addAgentLog({
           agent: "system",
-          message: "✗ Backend not reachable. Run: python -m uvicorn backend.main:app --port 8000",
+          message: `✗ Backend not reachable at ${API_BASE}. If the API is running, restart it after pulling latest CORS fixes, then open this app at the port shown in the terminal (e.g. http://localhost:3002).`,
         });
       });
   }, []);

@@ -13,12 +13,15 @@ def optimize_layout(house: House) -> None:
         return
     
     # Determine number of floors
-    num_floors = getattr(house, 'num_floors', 1) or 1
+    num_floors = house.num_floors or 1
     num_floors = max(num_floors, 1)
-    
-    # If multiple floors requested, distribute rooms
+
+    # If multiple floors requested, distribute rooms unless FLOOR directives already assigned levels
     if num_floors > 1:
-        _distribute_rooms_to_floors(house, num_floors)
+        if any(room.floor > 0 for room in rooms):
+            _layout_assigned_floors(house, num_floors)
+        else:
+            _distribute_rooms_to_floors(house, num_floors)
     else:
         # Single floor layout
         _layout_single_floor(house)
@@ -26,6 +29,17 @@ def optimize_layout(house: House) -> None:
     _build_adjacency(house)
     _place_doors_and_windows(house)
     _build_circulation(house)
+
+
+def _layout_assigned_floors(house: House, num_floors: int) -> None:
+    """Layout rooms per floor without changing explicit floor assignments."""
+    rooms = house.rooms
+    for floor_idx in range(num_floors):
+        floor_rooms = [room for room in rooms if room.floor == floor_idx]
+        if floor_idx == 0:
+            _layout_ground_floor(floor_rooms)
+        else:
+            _layout_upper_floor(floor_rooms, floor_idx)
 
 
 def _distribute_rooms_to_floors(house: House, num_floors: int) -> None:

@@ -75,7 +75,15 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
     }
 
     try {
-      const response = await axios.post(`${API_BASE}/api/generate`, { prompt }, { timeout: 60000 });
+      const response = await axios.post(
+        `${API_BASE}/api/generate`,
+        {
+          prompt,
+          style: buildConfig?.roofStyle === "gable" ? "craftsman" : "contemporary",
+          render_quality: "cinematic",
+        },
+        { timeout: 120000 },
+      );
       const result = response.data?.data || response.data;
       const generated = normalizeMvpResponse(result);
       const geo = generated.geometry;

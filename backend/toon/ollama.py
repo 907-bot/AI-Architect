@@ -38,18 +38,28 @@ Return valid TOON only. No markdown. No prose.
 
 For MULTI-FLOOR buildings, use FLOOR directives:
 HOUSE name {
-  STYLE modern
-  FLOORS 2
+  STYLE contemporary
+  FLOORS 5
   
   FLOOR 0
-  ROOM living_room { type living_room size 8x6 }
+  ROOM lobby { type hallway size 6x4 }
   ROOM kitchen { type kitchen size 4x4 }
-  ROOM dining_room { type dining_room size 5x4 }
+  ROOM garage { type garage size 6x5 }
   
   FLOOR 1
-  ROOM bedroom_1 { type bedroom size 5x5 }
-  ROOM bedroom_2 { type bedroom size 5x5 }
-  ROOM bathroom { type bathroom size 3x3 }
+  ROOM bedroom_1 { type bedroom size 4x4 }
+  ROOM bedroom_2 { type bedroom size 4x4 }
+  ROOM bathroom_1 { type bathroom size 3x3 }
+  
+  FLOOR 2
+  ROOM bedroom_3 { type bedroom size 4x4 }
+  ROOM bathroom_2 { type bathroom size 3x3 }
+  
+  FLOOR 3
+  ROOM bedroom_4 { type bedroom size 4x4 }
+  
+  FLOOR 4
+  ROOM bedroom_5 { type bedroom size 4x4 }
   
   ROOF flat
 }
@@ -66,7 +76,8 @@ HOUSE name {
 
 Rules:
 - Include living_room, hallway, kitchen, at least one bathroom, and requested bedrooms.
-- For multi-story requests (2 floors, 2 stories, etc.), use FLOORS N and FLOOR directives.
+- For multi-story requests (5 storey apartment, 3 floors, etc.), use FLOORS N and FLOOR directives with rooms on each FLOOR line.
+- Apartments and towers always use ROOF flat.
 - Ground floor (FLOOR 0): living room, kitchen, dining, foyer, garage
 - Upper floors (FLOOR 1+): bedrooms, bathrooms, study
 - Use meters.
