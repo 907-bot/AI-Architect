@@ -43,6 +43,54 @@ class DragDropRequest(BaseModel):
     auto_scale: bool = True
 
 
+def assign_floors_to_scene(scene, prompt: str = ""):
+    """Helper to assign floor numbers to rooms based on room names or prompt heuristics"""
+    rooms = scene.house.rooms
+    if not rooms:
+        return
+        
+    prompt_lower = prompt.lower() if prompt else ""
+    is_two_story = any(w in prompt_lower for w in ["2 floor", "2 story", "two floor", "two story", "double story", "2-floor", "2-story"])
+    is_three_story = any(w in prompt_lower for w in ["3 floor", "3 story", "three floor", "three story", "3-floor", "3-story"])
+    
+    assigned_by_name = False
+    for room in rooms:
+        name_lower = room.name.lower()
+        if any(w in name_lower for w in ["ground", "floor0", "floor_0", "level0", "level_0", "f0", "l0"]):
+            room.floor = 0
+            assigned_by_name = True
+        elif any(w in name_lower for w in ["first", "floor1", "floor_1", "level1", "level_1", "f1", "l1"]):
+            has_ground = any(any(w in r.name.lower() for w in ["ground", "floor0", "floor_0"]) for r in rooms)
+            room.floor = 1 if (has_ground or is_two_story or is_three_story) else 0
+            assigned_by_name = True
+        elif any(w in name_lower for w in ["second", "floor2", "floor_2", "level2", "level_2", "f2", "l2"]):
+            room.floor = 1 if is_two_story else 2
+            assigned_by_name = True
+        elif any(w in name_lower for w in ["third", "floor3", "floor_3", "level3", "level_3", "f3", "l3"]):
+            room.floor = 2
+            assigned_by_name = True
+
+    if not assigned_by_name:
+        if is_three_story:
+            for room in rooms:
+                rt = room.room_type
+                if rt in ["living_room", "hallway", "kitchen", "dining_room"]:
+                    room.floor = 0
+                elif rt == "bedroom":
+                    room.floor = 1 if "1" in room.name or "one" in room.name else 2
+                elif rt == "bathroom":
+                    room.floor = 1 if "1" in room.name or "one" in room.name else 2
+                else:
+                    room.floor = 0
+        elif is_two_story:
+            for room in rooms:
+                rt = room.room_type
+                if rt in ["bedroom", "bathroom", "study"]:
+                    room.floor = 1
+                else:
+                    room.floor = 0
+
+
 @router.post("/generate")
 async def generate(body: GenerateRequest):
     planner = "provided-toon"
@@ -52,6 +100,7 @@ async def generate(body: GenerateRequest):
         toon, planner = prompt_to_toon_with_ollama(body.prompt or "Modern 2 bedroom house", body.ollama_model)
     
     scene = parse_toon(toon)
+    assign_floors_to_scene(scene, body.prompt or "")
     geometry = compile_scene(scene)
     
     # Export with Blender using enhanced builder
@@ -70,6 +119,7 @@ async def generate(body: GenerateRequest):
 @router.post("/edit")
 async def edit(body: EditRequest):
     toon, scene, changed = edit_toon(body.toon, body.instruction)
+    assign_floors_to_scene(scene, body.instruction)
     geometry = compile_scene(scene)
     
     glb_path = _export_with_enhanced_blender(toon, scene, "modern", "medium")
@@ -297,8 +347,18 @@ def _export_with_enhanced_blender(toon: str, scene, style: str = "modern", quali
     if rooms:
         for i, room in enumerate(rooms):
             if 'floor' not in room:
-                z_pos = room.get('position', {}).get('z', room.get('z', 0))
-                room['floor'] = int(z_pos // 3.5) if z_pos > 3 else 0
+                name_lower = room.get('name', '').lower()
+                pos_y = room.get('position', {}).get('y', 0)
+                if pos_y > 1.0:
+                    room['floor'] = int(pos_y // 3.0)
+                elif any(w in name_lower for w in ["first", "floor1", "floor_1", "level1", "level_1", "f1", "l1"]):
+                    room['floor'] = 1
+                elif any(w in name_lower for w in ["second", "floor2", "floor_2", "level2", "level_2", "f2", "l2"]):
+                    room['floor'] = 1
+                elif any(w in name_lower for w in ["third", "floor3", "floor_3", "level3", "level_3", "f3", "l3"]):
+                    room['floor'] = 2
+                else:
+                    room['floor'] = 0
     
     with open(toon_path, 'w') as f:
         json.dump(scene_dict, f)
