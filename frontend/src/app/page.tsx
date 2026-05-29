@@ -15,7 +15,7 @@ import {
   Cpu, Cog
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
-import { API_BASE, DEFAULT_MVP_PROMPT, fallbackVillaGeometry, normalizeMvpResponse } from "@/lib/mvpScene";
+import { API_BASE, unwrapApiResponse } from "@/lib/mvpScene";
 
 const ThreeJSViewer = dynamic(() => import("@/components/ThreeJSViewer"), {
   ssr: false,
@@ -60,7 +60,9 @@ export default function WorkspacePage() {
   
   // Connection status
   const [blenderStatus, setBlenderStatus] = useState<{available: boolean; version?: string} | null>(null);
-  const [ollamaStatus, setOllamaStatus] = useState<{available: boolean} | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<{available: boolean; model?: string} | null>(null);
+  const [redisStatus, setRedisStatus] = useState<{available: boolean; backend?: string} | null>(null);
+  const [mcpStatus, setMcpStatus] = useState<{available: boolean} | null>(null);
 
   const {
     activeProjection, setActiveProjection,
@@ -80,40 +82,55 @@ export default function WorkspacePage() {
     const store = useStore.getState();
     store.setGeneratedGlbPath(null);
     
-    // Check Blender status
-    fetch(`${API_BASE}/api/blender-status`)
+    // Check stack status
+    fetch(`${API_BASE}/api/stack-status`)
       .then(res => res.json())
-      .then(data => {
-        setBlenderStatus({ available: data.available, version: data.version });
+      .then(raw => {
+        const data = unwrapApiResponse(raw);
+        const blender = data.blender || {};
+        const ollama = data.ollama || {};
+        const redis = data.redis || {};
+        const blenderMcp = data.blender_mcp || {};
+
+        setBlenderStatus({ available: !!blender.available, version: blender.version });
+        setOllamaStatus({ available: !!ollama.available, model: ollama.model });
+        setRedisStatus({ available: !!redis.available, backend: redis.backend });
+        setMcpStatus({ available: !!blenderMcp.available });
+
         useStore.getState().addAgentLog({
           agent: "system",
-          message: data.available 
-            ? `✓ Blender: ${data.version || 'Available'}` 
+          message: blender.available 
+            ? `✓ Blender: ${blender.version || 'Available'}` 
             : "✗ Blender: Not available (install Blender or Docker)",
+        });
+        useStore.getState().addAgentLog({
+          agent: "system",
+          message: ollama.available 
+            ? `✓ Ollama: ${ollama.model || 'llama3.1'}` 
+            : "✗ Ollama: Not available (run: ollama serve && ollama pull llama3.1)",
+        });
+        useStore.getState().addAgentLog({
+          agent: "system",
+          message: redis.available 
+            ? `✓ Queue: ${redis.backend || 'redis'}` 
+            : "✗ Redis: Not reachable; queue may fall back locally",
+        });
+        useStore.getState().addAgentLog({
+          agent: "system",
+          message: blenderMcp.available 
+            ? "✓ Blender MCP: HTTP server reachable" 
+            : "✗ Blender MCP: Start server on port 8765 when MCP tools are needed",
         });
       })
       .catch(() => {
         setBlenderStatus({ available: false });
+        setOllamaStatus({ available: false });
+        setRedisStatus({ available: false });
+        setMcpStatus({ available: false });
         useStore.getState().addAgentLog({
           agent: "system",
           message: "✗ Backend not reachable. Run: python -m uvicorn backend.main:app --port 8000",
         });
-      });
-      
-    // Check Ollama status
-    fetch(`${API_BASE}/api/ollama-status`)
-      .then(res => res.json())
-      .then(data => {
-        setOllamaStatus({ available: data.available });
-        useStore.getState().addAgentLog({
-          agent: "system",
-          message: data.available 
-            ? `✓ Ollama: ${data.model || 'Available'}` 
-            : "✗ Ollama: Not available (run: ollama serve && ollama pull llama3.1)",
-        });
-      })
-      .catch(() => {
-        setOllamaStatus({ available: false });
       });
   }, []);
 
@@ -158,6 +175,24 @@ export default function WorkspacePage() {
             }`}>
               <Cog className="w-3 h-3" />
               <span>Blender: {blenderStatus?.available ? '✓' : '✗'}</span>
+            </div>
+
+            <div className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full border ${
+              redisStatus?.available
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <Layers className="w-3 h-3" />
+              <span>Redis: {redisStatus?.available ? '✓' : '✗'}</span>
+            </div>
+
+            <div className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full border ${
+              mcpStatus?.available
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <Package className="w-3 h-3" />
+              <span>MCP: {mcpStatus?.available ? '✓' : '✗'}</span>
             </div>
           </div>
         </header>

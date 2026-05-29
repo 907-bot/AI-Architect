@@ -233,8 +233,8 @@ AI Architect supports **Model Context Protocol (MCP)** for seamless integration 
 
 2. **Start the MCP server** (in a terminal):
    ```bash
-   cd /workspace/project/AI-Architect
-   PYTHONPATH=/workspace/project/AI-Architect python -m backend.blender.mcp_server
+   cd /Users/abhishekadari/projects/AI-Architect
+   PYTHONPATH=/Users/abhishekadari/projects/AI-Architect python -m backend.blender.mcp_server
    ```
 
 3. **In ChatGPT**, use the Blender tools to generate houses:
@@ -248,8 +248,8 @@ AI Architect supports **Model Context Protocol (MCP)** for seamless integration 
 
 1. **Start the HTTP server**:
    ```bash
-   cd /workspace/project/AI-Architect
-   PYTHONPATH=/workspace/project/AI-Architect python -m backend.blender.mcp_http_server
+   cd /Users/abhishekadari/projects/AI-Architect
+   PYTHONPATH=/Users/abhishekadari/projects/AI-Architect python -m uvicorn backend.blender.mcp_http_server:app --host 0.0.0.0 --port 8765
    ```
 
 2. **Update mcp_config.json** to point to your server URL:
@@ -322,7 +322,7 @@ result = generate_house(scene_graph, "villa.glb", style="villa")
 **MCP Server won't start?**
 ```bash
 # Check Python path
-export PYTHONPATH=/workspace/project/AI-Architect
+export PYTHONPATH=/Users/abhishekadari/projects/AI-Architect
 
 # Verify dependencies
 pip install fastmcp fastapi uvicorn

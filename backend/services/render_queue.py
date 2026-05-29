@@ -49,6 +49,30 @@ class RenderQueue:
             log.info("render_queue_using_local_mode")
         self._initialized = True
 
+    async def health_check(self) -> Dict[str, Any]:
+        """Return current queue backend status without failing the API."""
+        if not self._redis:
+            return {
+                "available": True,
+                "backend": "local",
+                "queue_length": await self.get_queue_length(),
+                "note": "Redis URL not configured; using in-memory queue.",
+            }
+
+        try:
+            pong = await self._redis.ping()
+            return {
+                "available": bool(pong),
+                "backend": "redis",
+                "queue_length": await self.get_queue_length(),
+            }
+        except Exception as e:
+            return {
+                "available": False,
+                "backend": "redis",
+                "error": str(e),
+            }
+
     async def enqueue(
         self,
         scene_id: str,

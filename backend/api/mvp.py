@@ -4,6 +4,8 @@ import shutil
 import subprocess
 import time
 import json
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -14,6 +16,7 @@ from backend.scene_graph import compile_scene
 from backend.toon.editor import edit_toon
 from backend.toon.ollama import prompt_to_toon_with_ollama
 from backend.toon.parser import parse_toon
+from backend.services.render_queue import render_queue
 
 
 router = APIRouter()
@@ -202,6 +205,52 @@ async def ollama_status():
         }
 
 
+@router.get("/redis-status")
+async def redis_status():
+    """Check Redis render queue health, with local queue fallback details."""
+    return await render_queue.health_check()
+
+
+@router.get("/blender-mcp-status")
+async def blender_mcp_status():
+    """Check the optional Blender HTTP MCP server."""
+    url = "http://127.0.0.1:8765/health"
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        return {
+            "available": response.status == 200 and payload.get("status") == "ok",
+            "url": url,
+            "service": payload.get("service"),
+            "version": payload.get("version"),
+        }
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+        return {
+            "available": False,
+            "url": url,
+            "error": str(e),
+            "note": "Start with: python -m uvicorn backend.blender.mcp_http_server:app --host 0.0.0.0 --port 8765",
+        }
+
+
+@router.get("/stack-status")
+async def stack_status():
+    """Aggregate local development component status for the frontend."""
+    blender = await blender_status()
+    ollama = await ollama_status()
+    redis = await redis_status()
+    blender_mcp = await blender_mcp_status()
+    return {
+        "backend": {"available": True},
+        "frontend": {"available": True},
+        "blender": blender,
+        "ollama": ollama,
+        "redis": redis,
+        "blender_mcp": blender_mcp,
+    }
+
+
 @router.get("/house-styles")
 async def get_house_styles():
     """Get available house styles for Blender rendering"""
@@ -294,7 +343,7 @@ def _check_docker_blender() -> tuple[bool, str]:
     """Check if Docker Blender is available"""
     try:
         result = subprocess.run(
-            ["sudo", "docker", "images", "-q", "nytimes/blender:latest"],
+            ["docker", "images", "-q", "nytimes/blender:latest"],
             capture_output=True,
             text=True,
             timeout=10
@@ -302,7 +351,7 @@ def _check_docker_blender() -> tuple[bool, str]:
         if result.stdout.strip():
             # Get version
             version_result = subprocess.run(
-                ["sudo", "docker", "run", "--rm", "nytimes/blender:latest", "blender", "--version"],
+                ["docker", "run", "--rm", "nytimes/blender:latest", "blender", "--version"],
                 capture_output=True,
                 text=True,
                 timeout=30

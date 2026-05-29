@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "https://ai-architect.vercel.app",
         "https://907-bot.github.io",
         "https://907-bot.github.io/AI-Architect",

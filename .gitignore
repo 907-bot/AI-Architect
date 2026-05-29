@@ -14,6 +14,8 @@ frontend/.next/
 frontend/out/
 .local/
 exports/
+dump.rdb
+test.db
 
 # Python
 __pycache__/

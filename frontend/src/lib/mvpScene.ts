@@ -2,6 +2,10 @@ import { AssetManifest, ComplianceData, GeometryData, SceneConfig } from "@/lib/
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+export function unwrapApiResponse<T = any>(raw: any): T {
+  return raw?.data ?? raw;
+}
+
 export const DEFAULT_MVP_PROMPT = "Modern 3 bedroom villa with flat roof";
 
 const fallbackMaterials = [
@@ -21,7 +25,7 @@ export function normalizeMvpResponse(raw: any): {
   toon: string | null;
   glbPath: string | null;
 } {
-  const result = raw?.data || raw;
+  const result = unwrapApiResponse(raw);
   
   // Don't use fallback - return empty if no geometry
   if (!result?.geometry) {

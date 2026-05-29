@@ -2,10 +2,10 @@
   "mcpServers": {
     "ai-architect-blender-stdio": {
       "transport": "stdio",
-      "command": "cd /workspace/project/AI-Architect && PYTHONPATH=/workspace/project/AI-Architect python -m backend.blender.mcp_server",
+      "command": "cd /Users/abhishekadari/projects/AI-Architect && PYTHONPATH=/Users/abhishekadari/projects/AI-Architect python -m backend.blender.mcp_server",
       "description": "AI Architect - Blender 3D house generation via stdio (for ChatGPT desktop)",
       "env": {
-        "PYTHONPATH": "/workspace/project/AI-Architect"
+        "PYTHONPATH": "/Users/abhishekadari/projects/AI-Architect"
       }
     },
     "ai-architect-blender-http": {
