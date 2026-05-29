@@ -52,9 +52,9 @@ class _Parser:
         width = 4.0
         depth = 4.0
         height = 3.0
+        floor = 0
         x = None
         y = None
-        floor = self.current_floor
         self._expect("{")
         while not self._peek("}"):
             key = self._next()
@@ -64,22 +64,22 @@ class _Parser:
                 height = float(self._next())
             elif key == "type":
                 room_type = self._identifier()
+            elif key == "floor":
+                floor = int(float(self._next()))
             elif key in {"position", "at"}:
                 x, y = self._dimensions(self._next())
-            elif key == "floor":
-                floor = int(self._next())
             else:
-                raise ToonParseError(f"Unsupported ROOM property {key!r}")
+                self._next()  # skip unknown value
         self._expect("}")
         return Room(
             name=name,
             width=width,
             depth=depth,
             height=height,
+            floor=floor,
             x=x or 0.0,
             y=y or 0.0,
             room_type_hint=room_type,
-            floor=floor,
         )
 
     def _dimensions(self, value: str) -> tuple[float, float]:
