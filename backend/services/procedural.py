@@ -288,7 +288,7 @@ def generate_detailed_building(
     # ========== 7. POOL ==========
     if pool:
         pool_x = pw * 0.12
-        pool_z = -pd * 0.38
+        pool_z = -(pd / 2 + pd * 0.25)
         
         # Pool edge/concrete
         meshes.append({

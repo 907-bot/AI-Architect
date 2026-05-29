@@ -659,7 +659,7 @@ async def generate_simple_fn(request: GenerateSceneRequest = None):
             color_scheme = cfg_wall_color or "white"
 
         # Roof style: ConfigPanel or gable default
-        roof_style = cfg_roof_style or "gable"
+        roof_style = cfg_roof_style or ("flat" if bt == "apartment" else "gable")
 
         log.info("generate_simple_params", bt=bt, floors=floors, pool=has_pool,
                  garage=has_garage, garden=has_garden, color=color_scheme, roof=roof_style)

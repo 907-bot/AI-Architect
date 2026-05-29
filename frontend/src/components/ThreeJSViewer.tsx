@@ -39,6 +39,7 @@ function CameraController() {
         const pc = camera as THREE.PerspectiveCamera;
         if (proj === "perspective_1p") { pc.fov = 42; pc.position.set(0, 3.5, 22); pc.lookAt(0, 3.5, 0); }
         else if (proj === "perspective_3p") { pc.fov = 70; pc.position.set(20, 22, 20); pc.lookAt(0, 2, 0); }
+        else if (proj === "perspective_2p") { pc.fov = 55; pc.position.set(22, 14, 22); pc.lookAt(0, 4, 0); }
         pc.updateProjectionMatrix();
       }
     } catch (e) { console.warn("cam err:", e); }
