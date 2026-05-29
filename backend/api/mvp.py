@@ -17,7 +17,6 @@ from backend.toon.editor import edit_toon
 from backend.toon.ollama import prompt_to_toon_with_ollama
 from backend.toon.parser import parse_toon
 from backend.toon.prompt_meta import infer_features, infer_floor_count, infer_style, is_highrise
-from backend.scene_graph.layout import _distribute_rooms_to_floors
 from backend.services.render_queue import render_queue
 
 
