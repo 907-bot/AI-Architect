@@ -13,6 +13,26 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")  # Using Llama 3.1 as specified
 
 
+def check_ollama_connection() -> tuple[bool, str | None, str | None]:
+    """Check if Ollama is running and accessible"""
+    try:
+        req = urllib.request.Request(
+            f"{OLLAMA_URL}/api/tags",
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode())
+                models = data.get("models", [])
+                model_names = [m.get("name", "") for m in models]
+                # Check for llama3.1 or similar
+                has_llama = any("llama" in m.lower() for m in model_names)
+                return True, model_names[0] if model_names else OLLAMA_MODEL, None
+    except Exception as e:
+        return False, None, str(e)
+    return False, None, "Ollama not responding"
+
+
 SYSTEM_PROMPT = """You generate TOON scripts for an architectural compiler.
 Return valid TOON only. No markdown. No prose.
 

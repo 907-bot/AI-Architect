@@ -22,7 +22,20 @@ export function normalizeMvpResponse(raw: any): {
   glbPath: string | null;
 } {
   const result = raw?.data || raw;
-  const geometry = result?.geometry || fallbackVillaGeometry();
+  
+  // Don't use fallback - return empty if no geometry
+  if (!result?.geometry) {
+    return {
+      geometry: { meshes: [], rooms: [], style: "modern" },
+      sceneConfig: { drone_path: [] },
+      assets: { materials: [] },
+      compliance: null,
+      toon: result?.toon || null,
+      glbPath: result?.glb_path || null,
+    };
+  }
+  
+  const geometry = result.geometry;
   const materials = (geometry.materials || fallbackMaterials).map((m: any) => ({
     ...m,
     id: m.id || m.material_id,

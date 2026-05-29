@@ -12,6 +12,7 @@ import FloorPlanView from "@/components/FloorPlanView";
 import {
   Box, Eye, Filter, Layers, ChevronDown, ChevronUp, Cuboid, Map,
   CheckCircle2, AlertTriangle, Settings2, Package, X,
+  Cpu, Cog
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
 import { API_BASE, DEFAULT_MVP_PROMPT, fallbackVillaGeometry, normalizeMvpResponse } from "@/lib/mvpScene";
@@ -56,6 +57,10 @@ export default function WorkspacePage() {
   const [showConfig, setShowConfig] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [viewMode, setViewMode] = useState<"model" | "plan">("model");
+  
+  // Connection status
+  const [blenderStatus, setBlenderStatus] = useState<{available: boolean; version?: string} | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<{available: boolean} | null>(null);
 
   const {
     activeProjection, setActiveProjection,
@@ -71,36 +76,44 @@ export default function WorkspacePage() {
     if (booted.current) return;
     booted.current = true;
 
+    // Clear any existing state - start with empty scene
     const store = useStore.getState();
     store.setGeneratedGlbPath(null);
-    store.updateScene(
-      { ...fallbackVillaGeometry() },
-      { drone_path: [
-        { index: 0, position: [18, 8, 18], look_at: [0, 2, 0], duration_s: 4 },
-        { index: 1, position: [-18, 8, -18], look_at: [0, 2, 0], duration_s: 4 },
-      ]},
-      { materials: fallbackVillaGeometry().materials },
-      { compliant: true, issues: [], actual_far: 1.1, allowed_far: 2.5, actual_coverage_pct: 42, allowed_coverage_pct: 60 }
-    );
-
-    fetch(`${API_BASE}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: DEFAULT_MVP_PROMPT }),
-    })
-      .then((res) => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
-      .then((data) => {
-        const generated = normalizeMvpResponse(data);
-        const next = useStore.getState();
-        next.setLatestToon(generated.toon);
-        next.setGeneratedGlbPath(generated.glbPath);
-        next.updateScene(generated.geometry, generated.sceneConfig, generated.assets, generated.compliance || undefined);
+    
+    // Check Blender status
+    fetch(`${API_BASE}/api/blender-status`)
+      .then(res => res.json())
+      .then(data => {
+        setBlenderStatus({ available: data.available, version: data.version });
+        useStore.getState().addAgentLog({
+          agent: "system",
+          message: data.available 
+            ? `✓ Blender: ${data.version || 'Available'}` 
+            : "✗ Blender: Not available (install Blender or Docker)",
+        });
       })
       .catch(() => {
+        setBlenderStatus({ available: false });
         useStore.getState().addAgentLog({
-          agent: "mvp",
-          message: "Using built-in villa preview because the local backend was not reachable.",
+          agent: "system",
+          message: "✗ Backend not reachable. Run: python -m uvicorn backend.main:app --port 8000",
         });
+      });
+      
+    // Check Ollama status
+    fetch(`${API_BASE}/api/ollama-status`)
+      .then(res => res.json())
+      .then(data => {
+        setOllamaStatus({ available: data.available });
+        useStore.getState().addAgentLog({
+          agent: "system",
+          message: data.available 
+            ? `✓ Ollama: ${data.model || 'Available'}` 
+            : "✗ Ollama: Not available (run: ollama serve && ollama pull llama3.1)",
+        });
+      })
+      .catch(() => {
+        setOllamaStatus({ available: false });
       });
   }, []);
 
@@ -124,11 +137,29 @@ export default function WorkspacePage() {
               <p className="text-[10px] text-slate-400">Indian NBC Zoning & Parallel Projections Enabled</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-            NBC Auditor Active
+          
+          {/* Status indicators */}
+          <div className="flex items-center gap-3">
+            {/* Ollama Status */}
+            <div className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full border ${
+              ollamaStatus?.available 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <Cpu className="w-3 h-3" />
+              <span>Ollama: {ollamaStatus?.available ? '✓' : '✗'}</span>
+            </div>
+            
+            {/* Blender Status */}
+            <div className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full border ${
+              blenderStatus?.available 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <Cog className="w-3 h-3" />
+              <span>Blender: {blenderStatus?.available ? '✓' : '✗'}</span>
+            </div>
           </div>
-
         </header>
 
         {/* ── Body ── */}

@@ -120,6 +120,29 @@ async def blender_status():
     return {"available": False, "reason": "Blender not found in PATH"}
 
 
+@router.get("/ollama-status")
+async def ollama_status():
+    """Check if Ollama is available and working"""
+    from backend.toon.ollama import check_ollama_connection
+    
+    available, model, error = check_ollama_connection()
+    
+    if available:
+        return {
+            "available": True,
+            "model": model or "llama3.1",
+            "version": "Ollama connected",
+            "note": "Local AI is ready for TOON generation"
+        }
+    else:
+        return {
+            "available": False,
+            "model": None,
+            "error": error or "Ollama not running",
+            "note": "Using deterministic fallback. Install Ollama: ollama serve && ollama pull llama3.1"
+        }
+
+
 @router.get("/house-styles")
 async def get_house_styles():
     """Get available house styles for Blender rendering"""

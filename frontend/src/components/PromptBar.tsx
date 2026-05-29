@@ -127,19 +127,24 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         updateChatMessage(aiId, { content: "Backend returned no geometry. Try rephrasing your prompt.", isStreaming: false });
       }
     } catch (err) {
-      const fallback = normalizeMvpResponse({ geometry: fallbackVillaGeometry() });
-      updateScene(fallback.geometry, fallback.sceneConfig, fallback.assets, {
-        compliant: false,
-        issues: ["Backend unavailable - showing local SceneGraph fallback"],
-        actual_far: 1.2,
-        allowed_far: 2.5,
-        actual_coverage_pct: 38,
-        allowed_coverage_pct: 60,
-      });
+      // Don't use fallback - show empty state
+      updateScene(
+        { meshes: [], rooms: [], style: "modern" },
+        { drone_path: [] },
+        { materials: [] },
+        {
+          compliant: false,
+          issues: ["Backend unavailable - check if server is running on port 8000"],
+          actual_far: 0,
+          allowed_far: 2.5,
+          actual_coverage_pct: 0,
+          allowed_coverage_pct: 60,
+        }
+      );
       setGeneratedGlbPath(null);
       setLatestToon(null);
       updateChatMessage(aiId, {
-        content: "Could not reach the local server, so I am showing the built-in architectural fallback. Start the MVP backend on port 8000, and start Ollama if you want local AI TOON planning.",
+        content: "Could not reach the backend server. Make sure to run:\n\n```bash\ncd AI-Architect\npython -m uvicorn backend.main:app --port 8000\n```\n\nFor local AI (Ollama/Llama 3.1) and Blender, install them locally.",
         isStreaming: false,
       });
     } finally {
