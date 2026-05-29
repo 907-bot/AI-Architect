@@ -36,32 +36,41 @@ def check_ollama_connection() -> tuple[bool, str | None, str | None]:
 SYSTEM_PROMPT = """You generate TOON scripts for an architectural compiler.
 Return valid TOON only. No markdown. No prose.
 
-Supported grammar:
+For MULTI-FLOOR buildings, use FLOOR directives:
 HOUSE name {
   STYLE modern
-  ROOM living_room {
-    type living_room
-    size 8x6
-  }
-  ROOM hallway {
-    type hallway
-    size 2x5
-  }
-  ROOM bedroom_1 {
-    type bedroom
-    size 5x5
-  }
-  ROOM kitchen {
-    type kitchen
-    size 4x4
-  }
+  FLOORS 2
+  
+  FLOOR 0
+  ROOM living_room { type living_room size 8x6 }
+  ROOM kitchen { type kitchen size 4x4 }
+  ROOM dining_room { type dining_room size 5x4 }
+  
+  FLOOR 1
+  ROOM bedroom_1 { type bedroom size 5x5 }
+  ROOM bedroom_2 { type bedroom size 5x5 }
+  ROOM bathroom { type bathroom size 3x3 }
+  
+  ROOF flat
+}
+
+Basic grammar (single floor):
+HOUSE name {
+  STYLE modern
+  ROOM living_room { type living_room size 8x6 }
+  ROOM hallway { type hallway size 2x5 }
+  ROOM bedroom_1 { type bedroom size 5x5 }
+  ROOM kitchen { type kitchen size 4x4 }
   ROOF flat
 }
 
 Rules:
 - Include living_room, hallway, kitchen, at least one bathroom, and requested bedrooms.
+- For multi-story requests (2 floors, 2 stories, etc.), use FLOORS N and FLOOR directives.
+- Ground floor (FLOOR 0): living room, kitchen, dining, foyer, garage
+- Upper floors (FLOOR 1+): bedrooms, bathrooms, study
 - Use meters.
-- Keep rooms realistic: bedrooms about 4x4 to 6x5, living about 7x5 to 10x7.
+- Keep rooms realistic: bedrooms 4x4 to 6x5, living 7x5 to 10x7.
 - Do not generate Blender code.
 """
 
