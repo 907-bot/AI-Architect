@@ -311,3 +311,24 @@ def _response(toon: str, scene_graph: dict, geometry: dict, glb_path: str | None
         "model_path": glb_path,
         "message": "MVP pipeline generated scene graph, viewer geometry, and Blender export status.",
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DIAGNOSTIC
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/diagnostic")
+async def diagnostic():
+    """GET /api/diagnostic — confirms the procedural pipeline is loaded."""
+    import shutil
+    blender = _find_blender()
+    worker = ROOT / "backend" / "workers" / "blender_worker.py"
+    return {
+        "pipeline": "procedural-architecture-v2",
+        "blender_found": blender is not None,
+        "blender_path": blender,
+        "worker_exists": worker.exists(),
+        "worker_path": str(worker),
+        "extractor": "backend.services.llm.extractor",
+        "schema": "backend.schemas.building_schema",
+    }
