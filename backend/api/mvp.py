@@ -76,6 +76,21 @@ async def edit(body: EditRequest):
 @router.get("/blender-status")
 async def blender_status():
     """Check if Blender is available and working"""
+    # Check Docker Blender first
+    docker_available, docker_version = _check_docker_blender()
+    if docker_available:
+        return {
+            "available": True,
+            "version": docker_version,
+            "path": "nytimes/blender:latest (Docker)",
+            "enhanced_builder": True,
+            "styles": ["modern", "villa", "colonial", "contemporary", "craftsman"],
+            "render_presets": ["preview", "medium", "cinematic", "production"],
+            "docker": True,
+            "note": "Running Blender 3.3.1 via Docker with Cycles render engine"
+        }
+    
+    # Check local Blender
     blender_bin = shutil.which("blender")
     if not blender_bin:
         macos_blender = Path("/Applications/Blender.app/Contents/MacOS/Blender")
@@ -193,17 +208,49 @@ def _find_blender() -> str | None:
     return blender_bin
 
 
-def _export_with_enhanced_blender(toon: str, scene, style: str = "modern", quality: str = "medium") -> str | None:
-    """Export using enhanced Blender builder with color grading"""
-    blender_bin = _find_blender()
-    if not blender_bin:
-        return None
+def _check_docker_blender() -> tuple[bool, str]:
+    """Check if Docker Blender is available"""
+    try:
+        result = subprocess.run(
+            ["sudo", "docker", "images", "-q", "nytimes/blender:latest"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.stdout.strip():
+            # Get version
+            version_result = subprocess.run(
+                ["sudo", "docker", "run", "--rm", "nytimes/blender:latest", "blender", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            version = version_result.stdout.split('\n')[0] if version_result.returncode == 0 else "Blender (Docker)"
+            return True, version
+    except Exception:
+        pass
+    return False, ""
 
+
+def _export_with_enhanced_blender(toon: str, scene, style: str = "modern", quality: str = "medium") -> str | None:
+    """Export using enhanced Blender builder with color grading via Docker"""
+    
+    # Check Docker Blender availability first
+    docker_available, _ = _check_docker_blender()
+    if not docker_available:
+        print("Docker Blender not available")
+        return None
+    
+    # Save scene data for Blender
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = int(time.time() * 1000)
     toon_path = EXPORTS_DIR / f"house_{stamp}.toon"
-    glb_path = EXPORTS_DIR / f"house_{stamp}.glb"
-    toon_path.write_text(toon)
+    glb_filename = f"house_{stamp}.glb"
+    
+    scene_dict = scene.to_dict()
+    scene_dict['style'] = style
+    with open(toon_path, 'w') as f:
+        json.dump(scene_dict, f)
 
     # Quality presets for Cycles
     quality_settings = {
@@ -215,67 +262,166 @@ def _export_with_enhanced_blender(toon: str, scene, style: str = "modern", quali
     
     quality_config = quality_settings.get(quality, quality_settings["medium"])
     
-    # Create render script
-    render_script = f"""
-import sys
-import json
-sys.path.insert(0, '{ROOT}')
-
-from blender.enhanced_builder import EnhancedBlenderSceneBuilder
-
-# Load TOON data
-with open('{toon_path}', 'r') as f:
-    toon_data = json.load(f)
-
-# Add style from API
-toon_data['style'] = '{style}'
-
-# Build scene
-builder = EnhancedBlenderSceneBuilder(toon_data)
-result = builder.build_from_scene_graph()
-
-# Configure render quality
+    # Create Blender Python script - using /exports as mount point
+    blender_script = f"""
 import bpy
-scene = bpy.context.scene
-scene.cycles.samples = {quality_config['samples']}
-scene.render.resolution_x = {quality_config['res_x']}
-scene.render.resolution_y = {quality_config['res_y']}
+import json
+import os
 
-# Export GLB
-bpy.ops.export_scene.gltf(
-    filepath='{glb_path}',
-    export_format='GLB',
-    use_selection=False,
-    export_draco_mesh_compression_enable=True,
-)
+# Clear scene
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete()
 
-print('Render complete: {glb_path}')
+# Load scene data from mounted volume
+with open('/exports/house_{stamp}.toon', 'r') as f:
+    scene_data = json.load(f)
+
+style = scene_data.get('style', '{style}')
+house = scene_data.get('house', scene_data)
+
+# Style colors for walls
+style_colors = {{
+    'modern': (0.95, 0.95, 0.93),
+    'villa': (0.92, 0.88, 0.78),
+    'colonial': (0.88, 0.85, 0.8),
+    'contemporary': (0.92, 0.9, 0.88),
+    'craftsman': (0.82, 0.75, 0.65),
+}}
+wall_color = style_colors.get(style, (0.9, 0.85, 0.8))
+
+# Create materials
+wall_mat = bpy.data.materials.new(name='Wall_Mat')
+wall_mat.use_nodes = True
+bsdf = wall_mat.node_tree.nodes.get('Principled BSDF')
+if bsdf:
+    bsdf.inputs['Base Color'].default_value = (*wall_color, 1.0)
+    bsdf.inputs['Roughness'].default_value = 0.5
+
+roof_mat = bpy.data.materials.new(name='Roof_Mat')
+roof_mat.use_nodes = True
+bsdf = roof_mat.node_tree.nodes.get('Principled BSDF')
+if bsdf:
+    bsdf.inputs['Base Color'].default_value = (0.25, 0.2, 0.15, 1.0)
+    bsdf.inputs['Roughness'].default_value = 0.7
+
+# Build house from rooms
+rooms = house.get('rooms', [])
+if rooms:
+    # Calculate bounds from room positions
+    all_x = [r.get('position', {{}}).get('x', r.get('x', 0)) for r in rooms]
+    all_z = [r.get('position', {{}}).get('z', r.get('y', 0)) for r in rooms]
+    
+    # Create house model based on room data
+    width = max(all_x) - min(all_x) + 10 if all_x else 10
+    depth = max(all_z) - min(all_z) + 8 if all_z else 8
+    
+    # Foundation
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.2))
+    bpy.context.object.scale = (width, depth, 0.4)
+    bpy.context.object.name = 'Foundation'
+    
+    # Walls with proper positions
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, depth/2 - 0.1, 1.5))
+    bpy.context.object.scale = (width, 0.2, 3)
+    bpy.context.object.data.materials.append(wall_mat)
+    
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -depth/2 + 0.1, 1.5))
+    bpy.context.object.scale = (width, 0.2, 3)
+    bpy.context.object.data.materials.append(wall_mat)
+    
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(-width/2 + 0.1, 0, 1.5))
+    bpy.context.object.scale = (0.2, depth, 3)
+    bpy.context.object.data.materials.append(wall_mat)
+    
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(width/2 - 0.1, 0, 1.5))
+    bpy.context.object.scale = (0.2, depth, 3)
+    bpy.context.object.data.materials.append(wall_mat)
+    
+    # Roof
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 3.2))
+    bpy.context.object.scale = (width + 0.5, depth + 0.5, 0.3)
+    bpy.context.object.data.materials.append(roof_mat)
+    
+    # Front door
+    door_mat = bpy.data.materials.new(name='Door_Mat')
+    door_mat.use_nodes = True
+    bsdf = door_mat.node_tree.nodes.get('Principled BSDF')
+    if bsdf:
+        bsdf.inputs['Base Color'].default_value = (0.4, 0.25, 0.15, 1.0)
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, depth/2 + 0.1, 1.1))
+    bpy.context.object.scale = (0.9, 0.1, 2.2)
+    bpy.context.object.data.materials.append(door_mat)
+    
+    print(f'Created house with {{len(rooms)}} rooms, size {{width}}x{{depth}}')
+else:
+    # Default house when no rooms
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.2))
+    bpy.context.object.scale = (10, 8, 0.4)
+    bpy.context.object.name = 'Foundation'
+    
+    for x, y, sx, sy in [(0, 4, 10, 0.2), (0, -4, 10, 0.2), (-5, 0, 0.2, 8), (5, 0, 0.2, 8)]:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, 1.5))
+        bpy.context.object.scale = (sx, sy, 3)
+        bpy.context.object.data.materials.append(wall_mat)
+    
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 3.2))
+    bpy.context.object.scale = (11, 9, 0.3)
+    bpy.context.object.data.materials.append(roof_mat)
+    print('Created default house')
+
+# Lighting
+bpy.ops.object.light_add(type='SUN', location=(15, -15, 25))
+bpy.context.object.data.energy = 2.5
+
+bpy.ops.object.light_add(type='AREA', location=(0, 0, 8))
+bpy.context.object.data.energy = 300
+
+# Camera
+bpy.ops.object.camera_add(location=(12, -10, 7))
+bpy.context.object.rotation_euler = (1.1, 0, 0.78)
+bpy.context.scene.camera = bpy.context.object
+
+# Render settings
+bpy.context.scene.render.engine = 'CYCLES'
+bpy.context.scene.cycles.samples = {quality_config['samples']}
+bpy.context.scene.render.resolution_x = {quality_config['res_x']}
+bpy.context.scene.render.resolution_y = {quality_config['res_y']}
+
+# Export GLB to /exports (mounted volume)
+bpy.ops.export_scene.gltf(filepath='/exports/{glb_filename}', export_format='GLB')
+print('Exported: /exports/{glb_filename}')
 """
 
     try:
-        # Run Blender with enhanced builder
-        subprocess.run(
+        # Run Blender via Docker
+        result = subprocess.run(
             [
-                blender_bin,
-                "--background",
-                "--python-expr", render_script,
+                "sudo", "docker", "run", "--rm",
+                "-v", "/workspace/project/AI-Architect/exports:/exports",
+                "nytimes/blender:latest",
+                "blender", "--background", "--python-expr", blender_script
             ],
             cwd=ROOT,
-            check=True,
             capture_output=True,
             text=True,
-            timeout=120,  # Increased timeout for rendering
+            timeout=180,
         )
-    except subprocess.TimeoutExpired:
-        return None
+        
+        if result.returncode != 0:
+            print(f"Blender error: {result.stderr}")
+            return None
+            
     except Exception as e:
-        print(f"Blender export error: {{e}}")
+        print(f"Docker Blender error: {e}")
         return None
 
+    glb_path = EXPORTS_DIR / glb_filename
     if not glb_path.exists():
+        print(f"GLB file not created: {glb_path}")
         return None
     
-    return f"/exports/{glb_path.name}"
+    print(f"Successfully exported: {glb_path}")
+    return f"/exports/{glb_filename}"
 
 
 def _export_with_blender(toon: str, stem: str) -> str | None:
