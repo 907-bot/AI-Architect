@@ -51,7 +51,7 @@ def new_material(name: str, r: float, g: float, b: float, alpha: float = 1.0,
     if mat:
         return mat
     mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
+    mat.use_nodes = True  # noqa: deprecated in Blender 6
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
     if bsdf:
         bsdf.inputs["Base Color"].default_value = (r, g, b, alpha)
@@ -503,7 +503,7 @@ def setup_lighting(bw: float, bd: float, total_h: float):
     if world is None:
         world = bpy.data.worlds.new("World")
         bpy.context.scene.world = world
-    world.use_nodes = True
+    world.use_nodes = True  # noqa: deprecated in Blender 6
     bg = world.node_tree.nodes.get("Background")
     if bg:
         bg.inputs["Color"].default_value = (0.53, 0.70, 0.90, 1.0)
@@ -550,12 +550,6 @@ def export_glb(output_path: str):
         export_format="GLB",
         export_apply=True,
         export_materials="EXPORT",
-        export_lights=True,
-        export_cameras=True,
-        export_normals=True,
-        export_tangents=False,
-        export_texcoords=True,
-        export_colors=True,
     )
     print(f"[BlenderWorker] Exported GLB → {output_path}")
 
