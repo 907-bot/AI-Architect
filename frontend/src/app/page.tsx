@@ -72,6 +72,11 @@ export default function WorkspacePage() {
     isAssetPaletteOpen, setAssetPaletteOpen,
     geometryData,
   } = useStore();
+  const isWalkthrough   = useStore((s) => s.isWalkthrough);
+  const setWalkthrough  = useStore((s) => s.setWalkthrough);
+  const selectedRoomId  = useStore((s) => s.selectedRoomId);
+  const [showBOQ, setShowBOQ] = React.useState(false);
+  const [boqData, setBoqData] = React.useState<any>(null);
   const booted = useRef(false);
 
   useEffect(() => {
@@ -371,7 +376,113 @@ export default function WorkspacePage() {
               </div>
             </div>
 
-            {/* NBC Compliance panel — bottom right */}
+            {/* Walkthrough button */}
+            {generatedGlbPath && (
+              <button
+                onClick={() => setWalkthrough(!isWalkthrough)}
+                className={`absolute top-16 right-4 z-20 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold shadow-lg transition-all ${
+                  isWalkthrough
+                    ? "bg-[#7c93c3] text-white"
+                    : "bg-white/90 text-slate-700 border border-slate-200 hover:bg-[#7c93c3]/10"
+                }`}
+              >
+                {isWalkthrough ? "🚶 Exit Walkthrough" : "🚶 Enter Walkthrough"}
+              </button>
+            )}
+            {isWalkthrough && (
+              <div className="absolute top-28 right-4 z-20 bg-black/70 text-white text-[10px] rounded-xl px-3 py-2 backdrop-blur pointer-events-none">
+                <p className="font-bold mb-1">First Person Mode</p>
+                <p>WASD / Arrow Keys — move</p>
+                <p>Mouse — look around</p>
+                <p>Shift — run</p>
+                <p>Esc — exit</p>
+              </div>
+            )}
+            {/* BOQ button */}
+            {complianceData && (
+              <button
+                onClick={async () => {
+                  const store = useStore.getState();
+                  const g = store.geometryData;
+                  const schema = (g as any)?.schema || {};
+                  const params = new URLSearchParams({
+                    floors: String(schema.floors || 3),
+                    width: String(schema.width || 20),
+                    depth: String(schema.depth || 15),
+                    floor_height: String(schema.floor_height || 3.2),
+                    building_type: schema.building_type || "apartment",
+                  });
+                  const res = await fetch(\`\${API_BASE}/api/cost-estimate?\${params}\`);
+                  const data = await res.json();
+                  setBoqData(data);
+                  setShowBOQ(true);
+                }}
+                className="absolute bottom-16 right-4 z-20 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-white/90 text-slate-700 border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 shadow transition"
+              >
+                📋 Export BOQ / Cost
+              </button>
+            )}
+            {/* BOQ Modal */}
+            {showBOQ && boqData && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowBOQ(false)}>
+                <div className="bg-white rounded-2xl shadow-2xl w-[480px] max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm">Bill of Quantities</h3>
+                      <p className="text-[10px] text-slate-400">{boqData.building.total_area_m2} m² · {boqData.building.floors} floors</p>
+                    </div>
+                    <button onClick={() => setShowBOQ(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                  </div>
+                  <div className="px-6 py-4 space-y-4">
+                    {/* Quantities */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Material Quantities</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {Object.entries(boqData.quantities).map(([k,v]) => (
+                          <div key={k} className="flex justify-between bg-slate-50 rounded-lg px-3 py-1.5 text-[10px]">
+                            <span className="text-slate-500 capitalize">{k.replace(/_/g," ")}</span>
+                            <span className="font-bold text-slate-700">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Cost breakdown */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Cost Breakdown (INR)</p>
+                      <div className="space-y-1">
+                        {Object.entries(boqData.cost_breakdown_inr).map(([k,v]) => (
+                          <div key={k} className="flex justify-between text-[10px] px-1">
+                            <span className="text-slate-500">{k}</span>
+                            <span className="font-medium text-slate-700">₹{Number(v).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Totals */}
+                    <div className="bg-[#7c93c3]/10 rounded-xl p-3 border border-[#7c93c3]/20">
+                      <div className="flex justify-between text-sm font-bold text-slate-800 mb-1">
+                        <span>Total Estimate</span>
+                        <span>₹{Number(boqData.total_inr).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>USD equivalent</span>
+                        <span>${Number(boqData.total_usd).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Rate per sq.ft</span>
+                        <span>₹{boqData.cost_per_sqft_inr}/sqft</span>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-slate-400 text-center">{boqData.currency_note}</p>
+                    <button onClick={() => window.print()}
+                      className="w-full py-2 bg-[#7c93c3] text-white text-xs font-semibold rounded-xl hover:bg-[#8da3d3] transition">
+                      🖨 Print / Export PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* NBC Compliance panel — bottom right */}}
             {complianceData && (
               <div className="absolute bottom-6 right-4 z-10 bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-xl p-4 shadow-lg w-80">
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">

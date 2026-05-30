@@ -319,6 +319,7 @@ async def generate(body: GenerateRequest):
         floors = schema.get("floors", 3)
         btype  = schema.get("building_type", "building")
 
+        nbc = calculate_nbc_compliance(schema)
         return {
             "success": True,
             "toon": "",
@@ -327,6 +328,7 @@ async def generate(body: GenerateRequest):
             "glb_path": glb_path or "",
             "model_path": glb_path or "",
             "blender_rendered": glb_path is not None,
+            "compliance": nbc,
             "message": (
                 f"Built. Your **{floors}-floor {btype}** is ready. "
                 f"Blender exported {glb_path}; viewer is synchronised to the "
@@ -468,3 +470,135 @@ def _response(toon, scene_graph, geometry, glb_path):
             "blender_rendered": glb_path is not None,
             "message": "Generated scene graph and Blender model." if glb_path
                        else "Generated scene graph. Blender not available."}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NBC 2016 COMPLIANCE
+# ─────────────────────────────────────────────────────────────────────────────
+
+def calculate_nbc_compliance(schema: dict) -> dict:
+    """
+    Indian NBC 2016 basic zoning checks.
+    Returns a compliance dict compatible with the frontend ComplianceData type.
+    """
+    floors      = schema.get("floors", 3)
+    bw          = schema.get("width",  20.0)
+    bd          = schema.get("depth",  15.0)
+    floor_h     = schema.get("floor_height", 3.2)
+    btype       = schema.get("building_type", "apartment")
+    plot_w      = bw + 16          # assume 8m setback each side
+    plot_d      = bd + 16
+    plot_area   = plot_w * plot_d
+    footprint   = bw * bd
+    total_floor_area = footprint * floors
+
+    far_actual  = round(total_floor_area / plot_area, 2)
+    cov_actual  = round((footprint / plot_area) * 100, 1)
+
+    # NBC 2016 typical limits (Group C residential / commercial)
+    far_limit   = 3.5 if btype in ("apartment", "office", "hotel") else 2.0
+    cov_limit   = 60.0 if btype == "villa" else 50.0
+    height_limit = 45.0   # metres (Group B/C without fire NOC)
+    actual_h    = floors * floor_h
+
+    issues: list[str] = []
+    if far_actual > far_limit:
+        issues.append(f"FAR {far_actual} exceeds NBC limit of {far_limit} for {btype}.")
+    if cov_actual > cov_limit:
+        issues.append(f"Ground coverage {cov_actual}% exceeds {cov_limit}% NBC limit.")
+    if actual_h > height_limit:
+        issues.append(f"Height {actual_h:.1f}m exceeds {height_limit}m — fire NOC required.")
+    if floor_h < 2.75:
+        issues.append("Floor height below 2.75m NBC minimum for habitable spaces.")
+
+    vastu: list[str] = []
+    vastu.append("Orient main entrance towards North or East for Vastu compliance.")
+    if schema.get("pool"):
+        vastu.append("Swimming pool best placed in North-East quadrant (Vastu Shastra).")
+    if schema.get("garage"):
+        vastu.append("Garage is ideal in South-East or North-West zone.")
+
+    return {
+        "compliant":              len(issues) == 0,
+        "issues":                 issues,
+        "actual_far":             far_actual,
+        "allowed_far":            far_limit,
+        "actual_coverage_pct":    cov_actual,
+        "allowed_coverage_pct":   cov_limit,
+        "actual_height_m":        round(actual_h, 1),
+        "allowed_height_m":       height_limit,
+        "vastu_suggestions":      vastu,
+        "seismic_guideline":      "Zone III — ductile detailing required per IS 13920.",
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOQ / COST ESTIMATE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/cost-estimate")
+async def cost_estimate(
+    floors: int = 3,
+    width: float = 20.0,
+    depth: float = 15.0,
+    floor_height: float = 3.2,
+    building_type: str = "apartment",
+    style: str = "modern",
+):
+    """GET /api/cost-estimate — returns BOQ + cost breakdown in USD and INR."""
+    footprint   = width * depth
+    total_area  = footprint * floors
+    perimeter   = 2 * (width + depth)
+    wall_area   = perimeter * floors * floor_height * 0.75  # 75% solid (windows 25%)
+    slab_vol    = footprint * 0.25 * (floors + 1)           # 250mm slabs
+    found_vol   = footprint * 0.6                           # 600mm foundation
+
+    # Material quantities
+    concrete_m3 = slab_vol + found_vol
+    steel_kg    = concrete_m3 * 90                          # 90 kg/m³ RCC
+    brick_nos   = int(wall_area * 60)                       # 60 bricks/m²
+    glass_m2    = perimeter * floors * floor_height * 0.25 # 25% glazing
+    paint_m2    = wall_area * 2                             # both sides
+
+    # Rates (INR per unit, 2024 India)
+    rates_inr = {
+        "concrete_rcc": 7500,   # /m³
+        "steel_tmt":    75,     # /kg
+        "brickwork":    60,     # /brick (laid)
+        "glass_upvc":   1200,   # /m²
+        "paint":        45,     # /m²
+        "tiles_floor":  850,    # /m²
+        "electrical":   total_area * 300,
+        "plumbing":     total_area * 250,
+        "finishing":    total_area * 1500,
+    }
+    subtotals_inr = {
+        "Structure & Concrete":    concrete_m3 * rates_inr["concrete_rcc"],
+        "Reinforcement Steel":     steel_kg    * rates_inr["steel_tmt"],
+        "Brickwork & Masonry":     brick_nos   * rates_inr["brickwork"],
+        "Glazing & Windows":       glass_m2    * rates_inr["glass_upvc"],
+        "Painting & Plaster":      paint_m2    * rates_inr["paint"],
+        "Flooring & Tiles":        total_area  * rates_inr["tiles_floor"],
+        "Electrical Works":        rates_inr["electrical"],
+        "Plumbing & Sanitation":   rates_inr["plumbing"],
+        "Interior & Finishing":    rates_inr["finishing"],
+    }
+    total_inr = sum(subtotals_inr.values())
+    usd_rate  = 83.5   # approximate
+
+    return {
+        "building": {"floors": floors, "width": width, "depth": depth,
+                     "footprint_m2": round(footprint, 1), "total_area_m2": round(total_area, 1)},
+        "quantities": {
+            "concrete_m3":   round(concrete_m3, 1),
+            "steel_kg":      round(steel_kg),
+            "brick_nos":     brick_nos,
+            "glass_m2":      round(glass_m2, 1),
+            "paint_m2":      round(paint_m2, 1),
+            "floor_area_m2": round(total_area, 1),
+        },
+        "cost_breakdown_inr": {k: round(v) for k, v in subtotals_inr.items()},
+        "total_inr":   round(total_inr),
+        "total_usd":   round(total_inr / usd_rate),
+        "cost_per_sqft_inr": round(total_inr / (total_area * 10.764)),
+        "currency_note": "Indicative estimate. Rates vary by location and contractor.",
+    }
