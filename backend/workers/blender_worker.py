@@ -199,13 +199,11 @@ def setup_lighting(bw, bd, total_h):
 
     out   = nt.nodes.new("ShaderNodeOutputWorld")
     sky   = nt.nodes.new("ShaderNodeTexSky")
-    sky.sky_type = "NISHITA"
+    sky.sky_type = "HOSEK_WILKIE"
     sky.sun_elevation  = math.radians(42)
     sky.sun_rotation   = math.radians(215)
     sky.altitude       = 100.0
-    sky.air_density    = 1.0
-    sky.dust_density   = 0.5
-    sky.ozone_density  = 1.0
+    sky.turbidity      = 2.0
     bg    = nt.nodes.new("ShaderNodeBackground")
     bg.inputs["Strength"].default_value = 1.2
     coord = nt.nodes.new("ShaderNodeTexCoord")
