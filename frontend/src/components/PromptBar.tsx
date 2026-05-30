@@ -1,4 +1,5 @@
 "use client";
+import StylePicker from "@/components/StylePicker";
 
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Sparkles, RefreshCw } from "lucide-react";

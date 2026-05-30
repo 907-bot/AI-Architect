@@ -1,4 +1,5 @@
 "use client";
+import StylePicker from "@/components/StylePicker";
 
 import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -77,6 +78,7 @@ export default function WorkspacePage() {
   const selectedRoomId  = useStore((s) => s.selectedRoomId);
   const [showBOQ, setShowBOQ] = React.useState(false);
   const [boqData, setBoqData] = React.useState<any>(null);
+  const [activeStyle, setActiveStyle] = React.useState("modern");
   const booted = useRef(false);
 
   useEffect(() => {
