@@ -550,9 +550,9 @@ def generate_pool(bw, bd, pool_cfg, base_z, m):
     pd  = float(pool_cfg.get("depth",   1.8))
     wt  = 0.30
 
-    # Place pool to the RIGHT of building, in front (south side)
-    px = bw/2 + pw/2 + 4.0
-    py = -(bd/2 - pl/2 - 1.0)   # aligned with front half
+    # Place pool FRONT-RIGHT — visible from the default south-east camera
+    px = bw/2 + pw/2 + 3.5
+    py = -(bd/4)                 # front-right quadrant, clearly in view
     pz = base_z
 
     deck_m = 2.0
@@ -675,17 +675,23 @@ def generate_garage(bw, bd, garage_cfg, base_z, m):
 def generate_vegetation(bw, bd, m):
     rng = random.Random(7)
 
+    # Keep trees away from: garage (left/front-left), pool (right/front-right), lobby (front-center)
     positions = [
-        (-bw/2 - 5, -bd/2 - 5, 0),
-        ( bw/2 + 5, -bd/2 - 5, 0),
-        (-bw/2 - 5,  bd/2 + 5, 0),
-        ( bw/2 + 5,  bd/2 + 5, 0),
-        (-bw/2 - 3,  0, 0),
-        ( bw/2 + 3,  0, 0),
-        (0,          bd/2 + 5, 0),
-        (0,         -bd/2 - 5, 0),
-        (-bw/2 - 8, -bd/4, 0),
-        ( bw/2 + 8,  bd/4, 0),
+        # Back corners — always safe
+        (-bw/2 - 5,  bd/2 + 6, 0),
+        ( bw/2 + 5,  bd/2 + 6, 0),
+        (0,           bd/2 + 7, 0),
+        # Back sides
+        (-bw/2 - 6,  bd/4,     0),
+        ( bw/2 + 6,  bd/2,     0),   # back-right only (pool is front-right)
+        # Far front corners (clear of garage & pool which are mid-front)
+        (-bw/2 - 9, -bd/2 - 6, 0),
+        ( bw/2 + 9, -bd/2 - 6, 0),
+        # Back-left cluster
+        (-bw/2 - 4,  bd/2 + 2, 0),
+        (-bw/2 - 8,  bd/4,     0),
+        # Right-back (well behind pool)
+        ( bw/2 + 7,  bd/2 + 3, 0),
     ]
 
     foliage_mats = [m["foliage"], m["foliage2"]]
@@ -716,9 +722,13 @@ def generate_vegetation(bw, bd, m):
             assign_mat(canopy, fmat)
 
     # Hedge / shrubs along building base
+    # Shrubs only along building north face and lobby flanks (clear of pool/garage)
     shrub_positions = [
-        (-bw/2 + 2, -(bd/2 + 0.5)), (0, -(bd/2 + 0.5)),
-        ( bw/2 - 2, -(bd/2 + 0.5)), (-bw/2 + 2, bd/2 + 0.5),
+        (-bw/2 + 2,  bd/2 + 0.6),   # back left
+        ( bw/2 - 2,  bd/2 + 0.6),   # back right
+        (-bw/4,      bd/2 + 0.6),   # back centre-left
+        (-bw/2 + 1, -(bd/2 + 0.6)), # front left flank of lobby
+        ( bw/4,     -(bd/2 + 0.6)), # front right of lobby (not too far right)
     ]
     for si, (sx, sy) in enumerate(shrub_positions):
         bpy.ops.mesh.primitive_uv_sphere_add(
@@ -733,6 +743,11 @@ def generate_vegetation(bw, bd, m):
 # ─────────────────────────────────────────────
 
 def export_glb(output_path):
+    # Remove cameras from scene before export — they conflict with the
+    # frontend viewer's OrbitControls and lock the camera direction.
+    for obj in list(bpy.data.objects):
+        if obj.type == "CAMERA":
+            bpy.data.objects.remove(obj, do_unlink=True)
     bpy.ops.export_scene.gltf(
         filepath=output_path,
         export_format="GLB",
