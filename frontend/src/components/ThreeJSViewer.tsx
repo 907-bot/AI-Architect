@@ -514,8 +514,12 @@ export default function ThreeJSViewer() {
       <Canvas
         camera={{ position: [22, 14, 22], fov: 55, near: 0.1, far: 1500 }}
         shadows={{ type: THREE.PCFSoftShadowMap }}
-        gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true }}
-        dpr={[1, 2]}
+        gl={{
+          antialias: true, alpha: false, preserveDrawingBuffer: true,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1.15,
+        }}
+        dpr={[1, Math.min(window.devicePixelRatio, 2.5)]}
         style={{ width: "100%", height: "100%" }}
       >
         <React.Suspense fallback={null}>
@@ -524,11 +528,11 @@ export default function ThreeJSViewer() {
           <color attach="background" args={["#d6eaf8"]} />
 
           <ambientLight intensity={0.6} color="#fff8f0" />
-          <directionalLight position={[30, 45, 25]} intensity={1.8} castShadow
-            shadow-mapSize={[2048, 2048]} shadow-camera-far={150}
-            shadow-camera-left={-40} shadow-camera-right={40}
-            shadow-camera-top={40} shadow-camera-bottom={-40}
-            shadow-bias={-0.0005} />
+          <directionalLight position={[30, 45, 25]} intensity={2.0} castShadow
+            shadow-mapSize={[4096, 4096]} shadow-camera-far={200}
+            shadow-camera-left={-60} shadow-camera-right={60}
+            shadow-camera-top={60} shadow-camera-bottom={-60}
+            shadow-bias={-0.0003} shadow-normalBias={0.02} />
           <directionalLight position={[-20, 25, -20]} intensity={0.4} color="#c7d4f5" />
           <hemisphereLight args={["#b9d4f7", "#6aab6a", 0.5]} />
 

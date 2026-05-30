@@ -1,4 +1,6 @@
 "use client";
+import MapView from "@/components/MapView";
+import GovernmentNorms from "@/components/GovernmentNorms";
 import StylePicker from "@/components/StylePicker";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -239,7 +241,7 @@ export default function WorkspacePage() {
               </button>
               {showMap && (
                 <div className="px-3 pb-3 space-y-2">
-                  <MapPicker />
+                  <MapView />
                   <div className="grid grid-cols-2 gap-2 text-[11px]">
                     <div>
                       <label className="text-slate-400 block mb-1">Width (m)</label>
