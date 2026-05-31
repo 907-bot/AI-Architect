@@ -602,3 +602,150 @@ async def cost_estimate(
         "cost_per_sqft_inr": round(total_inr / (total_area * 10.764)),
         "currency_note": "Indicative estimate. Rates vary by location and contractor.",
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UNREAL ENGINE EXPORT
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/export-unreal")
+async def export_unreal(glb_filename: str = ""):
+    """
+    GET /api/export-unreal?glb_filename=house_xxx.glb
+    Returns a ZIP containing:
+      - building.glb           (the exported building)
+      - building_meta.json     (style / dimensions metadata)
+      - ue5_setup.py           (Unreal Python automation script)
+      - README.md              (step-by-step instructions)
+      - project_config.json    (import settings)
+    """
+    import zipfile
+    import io
+    from fastapi.responses import StreamingResponse
+
+    # ── Resolve GLB path ─────────────────────────────────────────────────────
+    if glb_filename:
+        glb_path = EXPORTS_DIR / glb_filename
+    else:
+        # Use most recent GLB
+        glbs = sorted(EXPORTS_DIR.glob("house_*.glb"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not glbs:
+            return {"error": "No GLB found. Generate a building first."}
+        glb_path = glbs[0]
+
+    if not glb_path.exists():
+        return {"error": f"GLB not found: {glb_path}"}
+
+    meta_path  = glb_path.with_suffix("").with_name(glb_path.stem + "_meta.json")
+    ue5_script = ROOT / "backend" / "unreal" / "ue5_setup.py"
+    readme     = ROOT / "backend" / "unreal" / "README.md"
+
+    # ── Read meta for project_config ─────────────────────────────────────────
+    meta = {}
+    if meta_path.exists():
+        with open(meta_path) as f:
+            meta = json.load(f)
+
+    project_config = {
+        "glb_file":       "building.glb",
+        "ue_destination": "/Game/AIArchitect/Buildings/Current/",
+        "ue_materials":   "/Game/AIArchitect/Materials/",
+        "scale_factor":   100,      # metres → UE units (cm)
+        "lumen":          True,
+        "nanite":         True,
+        "path_tracing":   False,    # enable manually for final renders
+        "building": {
+            "style":  meta.get("style",  "modern"),
+            "floors": meta.get("floors", 3),
+            "width":  meta.get("width",  20.0),
+            "depth":  meta.get("depth",  15.0),
+        },
+        "lighting": {
+            "sun_elevation_deg": 48,
+            "sun_rotation_deg":  215,
+            "sun_intensity":     10.0,
+            "sky_light_intensity": 1.5,
+            "fog_density":       0.02,
+        },
+        "camera": {
+            "fov":        55,
+            "position_m": [meta.get("width",20)*0.85*2.6,
+                           -meta.get("depth",15)*1.05*2.6,
+                            meta.get("floors",3)*3.2*0.82],
+        },
+        "generated_at": meta.get("status", ""),
+    }
+
+    # ── Build ZIP in memory ───────────────────────────────────────────────────
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # GLB
+        zf.write(glb_path, "building.glb")
+
+        # Meta
+        if meta_path.exists():
+            zf.write(meta_path, "building_meta.json")
+        else:
+            zf.writestr("building_meta.json", json.dumps(meta, indent=2))
+
+        # Project config
+        zf.writestr("project_config.json", json.dumps(project_config, indent=2))
+
+        # UE5 script — patch GLB_PATH to be relative
+        if ue5_script.exists():
+            script = ue5_script.read_text()
+            script = script.replace(
+                'GLB_PATH          = os.path.join(os.path.dirname(__file__), "building.glb")',
+                'GLB_PATH          = os.path.join(os.path.dirname(os.path.abspath(__file__)), "building.glb")'
+            )
+            zf.writestr("ue5_setup.py", script)
+
+        # README
+        if readme.exists():
+            zf.write(readme, "README.md")
+
+    buf.seek(0)
+    stem = glb_path.stem
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=AIArchitect_UE5_{stem}.zip"}
+    )
+
+
+@router.get("/unreal-checklist")
+async def unreal_checklist():
+    """GET /api/unreal-checklist — returns UE5 setup requirements."""
+    return {
+        "ue5_version":    "5.3 or later (5.4 recommended)",
+        "required_plugins": [
+            "Python Editor Script Plugin",
+            "Interchange Framework",
+            "glTF Exporter",
+            "Nanite Meshes",
+            "Sun Position Calculator",
+        ],
+        "project_settings": {
+            "Global Illumination": "Lumen",
+            "Reflections":         "Lumen",
+            "Shadow Map Method":   "Virtual Shadow Maps",
+            "Nanite":              "Enabled",
+            "Ray Tracing":         "Enabled (optional)",
+        },
+        "workflow": [
+            "1. Generate building in AI Architect",
+            "2. Click 'Export to Unreal' button",
+            "3. Unzip downloaded package",
+            "4. Open Unreal Engine 5 project",
+            "5. Tools → Execute Python Script → select ue5_setup.py",
+            "6. Building appears with Nanite + Lumen in ~30 seconds",
+            "7. Press Play for walkthrough / open Sequencer for drone flythrough",
+        ],
+        "photorealism_tips": [
+            "Enable Path Tracing for still renders (r.PathTracing 1)",
+            "Use Movie Render Queue with Path Tracer preset for 4K output",
+            "Add Megascans materials from Fab.com for ground/walls",
+            "Add MetaHuman characters for scale reference",
+            "Enable Volumetric Clouds for dramatic sky",
+        ]
+    }
