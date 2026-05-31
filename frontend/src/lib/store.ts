@@ -49,6 +49,9 @@ interface ArchitectStore {
   selectedRoomId: string | null;
   isWalkthrough: boolean;
   activeFloor: number;
+  floorplanUrl: string | null;
+  boqData: any | null;
+  zoningData: any | null;
 
   setProjectId: (id: string) => void; setPrompt: (p: string) => void;
   setIsGenerating: (g: boolean) => void; addAgentLog: (l: AgentUpdate) => void;
@@ -70,6 +73,9 @@ interface ArchitectStore {
   setSelectedRoomId: (id: string | null) => void;
   setWalkthrough: (on: boolean) => void;
   setActiveFloor: (floor: number) => void;
+  setFloorplanUrl: (url: string | null) => void;
+  setBoqData: (data: any | null) => void;
+  setZoningData: (data: any | null) => void;
 }
 
 export const useStore = create<ArchitectStore>((set) => ({
@@ -85,6 +91,7 @@ export const useStore = create<ArchitectStore>((set) => ({
   complianceData: null, placedAssets: [], selectedAssetUid: null, isAssetPaletteOpen: false,
   // NEW defaults
   selectedRoomId: null, isWalkthrough: false, activeFloor: 0,
+  floorplanUrl: null, boqData: null, zoningData: null,
 
   setProjectId: (id) => set({ projectId: id }),
   setPrompt: (p) => set({ currentPrompt: p }),
@@ -121,4 +128,7 @@ export const useStore = create<ArchitectStore>((set) => ({
   setSelectedRoomId: (id) => set({ selectedRoomId: id }),
   setWalkthrough: (on) => set({ isWalkthrough: on }),
   setActiveFloor: (floor) => set({ activeFloor: floor }),
+  setFloorplanUrl: (url) => set({ floorplanUrl: url }),
+  setBoqData: (data) => set({ boqData: data }),
+  setZoningData: (data) => set({ zoningData: data }),
 }));

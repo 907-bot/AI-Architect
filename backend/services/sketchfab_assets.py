@@ -58,18 +58,51 @@ class SketchfabAssetManager:
         """Download a model by ID"""
         if model_id in self.downloaded:
             return self.downloaded[model_id]
-        
+
         # Check if already cached
         cache_path = os.path.join(self.cache_dir, f"{model_id}.glb")
         if os.path.exists(cache_path):
             self.downloaded[model_id] = cache_path
             return cache_path
-        
-        # For demo, we'll use a placeholder
-        # In production, actual API download:
-        # url = f"https://api.sketchfab.com/v3/models/{model_id}"
-        # This would require API token
-        return None
+
+        # Try to download from Sketchfab API if token is available
+        api_token = os.getenv("SKETCHFAB_API_TOKEN")
+        if not api_token:
+            print("Warning: SKETCHFAB_API_TOKEN not set, using placeholder assets")
+            return None
+
+        try:
+            # Get model download URL
+            model_url = f"https://api.sketchfab.com/v3/models/{model_id}"
+            req = urllib.request.Request(model_url)
+            req.add_header("Authorization", f"Token {api_token}")
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                model_data = json.loads(response.read())
+
+            # Get the download URL for GLB format
+            download_url = None
+            for file in model_data.get("files", []):
+                if file.get("type") == "glb":
+                    download_url = file.get("url")
+                    break
+
+            if not download_url:
+                print(f"Warning: No GLB download URL found for model {model_id}")
+                return None
+
+            # Download the file
+            with urllib.request.urlopen(download_url, timeout=30) as response:
+                with open(cache_path, "wb") as f:
+                    f.write(response.read())
+
+            self.downloaded[model_id] = cache_path
+            print(f"Downloaded Sketchfab model {model_id} to {cache_path}")
+            return cache_path
+
+        except Exception as e:
+            print(f"Warning: Failed to download Sketchfab model {model_id}: {e}")
+            return None
     
     def list_available(self, category: str) -> List[Dict]:
         """List available assets in a category"""
@@ -121,15 +154,30 @@ class AssetComposer:
             for category, asset_name in categories.items():
                 if category in ASSETS and asset_name in ASSETS[category]:
                     model_id = ASSETS[category][asset_name]
-                    # In production, would load actual GLB
-                    # For now, generate representative box
-                    meshes.append({
-                        "position": [0, 0, 0],
-                        "scale": [1, 0.1, 1],
-                        "material_id": "concrete",
-                        "component_group": f"Asset_{category}",
-                        "asset_id": model_id
-                    })
+                    # Try to download actual GLB from Sketchfab
+                    glb_path = self.download_model(model_id, category)
+                    if glb_path:
+                        # Return the actual GLB path for frontend to load
+                        meshes.append({
+                            "position": [0, 0, 0],
+                            "scale": [1, 1, 1],
+                            "material_id": "default",
+                            "component_group": f"Asset_{category}",
+                            "asset_id": model_id,
+                            "glb_path": glb_path,
+                            "is_real_asset": True
+                        })
+                    else:
+                        # Fallback: generate representative box with warning
+                        print(f"Warning: Could not download Sketchfab model {model_id}, using placeholder")
+                        meshes.append({
+                            "position": [0, 0, 0],
+                            "scale": [1, 0.1, 1],
+                            "material_id": "concrete",
+                            "component_group": f"Asset_{category}",
+                            "asset_id": model_id,
+                            "is_placeholder": True
+                        })
         
         # Add generated parts (foundation, walls, etc.)
         meshes.extend(self._generate_base(spec))

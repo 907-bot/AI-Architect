@@ -9,7 +9,7 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ from backend.toon.parser import parse_toon
 from backend.toon.prompt_meta import infer_features, infer_floor_count, infer_style, is_highrise
 from backend.services.render_queue import render_queue
 from backend.services.llm.extractor import extract_building_schema_sync
+from backend.services.zoning import zoning_service
 
 router = APIRouter()
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +34,7 @@ class GenerateRequest(BaseModel):
     ollama_model: Optional[str] = None
     style: Optional[str] = "modern"
     render_quality: Optional[str] = "medium"
+    zoning_data: Optional[Dict[str, Any]] = None
 
 
 class EditRequest(BaseModel):
@@ -69,18 +71,59 @@ def _schema_to_scene_graph(schema: dict) -> dict:
     bw = schema.get("width", 20.0)
     bd = schema.get("depth", 15.0)
     floors = schema.get("floors", 3)
-    rooms = [
-        {
-            "name": f"floor_{i+1}_main",
-            "type": "living_room",
-            "width": bw, "depth": bd, "height": floor_h,
-            "floor": i,
-            "position": {"x": 0, "y": i * floor_h, "z": 0},
-            "plan": {"x": 0, "y": 0, "width": bw, "depth": bd},
-            "doors": [], "windows": [],
-        }
-        for i in range(floors)
-    ]
+    
+    # Create more realistic room layout for floor plan
+    rooms = []
+    for i in range(floors):
+        # Ground floor: living room, kitchen, dining
+        if i == 0:
+            rooms.extend([
+                {
+                    "name": "Living Room",
+                    "room_type": "living_room",
+                    "width": bw * 0.6, "depth": bd * 0.8, "height": floor_h,
+                    "floor": i,
+                    "position": {"x": -bw * 0.2, "y": i * floor_h, "z": 0},
+                    "plan": {"x": -bw * 0.2, "y": 0, "width": bw * 0.6, "depth": bd * 0.8},
+                    "doors": [{"position": {"x": bw * 0.1, "y": i * floor_h, "z": bd * 0.3}}],
+                    "windows": [],
+                },
+                {
+                    "name": "Kitchen",
+                    "room_type": "kitchen",
+                    "width": bw * 0.35, "depth": bd * 0.5, "height": floor_h,
+                    "floor": i,
+                    "position": {"x": bw * 0.3, "y": i * floor_h, "z": -bd * 0.2},
+                    "plan": {"x": bw * 0.3, "y": -bd * 0.2, "width": bw * 0.35, "depth": bd * 0.5},
+                    "doors": [{"position": {"x": bw * 0.1, "y": i * floor_h, "z": 0}}],
+                    "windows": [],
+                },
+            ])
+        # Upper floors: bedrooms, bathrooms
+        else:
+            rooms.extend([
+                {
+                    "name": f"Master Bedroom {i}",
+                    "room_type": "bedroom",
+                    "width": bw * 0.5, "depth": bd * 0.6, "height": floor_h,
+                    "floor": i,
+                    "position": {"x": -bw * 0.15, "y": i * floor_h, "z": -bd * 0.1},
+                    "plan": {"x": -bw * 0.15, "y": -bd * 0.1, "width": bw * 0.5, "depth": bd * 0.6},
+                    "doors": [{"position": {"x": bw * 0.1, "y": i * floor_h, "z": bd * 0.2}}],
+                    "windows": [],
+                },
+                {
+                    "name": f"Bathroom {i}",
+                    "room_type": "bathroom",
+                    "width": bw * 0.25, "depth": bd * 0.3, "height": floor_h,
+                    "floor": i,
+                    "position": {"x": bw * 0.3, "y": i * floor_h, "z": bd * 0.2},
+                    "plan": {"x": bw * 0.3, "y": bd * 0.2, "width": bw * 0.25, "depth": bd * 0.3},
+                    "doors": [{"position": {"x": bw * 0.15, "y": i * floor_h, "z": bd * 0.1}}],
+                    "windows": [],
+                },
+            ])
+    
     return {
         "version": "0.2",
         "house": {
@@ -301,14 +344,50 @@ async def generate(body: GenerateRequest):
         assign_floors_to_scene(scene, prompt)
         geometry = compile_scene(scene)
         glb_path = _export_with_blender(toon, "house")
-        payload = _response(toon, scene.to_dict(), geometry, glb_path)
+        
+        # Generate floor plan
+        from backend.services.artifacts import artifact_pipeline, ArtifactStage
+        scene_dict = scene.to_dict()
+        floorplan_rec = await artifact_pipeline.generate_artifact(
+            "current",
+            ArtifactStage.FLOORPLAN,
+            scene_dict
+        )
+        
+        # Auto-generate BOQ
+        house = scene.house
+        boq_data = await cost_estimate(
+            floors=house.num_floors or 2,
+            width=20.0,
+            depth=15.0,
+            floor_height=3.2,
+            building_type="house",
+            style=house.style or "modern"
+        )
+        
+        payload = _response(toon, scene_dict, geometry, glb_path)
         payload["planner"] = "provided-toon"
+        payload["floorplan_url"] = floorplan_rec.url if floorplan_rec.status == "completed" else None
+        payload["boq_data"] = boq_data
         return payload
 
     # ── Route 2: Complex building → JSON schema → blender_worker.py ──────────
     if _is_complex_building(prompt):
         schema = extract_building_schema_sync(prompt)
         schema["style"] = body.style or schema.get("style", "modern")
+        
+        # Apply zoning restrictions if provided
+        if body.zoning_data and body.zoning_data.get("regulations"):
+            regs = body.zoning_data["regulations"]
+            # Enforce max floors
+            if schema.get("floors", 0) > regs.get("max_floors", 999):
+                schema["floors"] = regs["max_floors"]
+            # Enforce max height (adjust floor height if needed)
+            max_height = regs.get("max_height_m", 999)
+            current_height = schema.get("floors", 3) * schema.get("floor_height", 3.2)
+            if current_height > max_height:
+                schema["floor_height"] = max_height / schema.get("floors", 3)
+        
         glb_path = _export_with_building_worker(schema, "house")
 
         features = []
@@ -320,15 +399,37 @@ async def generate(body: GenerateRequest):
         btype  = schema.get("building_type", "building")
 
         nbc = calculate_nbc_compliance(schema)
+        
+        # Generate floor plan from schema
+        from backend.services.artifacts import artifact_pipeline, ArtifactStage
+        scene_graph = _schema_to_scene_graph(schema)
+        floorplan_rec = await artifact_pipeline.generate_artifact(
+            "current",
+            ArtifactStage.FLOORPLAN,
+            scene_graph
+        )
+        
+        # Auto-generate BOQ
+        boq_data = await cost_estimate(
+            floors=schema.get("floors", 3),
+            width=schema.get("width", 20.0),
+            depth=schema.get("depth", 15.0),
+            floor_height=schema.get("floor_height", 3.2),
+            building_type=schema.get("building_type", "apartment"),
+            style=schema.get("style", "modern")
+        )
+        
         return {
             "success": True,
             "toon": "",
-            "scene_graph": _schema_to_scene_graph(schema),
+            "scene_graph": scene_graph,
             "geometry": {"floors": floors, "schema": schema},
             "glb_path": glb_path or "",
             "model_path": glb_path or "",
             "blender_rendered": glb_path is not None,
             "compliance": nbc,
+            "floorplan_url": floorplan_rec.url if floorplan_rec.status == "completed" else None,
+            "boq_data": boq_data,
             "message": (
                 f"Built. Your **{floors}-floor {btype}** is ready. "
                 f"Blender exported {glb_path}; viewer is synchronised to the "
@@ -349,9 +450,32 @@ async def generate(body: GenerateRequest):
     scene.house.style = style
     geometry = compile_scene(scene)
     glb_path = _export_with_blender(toon, "house")
-    payload = _response(toon, scene.to_dict(), geometry, glb_path)
+    
+    # Generate floor plan
+    from backend.services.artifacts import artifact_pipeline, ArtifactStage
+    scene_dict = scene.to_dict()
+    floorplan_rec = await artifact_pipeline.generate_artifact(
+        "current",
+        ArtifactStage.FLOORPLAN,
+        scene_dict
+    )
+    
+    # Auto-generate BOQ for simple houses too
+    house = scene.house
+    boq_data = await cost_estimate(
+        floors=house.num_floors or 2,
+        width=20.0,  # Default estimate
+        depth=15.0,  # Default estimate
+        floor_height=3.2,
+        building_type="house",
+        style=style
+    )
+    
+    payload = _response(toon, scene_dict, geometry, glb_path)
     payload["planner"] = planner
     payload["style"] = style
+    payload["floorplan_url"] = floorplan_rec.url if floorplan_rec.status == "completed" else None
+    payload["boq_data"] = boq_data
     return payload
 
 
@@ -447,6 +571,49 @@ async def get_house_styles():
         {"id": "contemporary", "name": "Contemporary Modern",  "description": "Bold contrasts, large windows"},
         {"id": "craftsman",    "name": "Craftsman Bungalow",   "description": "Warm wood tones, pitched roofs"},
     ]}
+
+
+@router.get("/zoning")
+async def get_zoning_data(lat: float, lng: float, zone_type: str = "residential"):
+    """
+    GET /api/zoning?lat=19.076&lng=72.877&zone_type=residential
+    
+    Returns zoning regulations and typical plot dimensions for a location.
+    """
+    zoning = zoning_service.get_zoning_data(lat, lng, zone_type)
+    if not zoning:
+        return {"error": "Location not found in zoning database", "lat": lat, "lng": lng}
+    
+    return {
+        "city": zoning.city,
+        "state": zoning.state,
+        "zone_type": zoning.zone_type,
+        "regulations": {
+            "max_floors": zoning.max_floors,
+            "max_height_m": zoning.max_height_m,
+            "far_limit": zoning.far_limit,
+            "ground_coverage_pct": zoning.ground_coverage_pct,
+            "setbacks": {
+                "front_m": zoning.setback_front_m,
+                "side_m": zoning.setback_side_m,
+                "rear_m": zoning.setback_rear_m,
+            },
+            "requires_fire_noc": zoning.requires_fire_noc,
+        },
+        "typical_plot": {
+            "width_m": zoning.typical_plot_width_m,
+            "depth_m": zoning.typical_plot_depth_m,
+            "min_area_sqm": zoning.min_plot_area_sqm,
+            "max_area_sqm": zoning.max_plot_area_sqm,
+        },
+        "notes": zoning.notes,
+    }
+
+
+@router.get("/zoning/cities")
+async def get_supported_cities():
+    """GET /api/zoning/cities - Returns list of all supported cities"""
+    return {"cities": zoning_service.get_all_cities()}
 
 
 @router.post("/sketchfab/drag-drop")

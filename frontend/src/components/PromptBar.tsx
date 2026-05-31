@@ -28,6 +28,9 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
   const updateChatMessage = useStore((s) => s.updateChatMessage);
   const setGeneratedGlbPath = useStore((s) => s.setGeneratedGlbPath);
   const setLatestToon = useStore((s) => s.setLatestToon);
+  const setFloorplanUrl = useStore((s) => s.setFloorplanUrl);
+  const setBoqData = useStore((s) => s.setBoqData);
+  const zoningData = useStore((s) => s.zoningData);
 
   // Cycle suggestion placeholder
   useEffect(() => {
@@ -82,6 +85,7 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
           prompt,
           style: buildConfig?.roofStyle === "gable" ? "craftsman" : "contemporary",
           render_quality: "cinematic",
+          zoning_data: zoningData,
         },
         { timeout: 120000 },
       );
@@ -95,6 +99,14 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         setGeneratedGlbPath(generated.glbPath);
         setLatestToon(generated.toon);
         updateScene(generated.geometry, generated.sceneConfig, generated.assets, compliance || undefined);
+        
+        // Handle new floorplan and BOQ data
+        if (result.floorplan_url) {
+          setFloorplanUrl(result.floorplan_url);
+        }
+        if (result.boq_data) {
+          setBoqData(result.boq_data);
+        }
 
         // Build a natural-language summary
         const p = prompt.toLowerCase();

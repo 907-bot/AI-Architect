@@ -21,6 +21,7 @@ export default function FloorPlanView({ floorPlan }: { floorPlan?: FloorPlanData
   const setSelectedRoom = useStore((s) => s.setSelectedRoomId);
   const activeFloor     = useStore((s) => s.activeFloor);
   const setActiveFloor  = useStore((s) => s.setActiveFloor);
+  const floorplanUrl    = useStore((s) => s.floorplanUrl);
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Determine total floors
@@ -119,6 +120,14 @@ export default function FloorPlanView({ floorPlan }: { floorPlan?: FloorPlanData
           </h2>
           <p className="text-[10px] text-slate-400 mt-0.5">Architectural Layout · Level {activeFloor + 1}</p>
         </div>
+
+        {/* Show floorplan_url if available */}
+        {floorplanUrl && (
+          <a href={floorplanUrl} target="_blank" rel="noopener noreferrer" 
+             className="text-[10px] text-[#7c93c3] hover:underline">
+            View SVG
+          </a>
+        )}
 
         {/* Floor selector */}
         {totalFloors > 1 && (

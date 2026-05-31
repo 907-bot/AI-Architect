@@ -848,7 +848,45 @@ def generate_balconies(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_nam
                         (bw_actual+0.05,0.22,0.1), M["marble"] if style_name in ("villa","classical") else M["facade"])
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 13. LOBBY / ENTRANCE
+# 13. INTERACTIVE DOORS (for walkthrough mode)
+# ══════════════════════════════════════════════════════════════════════════════
+def generate_interactive_doors(bw, bd, num_floors, floor_h, base_z, M, style_name):
+    """Generate interactive doors that can be opened in walkthrough mode"""
+    door_w, door_h = 1.0, 2.2
+    door_t = 0.08
+
+    # Main entrance door
+    add_box("MainEntrance_Door", (0, -bd/2+0.06, base_z+door_h/2), (door_w, door_t, door_h), M["door"])
+    # Mark as interactive door for frontend
+    bpy.data.objects["MainEntrance_Door"]["isDoor"] = True
+    bpy.data.objects["MainEntrance_Door"]["isOpen"] = False
+
+    # Interior doors for each floor
+    for floor in range(num_floors):
+        z = base_z + floor * floor_h + door_h/2
+
+        # Door to living room
+        add_box(f"Door_Living_{floor}", (-bw*0.15, -bd*0.1, z), (door_w, door_t, door_h), M["door"])
+        bpy.data.objects[f"Door_Living_{floor}"]["isDoor"] = True
+        bpy.data.objects[f"Door_Living_{floor}"]["isOpen"] = False
+
+        # Door to kitchen
+        add_box(f"Door_Kitchen_{floor}", (bw*0.25, -bd*0.15, z), (door_w, door_t, door_h), M["door"])
+        bpy.data.objects[f"Door_Kitchen_{floor}"]["isDoor"] = True
+        bpy.data.objects[f"Door_Kitchen_{floor}"]["isOpen"] = False
+
+        # Bedroom doors (upper floors)
+        if floor > 0:
+            add_box(f"Door_Bedroom_{floor}", (-bw*0.1, bd*0.1, z), (door_w, door_t, door_h), M["door"])
+            bpy.data.objects[f"Door_Bedroom_{floor}"]["isDoor"] = True
+            bpy.data.objects[f"Door_Bedroom_{floor}"]["isOpen"] = False
+
+            add_box(f"Door_Bathroom_{floor}", (bw*0.2, bd*0.2, z), (door_w*0.8, door_t, door_h), M["door"])
+            bpy.data.objects[f"Door_Bathroom_{floor}"]["isDoor"] = True
+            bpy.data.objects[f"Door_Bathroom_{floor}"]["isOpen"] = False
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 14. LOBBY / ENTRANCE
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_lobby(bw, bd, base_z, M, style_name):
     lw = min(7.5, bw*0.42); ld = 2.8; lh = 4.0
@@ -1207,6 +1245,7 @@ def main():
 
     generate_lobby(bw, bd, base_z, M, style_name)
     generate_staircase(bw, bd, num_floors, floor_h, base_z, M)
+    generate_interactive_doors(bw, bd, num_floors, floor_h, base_z, M, style_name)
     generate_roof(bw, bd, base_z+num_floors*floor_h, M, sc_cfg, style_name)
     generate_style_features(bw, bd, base_z, num_floors, floor_h, M, style_name)
 

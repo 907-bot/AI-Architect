@@ -80,7 +80,7 @@ export default function WorkspacePage() {
   const setWalkthrough  = useStore((s) => s.setWalkthrough);
   const selectedRoomId  = useStore((s) => s.selectedRoomId);
   const [showBOQ, setShowBOQ] = React.useState(false);
-  const [boqData, setBoqData] = React.useState<any>(null);
+  const boqData = useStore((s) => s.boqData);
   const [activeStyle, setActiveStyle] = React.useState("modern");
   const booted = useRef(false);
 
@@ -346,16 +346,7 @@ export default function WorkspacePage() {
 
               {/* BOQ button */}
               {complianceData && (
-                <button onClick={async () => {
-                  const schema = (useStore.getState().geometryData as any)?.schema || {};
-                  const params = new URLSearchParams({
-                    floors: String(schema.floors||3), width: String(schema.width||20),
-                    depth: String(schema.depth||15), floor_height: String(schema.floor_height||3.2),
-                    building_type: schema.building_type||"apartment",
-                  });
-                  const res = await fetch(`${API_BASE}/api/cost-estimate?${params}`);
-                  setBoqData(await res.json()); setShowBOQ(true);
-                }}
+                <button onClick={() => setShowBOQ(true)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition ml-auto">
                   📋 BOQ
                 </button>
@@ -448,6 +439,73 @@ export default function WorkspacePage() {
                     </ul>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* BOQ Modal */}
+            {showBOQ && boqData && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] overflow-auto">
+                  <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-800">Bill of Quantities (BOQ)</h3>
+                    <button onClick={() => setShowBOQ(false)} className="text-slate-400 hover:text-slate-600">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-[11px]">
+                      <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 mb-1">Total Area</div>
+                        <div className="font-bold text-slate-800">{boqData.building?.total_area_m2 || 0} m²</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 mb-1">Total Cost (INR)</div>
+                        <div className="font-bold text-slate-800">₹{boqData.total_inr?.toLocaleString() || 0}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 mb-1">Total Cost (USD)</div>
+                        <div className="font-bold text-slate-800">${boqData.total_usd?.toLocaleString() || 0}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 mb-1">Cost per sqft</div>
+                        <div className="font-bold text-slate-800">₹{boqData.cost_per_sqft_inr || 0}/sqft</div>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-700 mb-2">Material Quantities</h4>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div className="flex justify-between p-2 bg-slate-50 rounded">
+                          <span className="text-slate-600">Concrete</span>
+                          <span className="font-medium">{boqData.quantities?.concrete_m3 || 0} m³</span>
+                        </div>
+                        <div className="flex justify-between p-2 bg-slate-50 rounded">
+                          <span className="text-slate-600">Steel</span>
+                          <span className="font-medium">{boqData.quantities?.steel_kg || 0} kg</span>
+                        </div>
+                        <div className="flex justify-between p-2 bg-slate-50 rounded">
+                          <span className="text-slate-600">Bricks</span>
+                          <span className="font-medium">{boqData.quantities?.brick_nos || 0} nos</span>
+                        </div>
+                        <div className="flex justify-between p-2 bg-slate-50 rounded">
+                          <span className="text-slate-600">Glass</span>
+                          <span className="font-medium">{boqData.quantities?.glass_m2 || 0} m²</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-700 mb-2">Cost Breakdown (INR)</h4>
+                      <div className="space-y-1 text-[10px]">
+                        {Object.entries(boqData.cost_breakdown_inr || {}).map(([category, cost]) => (
+                          <div key={category} className="flex justify-between p-2 bg-slate-50 rounded">
+                            <span className="text-slate-600">{category}</span>
+                            <span className="font-medium">₹{(cost as number).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-slate-400 italic">{boqData.currency_note}</p>
+                  </div>
+                </div>
               </div>
             )}
           </section>

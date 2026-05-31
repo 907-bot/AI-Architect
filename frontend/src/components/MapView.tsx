@@ -8,7 +8,7 @@ declare global { interface Window { L: any; } }
 type MapMode = "satellite" | "street" | "streetview";
 
 export default function MapView() {
-  const { plotLat, plotLng, plotWidth, plotDepth, setPlotData } = useStore();
+  const { plotLat, plotLng, plotWidth, plotDepth, setPlotData, setZoningData, zoningData } = useStore();
   const mapRef      = useRef<HTMLDivElement>(null);
   const svRef       = useRef<HTMLIFrameElement>(null);
   const mapInst     = useRef<any>(null);
@@ -20,6 +20,7 @@ export default function MapView() {
   const [searching, setSearching] = useState(false);
   const [svKey, setSvKey]     = useState(0);   // force iframe reload
   const [address, setAddress] = useState<string | null>(null);
+  const [loadingZoning, setLoadingZoning] = useState(false);
 
   // ── Load Leaflet ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -50,6 +51,32 @@ export default function MapView() {
     } catch { setAddress(null); }
   }, []);
 
+  // ── Fetch zoning data ────────────────────────────────────────────────────────
+  const fetchZoningData = useCallback(async (lat: number, lng: number) => {
+    setLoadingZoning(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const r = await fetch(
+        `${API_BASE}/api/zoning?lat=${lat}&lng=${lng}&zone_type=residential`
+      );
+      const data = await r.json();
+      if (!data.error) {
+        setZoningData(data);
+        // Auto-update plot dimensions based on zoning data
+        if (data.typical_plot) {
+          setPlotData(lat, lng, data.typical_plot.width_m, data.typical_plot.depth_m);
+        }
+      } else {
+        setZoningData(null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch zoning data:", err);
+      setZoningData(null);
+    } finally {
+      setLoadingZoning(false);
+    }
+  }, [setPlotData, setZoningData]);
+
   // ── Get user's current location ─────────────────────────────────────────────
   const gotoCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) return;
@@ -59,6 +86,7 @@ export default function MapView() {
         const { latitude: lat, longitude: lng } = coords;
         setPlotData(lat, lng, plotWidth, plotDepth);
         reverseGeocode(lat, lng);
+        fetchZoningData(lat, lng);
         if (mapInst.current) {
           mapInst.current.setView([lat, lng], 18);
           marker.current?.setLatLng([lat, lng]);
@@ -69,7 +97,7 @@ export default function MapView() {
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 8000 }
     );
-  }, [plotWidth, plotDepth, setPlotData, reverseGeocode]);
+  }, [plotWidth, plotDepth, setPlotData, reverseGeocode, fetchZoningData]);
 
   // ── Auto-detect location on first mount ─────────────────────────────────────
   useEffect(() => {
@@ -119,19 +147,21 @@ export default function MapView() {
       const { lat, lng } = mk.getLatLng();
       setPlotData(lat, lng, plotWidth, plotDepth);
       reverseGeocode(lat, lng);
+      fetchZoningData(lat, lng);
       setSvKey(k => k+1);
     });
     map.on("click", (e: any) => {
       mk.setLatLng(e.latlng);
       setPlotData(e.latlng.lat, e.latlng.lng, plotWidth, plotDepth);
       reverseGeocode(e.latlng.lat, e.latlng.lng);
+      fetchZoningData(e.latlng.lat, e.latlng.lng);
       setSvKey(k => k+1);
     });
 
     // Store layer refs for toggle
     (map as any)._satLayer  = satellite;
     (map as any)._streetLayer = street;
-  }, [loaded, plotLat, plotLng, plotWidth, plotDepth, setPlotData, reverseGeocode]);
+  }, [loaded, plotLat, plotLng, plotWidth, plotDepth, setPlotData, reverseGeocode, fetchZoningData]);
 
   // ── Toggle satellite / street ────────────────────────────────────────────────
   useEffect(() => {
@@ -160,13 +190,14 @@ export default function MapView() {
         const la = parseFloat(lat), ln = parseFloat(lon);
         setPlotData(la, ln, plotWidth, plotDepth);
         setAddress(display_name.split(",").slice(0,3).join(","));
+        fetchZoningData(la, ln);
         mapInst.current?.setView([la, ln], 18);
         marker.current?.setLatLng([la, ln]);
         setSvKey(k => k+1);
       }
     } catch { /* noop */ }
     setSearching(false);
-  }, [search, plotWidth, plotDepth, setPlotData]);
+  }, [search, plotWidth, plotDepth, setPlotData, fetchZoningData]);
 
   // Street View embed URL (works without API key via Google Maps embed)
   const svUrl = `https://www.google.com/maps/embed/v1/streetview?key=AIzaSyD-placeholder&location=${plotLat},${plotLng}&heading=0&pitch=0&fov=80`;
@@ -289,6 +320,53 @@ export default function MapView() {
           ))}
         </div>
       </div>
+
+      {/* ── Zoning Info Panel ── */}
+      {zoningData && (
+        <div className="absolute bottom-20 left-3 right-3 bg-[#1a1a2e]/95 backdrop-blur border border-white/10 rounded-xl p-3 shadow-xl z-20">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                {zoningData.city}, {zoningData.state}
+              </span>
+            </div>
+            <span className="text-[8px] text-white/40 bg-white/5 px-2 py-0.5 rounded">
+              {zoningData.zone_type}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[9px]">
+            <div className="bg-white/5 rounded p-2">
+              <div className="text-white/40 mb-0.5">Max Floors</div>
+              <div className="text-white font-bold">{zoningData.regulations.max_floors}</div>
+            </div>
+            <div className="bg-white/5 rounded p-2">
+              <div className="text-white/40 mb-0.5">Max Height</div>
+              <div className="text-white font-bold">{zoningData.regulations.max_height_m}m</div>
+            </div>
+            <div className="bg-white/5 rounded p-2">
+              <div className="text-white/40 mb-0.5">FAR Limit</div>
+              <div className="text-white font-bold">{zoningData.regulations.far_limit}</div>
+            </div>
+            <div className="bg-white/5 rounded p-2">
+              <div className="text-white/40 mb-0.5">Ground Coverage</div>
+              <div className="text-white font-bold">{zoningData.regulations.ground_coverage_pct}%</div>
+            </div>
+          </div>
+          {zoningData.notes && (
+            <div className="mt-2 text-[8px] text-white/30 italic">
+              ℹ️ {zoningData.notes}
+            </div>
+          )}
+        </div>
+      )}
+
+      {loadingZoning && (
+        <div className="absolute bottom-20 left-3 right-3 bg-[#1a1a2e]/95 backdrop-blur border border-white/10 rounded-xl p-3 shadow-xl z-20 flex items-center justify-center gap-2">
+          <Loader2 className="w-3 h-3 animate-spin text-[#7c93c3]" />
+          <span className="text-[9px] text-white/60">Loading zoning data...</span>
+        </div>
+      )}
     </div>
   );
 }

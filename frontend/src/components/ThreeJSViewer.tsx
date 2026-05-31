@@ -66,7 +66,7 @@ function CameraRig({ orbitRef }: { orbitRef: React.MutableRefObject<any> }) {
 
 // ─── Walkthrough (First Person, NO pointer lock — uses mouse drag) ────────────
 export function WalkthroughController({ canvasRef }: { canvasRef: React.RefObject<HTMLDivElement> }) {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   const isWalk  = useStore(s => s.isWalkthrough);
   const setWalk = useStore(s => s.setWalkthrough);
   const keys    = useRef<Set<string>>(new Set());
@@ -74,6 +74,8 @@ export function WalkthroughController({ canvasRef }: { canvasRef: React.RefObjec
   const pitch   = useRef(0);
   const dragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
+  const raycaster = useRef(new THREE.Raycaster());
+  const canInteract = useRef(false);
 
   useEffect(() => {
     if (!isWalk) return;
@@ -95,6 +97,33 @@ export function WalkthroughController({ canvasRef }: { canvasRef: React.RefObjec
     const onKey  = (e: KeyboardEvent) => {
       keys.current.add(e.code);
       if (e.code === "Escape") setWalk(false);
+      if (e.code === "KeyE") {
+        // Try to interact with doors
+        raycaster.current.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const intersects = raycaster.current.intersectObjects(scene.children, true);
+        if (intersects.length > 0 && intersects[0].distance < 3) {
+          const obj = intersects[0].object;
+          if (obj.userData.isDoor) {
+            // Toggle door open/close
+            const isOpen = obj.userData.isOpen || false;
+            obj.userData.isOpen = !isOpen;
+            // Animate door rotation
+            const targetRotation = !isOpen ? Math.PI / 2 : 0;
+            const startRotation = obj.rotation.y;
+            const startTime = Date.now();
+            const animateDoor = () => {
+              const elapsed = (Date.now() - startTime) / 300; // 300ms animation
+              if (elapsed < 1) {
+                obj.rotation.y = startRotation + (targetRotation - startRotation) * elapsed;
+                requestAnimationFrame(animateDoor);
+              } else {
+                obj.rotation.y = targetRotation;
+              }
+            };
+            animateDoor();
+          }
+        }
+      }
     };
     const offKey = (e: KeyboardEvent) => keys.current.delete(e.code);
 
@@ -110,7 +139,7 @@ export function WalkthroughController({ canvasRef }: { canvasRef: React.RefObjec
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", offKey);
     };
-  }, [isWalk, setWalk]);
+  }, [isWalk, setWalk, scene]);
 
   useFrame((_, dt) => {
     if (!isWalk) return;
@@ -118,10 +147,23 @@ export function WalkthroughController({ canvasRef }: { canvasRef: React.RefObjec
     const dir = new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(0, yaw.current, 0));
     const right = dir.clone().cross(new THREE.Vector3(0,1,0));
 
-    if (keys.current.has("KeyW") || keys.current.has("ArrowUp"))    camera.position.addScaledVector(dir, speed*dt);
-    if (keys.current.has("KeyS") || keys.current.has("ArrowDown"))  camera.position.addScaledVector(dir, -speed*dt);
-    if (keys.current.has("KeyA") || keys.current.has("ArrowLeft"))  camera.position.addScaledVector(right, -speed*dt);
-    if (keys.current.has("KeyD") || keys.current.has("ArrowRight")) camera.position.addScaledVector(right, speed*dt);
+    // Collision detection - prevent walking through walls
+    const newPos = camera.position.clone();
+    if (keys.current.has("KeyW") || keys.current.has("ArrowUp"))    newPos.addScaledVector(dir, speed*dt);
+    if (keys.current.has("KeyS") || keys.current.has("ArrowDown"))  newPos.addScaledVector(dir, -speed*dt);
+    if (keys.current.has("KeyA") || keys.current.has("ArrowLeft"))  newPos.addScaledVector(right, -speed*dt);
+    if (keys.current.has("KeyD") || keys.current.has("ArrowRight")) newPos.addScaledVector(right, speed*dt);
+
+    // Simple collision check with floor bounds
+    const plotWidth = useStore.getState().plotWidth;
+    const plotDepth = useStore.getState().plotDepth;
+    const halfW = plotWidth / 2;
+    const halfD = plotDepth / 2;
+
+    if (newPos.x > -halfW - 2 && newPos.x < halfW + 2 &&
+        newPos.z > -halfD - 2 && newPos.z < halfD + 2) {
+      camera.position.copy(newPos);
+    }
 
     camera.rotation.order = "YXZ";
     camera.rotation.y = yaw.current;
