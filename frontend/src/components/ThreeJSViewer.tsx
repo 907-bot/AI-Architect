@@ -293,30 +293,174 @@ function EmptyBuilding() {
   );
 }
 
+// ─── Sketchfab GLB loader ─────────────────────────────────────────────────────
+function SketchfabModel({ url, scale }: { url: string; scale: number }) {
+  const { scene } = useGLTF(url);
+  const ref = useRef<THREE.Group>(null!);
+  useEffect(() => {
+    if (!ref.current) return;
+    const box = new THREE.Box3().setFromObject(ref.current);
+    const sz  = box.getSize(new THREE.Vector3());
+    const max = Math.max(sz.x, sz.y, sz.z);
+    if (max > 0) ref.current.scale.setScalar(scale / max);
+    const nb  = new THREE.Box3().setFromObject(ref.current);
+    ref.current.position.y = -nb.min.y;
+    ref.current.traverse(c => {
+      if ((c as THREE.Mesh).isMesh) { c.castShadow=true; c.receiveShadow=true; }
+    });
+  }, [url, scale]);
+  return <primitive ref={ref} object={scene.clone()} />;
+}
+
+// Smart shape fallback based on asset category name
+function SmartPlaceholder({ name, scale, color }: { name: string; scale: number; color: string }) {
+  const n = (name || "").toLowerCase();
+  const s = scale;
+
+  if (n.includes("tree") || n.includes("plant") || n.includes("palm") || n.includes("bush")) {
+    return (
+      <group>
+        <mesh position={[0, s*0.15, 0]} castShadow>
+          <cylinderGeometry args={[s*0.06, s*0.1, s*0.3, 8]} />
+          <meshStandardMaterial color="#8b5e3c" roughness={0.9} />
+        </mesh>
+        {[0, 0.28, 0.52].map((yf, i) => (
+          <mesh key={i} position={[0, s*(yf+0.3), 0]} castShadow>
+            <coneGeometry args={[s*(0.35-i*0.08), s*(0.38-i*0.06), 9]} />
+            <meshStandardMaterial color={i%2===0?"#2d7a2d":"#3a9a3a"} roughness={0.85} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+  if (n.includes("car") || n.includes("vehicle") || n.includes("auto")) {
+    return (
+      <group>
+        <mesh position={[0, s*0.15, 0]} castShadow>
+          <boxGeometry args={[s*0.9, s*0.28, s*0.4]} />
+          <meshStandardMaterial color={color} roughness={0.3} metalness={0.6} />
+        </mesh>
+        <mesh position={[0, s*0.32, 0]} castShadow>
+          <boxGeometry args={[s*0.55, s*0.2, s*0.38]} />
+          <meshStandardMaterial color={color} roughness={0.3} metalness={0.6} />
+        </mesh>
+        {[[-0.35,-0.16],[-0.35,0.16],[0.35,-0.16],[0.35,0.16]].map(([wx,wz],i)=>(
+          <mesh key={i} position={[wx*s, s*0.1, wz*s]} castShadow>
+            <cylinderGeometry args={[s*0.1, s*0.1, s*0.08, 12]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.8} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+  if (n.includes("sofa") || n.includes("couch") || n.includes("chair") || n.includes("seat")) {
+    return (
+      <group>
+        <mesh position={[0, s*0.2, 0]} castShadow>
+          <boxGeometry args={[s*0.9, s*0.38, s*0.45]} />
+          <meshStandardMaterial color={color} roughness={0.85} />
+        </mesh>
+        <mesh position={[0, s*0.45, s*0.2]} castShadow>
+          <boxGeometry args={[s*0.9, s*0.48, s*0.1]} />
+          <meshStandardMaterial color={color} roughness={0.85} />
+        </mesh>
+        {[-0.4, 0.4].map((x,i)=>(
+          <mesh key={i} position={[x*s, s*0.38, 0]} castShadow>
+            <boxGeometry args={[s*0.1, s*0.42, s*0.45]} />
+            <meshStandardMaterial color={color} roughness={0.85} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+  if (n.includes("table") || n.includes("desk")) {
+    return (
+      <group>
+        <mesh position={[0, s*0.38, 0]} castShadow>
+          <boxGeometry args={[s*0.9, s*0.05, s*0.55]} />
+          <meshStandardMaterial color="#8b6914" roughness={0.7} />
+        </mesh>
+        {[[-0.4,-0.22],[-0.4,0.22],[0.4,-0.22],[0.4,0.22]].map(([lx,lz],i)=>(
+          <mesh key={i} position={[lx*s, s*0.19, lz*s]} castShadow>
+            <cylinderGeometry args={[s*0.025, s*0.025, s*0.38, 8]} />
+            <meshStandardMaterial color="#5c3d1e" roughness={0.8} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+  if (n.includes("lamp") || n.includes("light") || n.includes("lantern")) {
+    return (
+      <group>
+        <mesh position={[0, s*0.5, 0]} castShadow>
+          <cylinderGeometry args={[s*0.02, s*0.02, s, 8]} />
+          <meshStandardMaterial color="#888" roughness={0.3} metalness={0.7} />
+        </mesh>
+        <mesh position={[0, s, 0]}>
+          <sphereGeometry args={[s*0.15, 12, 12]} />
+          <meshStandardMaterial color="#fffde7" roughness={0.1} emissive="#ffe082" emissiveIntensity={2} />
+        </mesh>
+        <pointLight position={[0, s, 0]} intensity={30} distance={8} color="#fff5cc" />
+      </group>
+    );
+  }
+  // Generic box with label
+  return (
+    <mesh position={[0, s/2, 0]} castShadow>
+      <boxGeometry args={[s*0.9, s*0.9, s*0.9]} />
+      <meshStandardMaterial color={color} roughness={0.6} />
+    </mesh>
+  );
+}
+
 // ─── Placed assets ────────────────────────────────────────────────────────────
 function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect:(id:string)=>void }) {
-  const selected = useStore(s=>s.selectedAssetUid)===asset.placement_id;
-  const s = asset.scale||1;
-  const size:[number,number,number] = [s*1.2, s*0.8, s*1.2];
+  const selected  = useStore(s=>s.selectedAssetUid)===asset.placement_id;
+  const sc        = asset.scale || 1.5;
   const pos:[number,number,number] = Array.isArray(asset.position)
     ? asset.position as [number,number,number]
     : [asset.position.x, asset.position.y, asset.position.z];
+
+  // Color based on asset name
+  const color = (() => {
+    const n = (asset.name||"").toLowerCase();
+    if (n.includes("tree")||n.includes("plant")) return "#3a7d44";
+    if (n.includes("sofa")||n.includes("chair")) return "#7c93c3";
+    if (n.includes("car"))  return "#e74c3c";
+    if (n.includes("lamp")) return "#f1c40f";
+    return "#94a3b8";
+  })();
+
+  // Try to load real GLB if we have a URL
+  const glbUrl = asset.glb_url && !asset.glb_url.includes("stub://") ? asset.glb_url :
+                 asset.local_path ? `${API_BASE}/cache/sketchfab/${asset.local_path.split(/[/\\]/).pop()}` : null;
+
   return (
-    <group position={pos} onClick={e=>{e.stopPropagation();onSelect(asset.placement_id);}}>
-      <mesh position={[0,size[1]/2,0]} castShadow>
-        <boxGeometry args={size} />
-        <meshStandardMaterial color={selected?"#7c93c3":"#94a3b8"} roughness={0.6} />
-      </mesh>
+    <group position={pos} rotation={[0, (asset.rotation as any)?.[1]||0, 0]}
+      onClick={e=>{e.stopPropagation();onSelect(asset.placement_id);}}>
+
+      {glbUrl ? (
+        <React.Suspense fallback={<SmartPlaceholder name={asset.name||""} scale={sc} color={color} />}>
+          <MeshBoundary fallback={<SmartPlaceholder name={asset.name||""} scale={sc} color={color} />}>
+            <SketchfabModel url={glbUrl} scale={sc*2} />
+          </MeshBoundary>
+        </React.Suspense>
+      ) : (
+        <SmartPlaceholder name={asset.name||""} scale={sc} color={color} />
+      )}
+
       {selected && (
-        <mesh position={[0,size[1]/2,0]}>
-          <boxGeometry args={[size[0]+0.1,size[1]+0.1,size[2]+0.1]} />
-          <meshBasicMaterial color="#7c93c3" wireframe />
+        <mesh position={[0, sc/2, 0]}>
+          <boxGeometry args={[sc+0.2, sc+0.2, sc+0.2]} />
+          <meshBasicMaterial color="#7c93c3" wireframe opacity={0.6} transparent />
         </mesh>
       )}
-      <Html position={[0,size[1]+0.5,0]} center>
-        <span className="pointer-events-none select-none text-[9px] font-semibold bg-white/90 text-slate-700 px-2 py-0.5 rounded-full shadow-sm border border-slate-200 whitespace-nowrap">
-          {asset.name}
-        </span>
+      <Html position={[0, sc+0.6, 0]} center>
+        <div className="pointer-events-none select-none flex flex-col items-center gap-0.5">
+          <span className="text-[9px] font-semibold bg-white/90 text-slate-700 px-2 py-0.5 rounded-full shadow-sm border border-slate-200 whitespace-nowrap max-w-[120px] truncate">
+            {asset.name}
+          </span>
+        </div>
       </Html>
     </group>
   );

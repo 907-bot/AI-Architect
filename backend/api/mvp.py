@@ -290,6 +290,122 @@ def _check_docker_blender() -> tuple[bool, str]:
 # ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _schema_to_floor_plan(schema: dict) -> dict:
+    """
+    Generate a realistic floor plan from building schema.
+    Returns FloorPlanData-compatible dict with rooms, walls, doors, windows.
+    """
+    floors     = schema.get("floors", 3)
+    bw         = schema.get("width",  20.0)
+    bd         = schema.get("depth",  15.0)
+    btype      = schema.get("building_type", "apartment")
+
+    ROOM_LAYOUTS = {
+        "apartment": [
+            {"name":"living_room","type":"living_room","w":7.0,"d":5.5},
+            {"name":"kitchen",    "type":"kitchen",    "w":4.0,"d":3.5},
+            {"name":"dining_room","type":"dining_room","w":4.0,"d":3.0},
+            {"name":"bedroom_1",  "type":"bedroom",    "w":4.5,"d":4.0},
+            {"name":"bedroom_2",  "type":"bedroom",    "w":4.0,"d":3.5},
+            {"name":"bathroom_1", "type":"bathroom",   "w":2.5,"d":2.5},
+            {"name":"hallway",    "type":"hallway",    "w":2.0,"d":4.0},
+        ],
+        "villa": [
+            {"name":"living_room","type":"living_room","w":8.0,"d":6.0},
+            {"name":"kitchen",    "type":"kitchen",    "w":5.0,"d":4.0},
+            {"name":"dining_room","type":"dining_room","w":5.0,"d":4.0},
+            {"name":"master_bed", "type":"bedroom",    "w":6.0,"d":5.0},
+            {"name":"bedroom_2",  "type":"bedroom",    "w":4.5,"d":4.0},
+            {"name":"bathroom_1", "type":"bathroom",   "w":3.0,"d":3.0},
+            {"name":"bathroom_2", "type":"bathroom",   "w":2.5,"d":2.5},
+            {"name":"study",      "type":"study",      "w":3.5,"d":3.0},
+            {"name":"hallway",    "type":"hallway",    "w":2.5,"d":5.0},
+        ],
+        "office": [
+            {"name":"open_plan",  "type":"living_room","w":12.0,"d":8.0},
+            {"name":"meeting_1",  "type":"study",      "w":5.0,"d":4.0},
+            {"name":"meeting_2",  "type":"study",      "w":5.0,"d":4.0},
+            {"name":"reception",  "type":"hallway",    "w":4.0,"d":3.0},
+            {"name":"bathroom_1", "type":"bathroom",   "w":3.0,"d":2.5},
+            {"name":"kitchen",    "type":"kitchen",    "w":4.0,"d":3.0},
+        ],
+    }
+
+    layout = ROOM_LAYOUTS.get(btype, ROOM_LAYOUTS["apartment"])
+    all_rooms   = []
+    all_walls   = []
+    all_doors   = []
+    all_windows = []
+
+    for fi in range(floors):
+        # Simple grid layout — pack rooms into building footprint
+        x_cursor = -bw/2 + 1.0
+        y_cursor =  bd/2 - 1.0
+
+        for ri, rm in enumerate(layout):
+            rw = min(rm["w"], bw - 2.0)
+            rd = min(rm["d"], bd / max(2, len(layout)//2 + 1))
+            cx = x_cursor + rw/2
+            cy = y_cursor - rd/2
+
+            # Wrap to next row if past width
+            if cx + rw/2 > bw/2 - 0.5:
+                x_cursor = -bw/2 + 1.0
+                y_cursor -= rd + 0.2
+                cx = x_cursor + rw/2
+                cy = y_cursor - rd/2
+
+            all_rooms.append({
+                "id":    f"{rm['name']}_f{fi}",
+                "name":  rm["name"].replace("_"," ").title(),
+                "type":  rm["type"],
+                "x":     round(cx, 2),
+                "y":     round(cy, 2),
+                "width": round(rw, 2),
+                "depth": round(rd, 2),
+                "area_m2": round(rw * rd, 1),
+                "floor": fi,
+            })
+
+            # Walls around room
+            for side,(x1,y1,x2,y2) in [
+                ("north",(cx-rw/2,cy+rd/2,cx+rw/2,cy+rd/2)),
+                ("south",(cx-rw/2,cy-rd/2,cx+rw/2,cy-rd/2)),
+                ("east", (cx+rw/2,cy-rd/2,cx+rw/2,cy+rd/2)),
+                ("west", (cx-rw/2,cy-rd/2,cx-rw/2,cy+rd/2)),
+            ]:
+                all_walls.append({
+                    "id":f"wall_{rm['name']}_f{fi}_{side}",
+                    "room":rm["name"], "x1":round(x1,2),"y1":round(y1,2),
+                    "x2":round(x2,2),"y2":round(y2,2),"thickness":0.2,"floor":fi})
+
+            # Door on south wall
+            all_doors.append({
+                "id":f"door_{rm['name']}_f{fi}","room":rm["name"],
+                "x":round(cx,2),"y":round(cy-rd/2,2),"width":0.9,"side":"south","floor":fi})
+
+            # Window on north wall (exterior)
+            if cy+rd/2 > bd/4:
+                all_windows.append({
+                    "id":f"win_{rm['name']}_f{fi}","room":rm["name"],
+                    "x":round(cx,2),"y":round(cy+rd/2,2),"width":1.4,"side":"north","floor":fi})
+
+            x_cursor += rw + 0.2
+
+    return {
+        "rooms":       all_rooms,
+        "walls":       all_walls,
+        "doors":       all_doors,
+        "windows":     all_windows,
+        "adjacency":   [{"from":"living_room","to":"kitchen"},
+                        {"from":"living_room","to":"hallway"},
+                        {"from":"hallway","to":"bedroom_1"},
+                        {"from":"hallway","to":"bathroom_1"}],
+        "circulation": [],
+        "total_floors": floors,
+    }
+
+
 @router.post("/generate")
 async def generate(body: GenerateRequest):
     prompt = body.prompt or "Modern 2 bedroom house"
@@ -324,7 +440,7 @@ async def generate(body: GenerateRequest):
             "success": True,
             "toon": "",
             "scene_graph": _schema_to_scene_graph(schema),
-            "geometry": {"floors": floors, "schema": schema},
+            "geometry": {"floors": floors, "schema": schema, "floor_plan": _schema_to_floor_plan(schema), "meshes": [], "rooms": []},
             "glb_path": glb_path or "",
             "model_path": glb_path or "",
             "blender_rendered": glb_path is not None,

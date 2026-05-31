@@ -45,12 +45,17 @@ export function normalizeMvpResponse(raw: any): {
     id: m.id || m.material_id,
   }));
 
+  // Always generate a floor plan — either from backend data or from schema
+  const floorPlan = geometry.floor_plan ||
+    (geometry.schema ? schemaToFloorPlan(geometry.schema) : null) ||
+    fallbackFloorPlan(geometry.rooms || []);
+
   return {
     geometry: {
       meshes: geometry.meshes || [],
       rooms: geometry.rooms || [],
-      floor_plan: geometry.floor_plan,
-      adjacency: geometry.adjacency || geometry.floor_plan?.adjacency || [],
+      floor_plan: floorPlan,
+      adjacency: geometry.adjacency || floorPlan?.adjacency || [],
       circulation: geometry.circulation || geometry.floor_plan?.circulation || [],
       style: geometry.style || "modern",
       total_height_m: geometry.total_height_m || 3,
@@ -134,6 +139,67 @@ export function fallbackVillaGeometry(): any {
 function mesh(id: string, group: string, position: number[], scale: number[], material_id: string) {
   return { id, component_group: group, type: "box", position, scale, material_id };
 }
+
+// Always-working floor plan from building schema (used when backend doesn't return one)
+function schemaToFloorPlan(schema: any) {
+  if (!schema) return null;
+  const floors = schema.floors || 3;
+  const bw     = schema.width  || 20;
+  const bd     = schema.depth  || 15;
+  const btype  = schema.building_type || "apartment";
+
+  const LAYOUTS: Record<string, any[]> = {
+    apartment: [
+      {name:"Living Room",type:"living_room",w:7,d:5.5},
+      {name:"Kitchen",    type:"kitchen",    w:4,d:3.5},
+      {name:"Dining Room",type:"dining_room",w:4,d:3.0},
+      {name:"Bedroom 1",  type:"bedroom",    w:4.5,d:4.0},
+      {name:"Bedroom 2",  type:"bedroom",    w:4.0,d:3.5},
+      {name:"Bathroom",   type:"bathroom",   w:2.5,d:2.5},
+      {name:"Hallway",    type:"hallway",    w:2.0,d:4.0},
+    ],
+    villa: [
+      {name:"Living Room", type:"living_room",w:8,d:6},
+      {name:"Kitchen",     type:"kitchen",    w:5,d:4},
+      {name:"Master Bed",  type:"bedroom",    w:6,d:5},
+      {name:"Bedroom 2",   type:"bedroom",    w:4.5,d:4},
+      {name:"Bathroom 1",  type:"bathroom",   w:3,d:3},
+      {name:"Study",       type:"study",      w:3.5,d:3},
+      {name:"Hallway",     type:"hallway",    w:2.5,d:5},
+    ],
+    office: [
+      {name:"Open Plan",   type:"living_room",w:12,d:8},
+      {name:"Meeting 1",   type:"study",      w:5,d:4},
+      {name:"Meeting 2",   type:"study",      w:5,d:4},
+      {name:"Reception",   type:"hallway",    w:4,d:3},
+      {name:"Bathroom",    type:"bathroom",   w:3,d:2.5},
+    ],
+  };
+
+  const layout = LAYOUTS[btype] || LAYOUTS.apartment;
+  const allRooms: any[] = [], allWalls: any[] = [], allDoors: any[] = [], allWindows: any[] = [];
+
+  for (let fi = 0; fi < floors; fi++) {
+    let xCur = -bw/2 + 1, yCur = bd/2 - 1;
+    layout.forEach((rm, ri) => {
+      const rw = Math.min(rm.w, bw - 2);
+      const rd = Math.min(rm.d, 5);
+      if (xCur + rw > bw/2 - 0.5) { xCur = -bw/2 + 1; yCur -= rd + 0.3; }
+      const cx = xCur + rw/2, cy = yCur - rd/2;
+      allRooms.push({ id:`${rm.name}_f${fi}`, name:rm.name, type:rm.type,
+        x:Math.round(cx*10)/10, y:Math.round(cy*10)/10,
+        width:rw, depth:rd, area_m2:Math.round(rw*rd*10)/10, floor:fi });
+      allWalls.push({ id:`wall_n_${ri}_f${fi}`, room:rm.name, x1:cx-rw/2, y1:cy+rd/2, x2:cx+rw/2, y2:cy+rd/2, thickness:0.2, floor:fi });
+      allWalls.push({ id:`wall_s_${ri}_f${fi}`, room:rm.name, x1:cx-rw/2, y1:cy-rd/2, x2:cx+rw/2, y2:cy-rd/2, thickness:0.2, floor:fi });
+      allDoors.push({ id:`door_${ri}_f${fi}`, room:rm.name, x:cx, y:cy-rd/2, width:0.9, side:"south", floor:fi });
+      allWindows.push({ id:`win_${ri}_f${fi}`, room:rm.name, x:cx, y:cy+rd/2, width:1.4, side:"north", floor:fi });
+      xCur += rw + 0.2;
+    });
+  }
+  return { rooms:allRooms, walls:allWalls, doors:allDoors, windows:allWindows,
+           adjacency:[], circulation:[], total_floors:floors };
+}
+
 
 function fallbackFloorPlan(rooms: any[]) {
   const adjacency = [
