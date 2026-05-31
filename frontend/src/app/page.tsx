@@ -74,7 +74,7 @@ export default function WorkspacePage() {
     complianceData, isGenerating,
     plotLat, plotLng, plotWidth, plotDepth, setPlotData,
     isAssetPaletteOpen, setAssetPaletteOpen,
-    geometryData,
+    geometryData, generatedGlbPath,
   } = useStore();
   const isWalkthrough   = useStore((s) => s.isWalkthrough);
   const setWalkthrough  = useStore((s) => s.setWalkthrough);
