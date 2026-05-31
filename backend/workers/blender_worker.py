@@ -1048,6 +1048,112 @@ def _tree_simple(i, tx, ty, h, r, M, fm):
     assign(c, fm)
 
 # ══════════════════════════════════════════════════════════════════════════════
+# INTERIOR ROOMS & FURNITURE
+# ══════════════════════════════════════════════════════════════════════════════
+def generate_interior(bw, bd, num_floors, floor_h, base_z, M, style_name):
+    """Generate interior floor materials and furniture for each floor."""
+    wall_t = 0.28
+    inner_w = bw - wall_t * 2
+    inner_d = bd - wall_t * 2
+
+    # Floor materials per style
+    floor_mat = M.get("tatami") if style_name == "japanese" else (
+                M.get("marble") if style_name in ("villa","classical","colonial") else
+                M.get("wood_light"))
+
+    # Ceiling material
+    ceil_mat = M.get("white_paint", M["facade"])
+
+    for fi in range(num_floors):
+        fz = base_z + fi * floor_h
+        slab_t = 0.28
+
+        # Interior floor surface
+        add_box(f"Floor_Mat_{fi}",
+                (0, 0, fz + slab_t + 0.02),
+                (inner_w, inner_d, 0.04), floor_mat)
+
+        # Ceiling
+        add_box(f"Ceiling_{fi}",
+                (0, 0, fz + floor_h - 0.05),
+                (inner_w, inner_d, 0.06), ceil_mat)
+
+        # Interior partition wall (splits floor into rooms)
+        if inner_w > 10:
+            add_box(f"Partition_V_{fi}",
+                    (0, 0, fz + slab_t + floor_h / 2),
+                    (wall_t * 0.8, inner_d * 0.6, floor_h - slab_t), M["wall"])
+
+        # Ground floor: living room + kitchen furniture
+        if fi == 0:
+            _furniture_living(0, 0, fz + slab_t, inner_w, inner_d, M, style_name)
+        elif fi == num_floors - 1:
+            _furniture_bedroom(0, 0, fz + slab_t, inner_w, inner_d, M, style_name)
+        else:
+            _furniture_office(0, 0, fz + slab_t, inner_w, inner_d, M, style_name)
+
+
+def _furniture_living(cx, cz_unused, fz, rw, rd, M, style_name):
+    """Sofa, coffee table, TV unit."""
+    wood = M.get("wood_light"); fab = M.get("wall"); dark = M.get("wood_dark")
+    # Sofa
+    add_box("Sofa_Base",    (cx - rw*0.2, -rd*0.25, fz + 0.22), (2.4, 0.9, 0.44), fab)
+    add_box("Sofa_Back",    (cx - rw*0.2, -rd*0.25 - 0.4, fz + 0.5), (2.4, 0.15, 0.6), fab)
+    add_box("Sofa_L",       (cx - rw*0.2 - 1.15, -rd*0.25, fz + 0.44), (0.1, 0.9, 0.3), fab)
+    add_box("Sofa_R",       (cx - rw*0.2 + 1.15, -rd*0.25, fz + 0.44), (0.1, 0.9, 0.3), fab)
+    # Coffee table
+    add_box("CoffeeTable",  (cx - rw*0.2, -rd*0.08, fz + 0.22), (1.2, 0.7, 0.04), wood)
+    add_box("CT_Leg_A",     (cx - rw*0.2 - 0.5, -rd*0.08 - 0.28, fz + 0.11), (0.05, 0.05, 0.22), dark)
+    add_box("CT_Leg_B",     (cx - rw*0.2 + 0.5, -rd*0.08 - 0.28, fz + 0.11), (0.05, 0.05, 0.22), dark)
+    add_box("CT_Leg_C",     (cx - rw*0.2 - 0.5, -rd*0.08 + 0.28, fz + 0.11), (0.05, 0.05, 0.22), dark)
+    add_box("CT_Leg_D",     (cx - rw*0.2 + 0.5, -rd*0.08 + 0.28, fz + 0.11), (0.05, 0.05, 0.22), dark)
+    # TV unit
+    add_box("TV_Unit",      (cx + rw*0.22,  rd*0.35, fz + 0.25), (1.8, 0.45, 0.5), wood)
+    add_box("TV_Screen",    (cx + rw*0.22,  rd*0.35 + 0.22, fz + 0.88), (1.4, 0.06, 0.82),
+            mat("tv_screen", (0.05,0.05,0.05), rough=0.1, metal=0.0))
+    # Dining table
+    add_box("DiningTable",  (cx + rw*0.22, -rd*0.3, fz + 0.38), (1.6, 0.9, 0.04), wood)
+    for di, (dx, dy) in enumerate([(-0.6,-0.25),(-0.6,0.25),(0.6,-0.25),(0.6,0.25)]):
+        add_box(f"Chair_{di}", (cx + rw*0.22 + dx, -rd*0.3 + dy, fz + 0.25), (0.45,0.45,0.44), fab)
+
+
+def _furniture_bedroom(cx, cz_unused, fz, rw, rd, M, style_name):
+    """Bed, wardrobe, desk."""
+    wood = M.get("wood_light"); dark = M.get("wood_dark")
+    mattress_mat = mat("mattress", (0.95,0.93,0.90), rough=0.9)
+    pillow_mat   = mat("pillow",   (0.98,0.96,0.94), rough=0.95)
+    # Bed frame
+    add_box("Bed_Frame",    (cx - rw*0.18, rd*0.1, fz + 0.18), (1.8, 2.2, 0.36), wood)
+    add_box("Headboard",    (cx - rw*0.18, rd*0.1 + 1.1, fz + 0.55), (1.8, 0.12, 0.74), dark)
+    add_box("Mattress",     (cx - rw*0.18, rd*0.1, fz + 0.38), (1.75, 2.1, 0.28), mattress_mat)
+    add_box("Pillow_L",     (cx - rw*0.18 - 0.42, rd*0.1 + 0.7, fz + 0.54), (0.7, 0.5, 0.16), pillow_mat)
+    add_box("Pillow_R",     (cx - rw*0.18 + 0.42, rd*0.1 + 0.7, fz + 0.54), (0.7, 0.5, 0.16), pillow_mat)
+    # Wardrobe
+    add_box("Wardrobe",     (cx + rw*0.3, -rd*0.35, fz + 1.1), (1.4, 0.65, 2.2), dark)
+    add_box("Wardrobe_Door_L", (cx + rw*0.3 - 0.35, -rd*0.35 - 0.31, fz + 1.1), (0.68, 0.04, 2.18), wood)
+    add_box("Wardrobe_Door_R", (cx + rw*0.3 + 0.35, -rd*0.35 - 0.31, fz + 1.1), (0.68, 0.04, 2.18), wood)
+    # Desk
+    add_box("Desk",         (cx + rw*0.28, rd*0.3, fz + 0.38), (1.2, 0.65, 0.04), wood)
+    add_box("Desk_Leg_A",   (cx + rw*0.28 - 0.55, rd*0.3 - 0.28, fz + 0.19), (0.05,0.05,0.38), dark)
+    add_box("Desk_Leg_B",   (cx + rw*0.28 + 0.55, rd*0.3 - 0.28, fz + 0.19), (0.05,0.05,0.38), dark)
+    add_box("Desk_Leg_C",   (cx + rw*0.28 - 0.55, rd*0.3 + 0.28, fz + 0.19), (0.05,0.05,0.38), dark)
+    add_box("Desk_Leg_D",   (cx + rw*0.28 + 0.55, rd*0.3 + 0.28, fz + 0.19), (0.05,0.05,0.38), dark)
+    add_box("Monitor",      (cx + rw*0.28, rd*0.3 + 0.28, fz + 0.72), (0.6, 0.05, 0.4),
+            mat("monitor", (0.05,0.05,0.05), rough=0.1))
+
+
+def _furniture_office(cx, cz_unused, fz, rw, rd, M, style_name):
+    """Desks and chairs for office/mid floors."""
+    wood = M.get("wood_light"); fab = M.get("wall")
+    for di in range(3):
+        dx = -rw*0.3 + di * rw*0.3
+        add_box(f"ODesk_{di}",  (cx+dx, 0, fz+0.38), (1.2, 0.65, 0.04), wood)
+        add_box(f"OChair_{di}", (cx+dx,  0.55, fz+0.28), (0.5, 0.5, 0.44), fab)
+        add_box(f"OMonitor_{di}",(cx+dx, -0.25, fz+0.72), (0.55, 0.05, 0.38),
+                mat(f"om_{di}", (0.05,0.05,0.05), rough=0.1))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 18. EXPORT
 # ══════════════════════════════════════════════════════════════════════════════
 def export_glb(output_path):
@@ -1103,6 +1209,9 @@ def main():
     generate_staircase(bw, bd, num_floors, floor_h, base_z, M)
     generate_roof(bw, bd, base_z+num_floors*floor_h, M, sc_cfg, style_name)
     generate_style_features(bw, bd, base_z, num_floors, floor_h, M, style_name)
+
+    if s.get("interior", True):
+        generate_interior(bw, bd, num_floors, floor_h, base_z, M, style_name)
 
     if has_pool:    generate_pool(bw, bd, pool_cfg, base_z, M, style_name)
     if has_garage:  generate_garage(bw, bd, garage_cfg, base_z, M, style_name)

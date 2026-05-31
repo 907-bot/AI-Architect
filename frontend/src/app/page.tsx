@@ -279,223 +279,127 @@ export default function WorkspacePage() {
             </div>
           )}
 
-          {/* ── Right Panel: 3D Viewer ── */}
-          <section className="flex-1 relative min-h-0 overflow-hidden">
-            {viewMode === "model" ? <ThreeJSViewer /> : viewMode === "unreal" ? <UnrealExport /> : <FloorPlanView floorPlan={geometryData?.floor_plan} />}
+          {/* ── Right Panel ── */}
+          <section className="flex-1 relative min-h-0 overflow-hidden flex flex-col">
 
-            <div className="absolute top-4 left-4 z-20 flex rounded-lg border border-slate-200/70 bg-white/85 p-1 shadow-lg backdrop-blur-md">
-              <button
-                onClick={() => setViewMode("model")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
-                  viewMode === "model" ? "bg-[#7c93c3] text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Cuboid className="h-3.5 w-3.5" />3D Model
+            {/* ── Toolbar row — NO overlapping ── */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-slate-100 z-20 flex-shrink-0 flex-wrap">
+
+              {/* View mode tabs */}
+              <div className="flex rounded-lg border border-slate-200/70 bg-slate-50 p-0.5">
+                <button onClick={() => setViewMode("model")}
+                  className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-semibold transition ${viewMode==="model"?"bg-white shadow text-slate-800 border border-slate-200":"text-slate-500 hover:text-slate-700"}`}>
+                  <Cuboid className="h-3 w-3" />3D Model
+                </button>
+                <button onClick={() => { setViewMode("plan"); setActiveProjection("orthographic_top"); }}
+                  className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-semibold transition ${viewMode==="plan"?"bg-white shadow text-slate-800 border border-slate-200":"text-slate-500 hover:text-slate-700"}`}>
+                  <Map className="h-3 w-3" />Floor Plan
+                </button>
+                <button onClick={() => setViewMode("unreal")}
+                  className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-semibold transition ${viewMode==="unreal"?"bg-white shadow text-slate-800 border border-slate-200":"text-slate-500 hover:text-slate-700"}`}>
+                  🎮 Unreal
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div className="h-5 w-px bg-slate-200" />
+
+              {/* Component filter — only in 3D mode */}
+              {viewMode === "model" && (
+                <select value={visibleComponentGroup}
+                  onChange={e => setVisibleComponentGroup(e.target.value as any)}
+                  className="text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#7c93c3]">
+                  {COMPONENTS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              )}
+
+              {/* Camera projection — only in 3D mode */}
+              {viewMode === "model" && (
+                <select value={activeProjection}
+                  onChange={e => setActiveProjection(e.target.value as any)}
+                  className="text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#7c93c3]">
+                  {PROJECTIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              )}
+
+              {/* Walkthrough — only when GLB exists in 3D mode */}
+              {viewMode === "model" && generatedGlbPath && (
+                <button onClick={() => setWalkthrough(!isWalkthrough)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
+                    isWalkthrough
+                      ? "bg-[#7c93c3] text-white border-[#7c93c3]"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+                  }`}>
+                  🚶 {isWalkthrough ? "Exit Walk" : "Walkthrough"}
+                </button>
+              )}
+
+              {/* Asset Library button */}
+              <button onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
+                  isAssetPaletteOpen
+                    ? "bg-[#7c93c3] text-white border-[#7c93c3]"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+                }`}>
+                <Package className="w-3 h-3" />{isAssetPaletteOpen ? "Close" : "Assets"}
               </button>
-              <button
-                onClick={() => {
-                  setViewMode("plan");
-                  setActiveProjection("orthographic_top");
-                }}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
-                  viewMode === "plan" ? "bg-[#7c93c3] text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Map className="h-3.5 w-3.5" />Floor Plan
-              </button>
-              <button
-                onClick={() => setViewMode("unreal")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
-                  viewMode === "unreal" ? "bg-[#7c93c3] text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                🎮 Unreal
-              </button>
-            </div>
 
-            {/* Asset Library floating toggle button */}
-            <button
-              onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
-              className={`absolute top-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border shadow-lg backdrop-blur-md transition-all duration-200 ${
-                isAssetPaletteOpen
-                  ? "left-[284px] bg-[#7c93c3] text-white border-[#7c93c3]"
-                  : "left-[190px] bg-white/80 text-slate-700 border-slate-200/60 hover:border-[#7c93c3] hover:text-[#7c93c3]"
-              }`}
-              style={{ top: isAssetPaletteOpen ? "auto" : undefined, bottom: isAssetPaletteOpen ? "auto" : undefined }}
-            >
-              {isAssetPaletteOpen
-                ? <><X className="w-3.5 h-3.5" />Close Library</>
-                : <><Package className="w-3.5 h-3.5" />Asset Library</>
-              }
-            </button>
-
-            {/* Camera Projections overlay — top left */}
-            <div className={`absolute top-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-60 transition-all duration-200 ${isAssetPaletteOpen ? "left-[300px]" : "left-[320px]"}`}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Eye className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Camera Projections</span>
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-[9px] text-slate-400 font-medium">Perspective (Interior)</p>
-                <div className="grid grid-cols-3 gap-1">
-                  {PROJECTIONS.slice(0,3).map(p => (
-                    <button key={p.key} onClick={() => setActiveProjection(p.key)}
-                      className={`py-1 rounded text-[9px] font-mono border transition ${
-                        activeProjection === p.key
-                          ? "bg-[#7c93c3]/20 border-[#7c93c3] text-slate-800 font-semibold"
-                          : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                      }`}>{p.label}</button>
-                  ))}
-                </div>
-                <p className="text-[9px] text-slate-400 font-medium pt-0.5">Parallel Projections (Exterior)</p>
-                <div className="grid grid-cols-3 gap-1">
-                  {PROJECTIONS.slice(3,6).map(p => (
-                    <button key={p.key} onClick={() => setActiveProjection(p.key)}
-                      className={`py-1 rounded text-[9px] font-mono border transition ${
-                        activeProjection === p.key
-                          ? "bg-[#7c93c3]/20 border-[#7c93c3] text-slate-800 font-semibold"
-                          : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                      }`}>{p.label}</button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-1">
-                  {PROJECTIONS.slice(6).map(p => (
-                    <button key={p.key} onClick={() => setActiveProjection(p.key)}
-                      className={`py-1 rounded text-[9px] font-mono border transition ${
-                        activeProjection === p.key
-                          ? "bg-[#7c93c3]/20 border-[#7c93c3] text-slate-800 font-semibold"
-                          : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                      }`}>{p.label}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Component Filter — top right */}
-            <div className="absolute top-4 right-4 z-10 bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl p-3 shadow-lg w-52">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Filter className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Component Filter</span>
-              </div>
-              <div className="grid grid-cols-2 gap-1">
-                {COMPONENTS.map(g => (
-                  <button key={g} onClick={() => setVisibleComponentGroup(g)}
-                    className={`py-1.5 px-2 rounded text-[9px] font-medium border text-center transition ${
-                      visibleComponentGroup === g
-                        ? "bg-[#7c93c3]/20 border-[#7c93c3] text-slate-800 font-semibold"
-                        : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                    }`}>{g}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Walkthrough button */}
-            {generatedGlbPath && (
-              <button
-                onClick={() => setWalkthrough(!isWalkthrough)}
-                className={`absolute top-16 right-4 z-20 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold shadow-lg transition-all ${
-                  isWalkthrough
-                    ? "bg-[#7c93c3] text-white"
-                    : "bg-white/90 text-slate-700 border border-slate-200 hover:bg-[#7c93c3]/10"
-                }`}
-              >
-                {isWalkthrough ? "🚶 Exit Walkthrough" : "🚶 Enter Walkthrough"}
-              </button>
-            )}
-            {isWalkthrough && (
-              <div className="absolute top-28 right-4 z-20 bg-black/70 text-white text-[10px] rounded-xl px-3 py-2 backdrop-blur pointer-events-none">
-                <p className="font-bold mb-1">First Person Mode</p>
-                <p>WASD / Arrow Keys — move</p>
-                <p>Mouse — look around</p>
-                <p>Shift — run</p>
-                <p>Esc — exit</p>
-              </div>
-            )}
-            {/* BOQ button */}
-            {complianceData && (
-              <button
-                onClick={async () => {
-                  const store = useStore.getState();
-                  const g = store.geometryData;
-                  const schema = (g as any)?.schema || {};
+              {/* BOQ button */}
+              {complianceData && (
+                <button onClick={async () => {
+                  const schema = (useStore.getState().geometryData as any)?.schema || {};
                   const params = new URLSearchParams({
-                    floors: String(schema.floors || 3),
-                    width: String(schema.width || 20),
-                    depth: String(schema.depth || 15),
-                    floor_height: String(schema.floor_height || 3.2),
-                    building_type: schema.building_type || "apartment",
+                    floors: String(schema.floors||3), width: String(schema.width||20),
+                    depth: String(schema.depth||15), floor_height: String(schema.floor_height||3.2),
+                    building_type: schema.building_type||"apartment",
                   });
                   const res = await fetch(`${API_BASE}/api/cost-estimate?${params}`);
-                  const data = await res.json();
-                  setBoqData(data);
-                  setShowBOQ(true);
+                  setBoqData(await res.json()); setShowBOQ(true);
                 }}
-                className="absolute bottom-16 right-4 z-20 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-white/90 text-slate-700 border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 shadow transition"
-              >
-                📋 Export BOQ / Cost
-              </button>
-            )}
-            {/* BOQ Modal */}
-            {showBOQ && boqData && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowBOQ(false)}>
-                <div className="bg-white rounded-2xl shadow-2xl w-[480px] max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                    <div>
-                      <h3 className="font-bold text-slate-800 text-sm">Bill of Quantities</h3>
-                      <p className="text-[10px] text-slate-400">{boqData.building.total_area_m2} m² · {boqData.building.floors} floors</p>
-                    </div>
-                    <button onClick={() => setShowBOQ(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
-                  </div>
-                  <div className="px-6 py-4 space-y-4">
-                    {/* Quantities */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Material Quantities</p>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {Object.entries(boqData.quantities).map(([k,v]) => (
-                          <div key={k} className="flex justify-between bg-slate-50 rounded-lg px-3 py-1.5 text-[10px]">
-                            <span className="text-slate-500 capitalize">{k.replace(/_/g," ")}</span>
-                            <span className="font-bold text-slate-700">{String(v)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Cost breakdown */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Cost Breakdown (INR)</p>
-                      <div className="space-y-1">
-                        {Object.entries(boqData.cost_breakdown_inr).map(([k,v]) => (
-                          <div key={k} className="flex justify-between text-[10px] px-1">
-                            <span className="text-slate-500">{k}</span>
-                            <span className="font-medium text-slate-700">₹{Number(v).toLocaleString()}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Totals */}
-                    <div className="bg-[#7c93c3]/10 rounded-xl p-3 border border-[#7c93c3]/20">
-                      <div className="flex justify-between text-sm font-bold text-slate-800 mb-1">
-                        <span>Total Estimate</span>
-                        <span>₹{Number(boqData.total_inr).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-slate-500">
-                        <span>USD equivalent</span>
-                        <span>${Number(boqData.total_usd).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-slate-500">
-                        <span>Rate per sq.ft</span>
-                        <span>₹{boqData.cost_per_sqft_inr}/sqft</span>
-                      </div>
-                    </div>
-                    <p className="text-[9px] text-slate-400 text-center">{boqData.currency_note}</p>
-                    <button onClick={() => window.print()}
-                      className="w-full py-2 bg-[#7c93c3] text-white text-xs font-semibold rounded-xl hover:bg-[#8da3d3] transition">
-                      🖨 Print / Export PDF
-                    </button>
-                  </div>
-                </div>
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition ml-auto">
+                  📋 BOQ
+                </button>
+              )}
+            </div>
+
+            {/* ── Asset palette slide-in — BELOW toolbar, not over viewer ── */}
+            {isAssetPaletteOpen && (
+              <div className="absolute left-0 top-[41px] bottom-0 z-30 shadow-2xl w-72">
+                <AssetPalette onClose={() => setAssetPaletteOpen(false)} />
               </div>
             )}
-            {/* NBC Compliance panel — bottom right */}
+
+            {/* ── Main view area ── */}
+            <div className="flex-1 relative min-h-0">
+              {viewMode === "model"  && <ThreeJSViewer />}
+              {viewMode === "plan"   && <FloorPlanView floorPlan={geometryData?.floor_plan} />}
+              {viewMode === "unreal" && <UnrealExport />}
+
+              {/* Compass — only in 3D model mode */}
+              {viewMode === "model" && (
+                <div className="absolute bottom-4 right-4 z-10 pointer-events-none">
+                  <svg width="68" height="68" viewBox="0 0 68 68" className="drop-shadow-lg">
+                    <circle cx="34" cy="34" r="32" fill="white" fillOpacity="0.88" stroke="#e2e8f0" strokeWidth="1.5"/>
+                    {/* N — red */}
+                    <polygon points="34,6 30,34 34,30 38,34" fill="#ef4444"/>
+                    {/* S — dark */}
+                    <polygon points="34,62 30,34 34,38 38,34" fill="#334155"/>
+                    {/* W */}
+                    <polygon points="6,34 34,30 30,34 34,38" fill="#94a3b8"/>
+                    {/* E */}
+                    <polygon points="62,34 34,30 38,34 34,38" fill="#94a3b8"/>
+                    <circle cx="34" cy="34" r="3.5" fill="#1e293b"/>
+                    <text x="34" y="4"  textAnchor="middle" fontSize="9" fontWeight="800" fill="#ef4444" fontFamily="system-ui">N</text>
+                    <text x="34" y="66" textAnchor="middle" fontSize="9" fontWeight="700" fill="#64748b" fontFamily="system-ui">S</text>
+                    <text x="3"  y="37" textAnchor="middle" fontSize="9" fontWeight="700" fill="#64748b" fontFamily="system-ui">W</text>
+                    <text x="65" y="37" textAnchor="middle" fontSize="9" fontWeight="700" fill="#64748b" fontFamily="system-ui">E</text>
+                  </svg>
+                </div>
+              )}
+
+            </div>
+
+            {/* NBC Compliance panel — bottom right */}            {/* NBC Compliance panel — bottom right */}
             {complianceData && (
               <div className="absolute bottom-6 right-4 z-10 bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-xl p-4 shadow-lg w-80">
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">

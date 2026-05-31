@@ -127,9 +127,15 @@ def _apply_defaults(schema: dict, prompt: str) -> dict:
         schema["roof_style"] = ROOF_FOR_STYLE.get(schema["style"], "flat")
 
     if "pool" not in schema:
-        schema["pool"] = (
-            {"enabled":True,"width":12,"length":6,"depth":1.8}
-            if any(w in p for w in ["pool","swimming","swim"]) else None)
+        has_pool = any(w in p for w in ["pool","swimming","swim"])
+        if has_pool:
+            side = "right"
+            if any(w in p for w in ["left","west"]):   side = "left"
+            elif any(w in p for w in ["back","north","rear"]): side = "back"
+            elif any(w in p for w in ["front","south"]): side = "front"
+            schema["pool"] = {"enabled":True,"width":12,"length":6,"depth":1.8,"side":side}
+        else:
+            schema["pool"] = None
 
     if "garage" not in schema:
         schema["garage"] = (
