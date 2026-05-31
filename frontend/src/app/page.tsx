@@ -60,7 +60,7 @@ export default function WorkspacePage() {
   });
   const [showConfig, setShowConfig] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [viewMode, setViewMode] = useState<"model" | "plan">("model");
+  const [viewMode, setViewMode] = useState<"model" | "plan" | "unreal">("model");
   
   // Connection status
   const [blenderStatus, setBlenderStatus] = useState<{available: boolean; version?: string} | null>(null);
@@ -281,7 +281,7 @@ export default function WorkspacePage() {
 
           {/* ── Right Panel: 3D Viewer ── */}
           <section className="flex-1 relative min-h-0 overflow-hidden">
-            {viewMode === "model" ? <ThreeJSViewer /> : <FloorPlanView floorPlan={geometryData?.floor_plan} />}
+            {viewMode === "model" ? <ThreeJSViewer /> : viewMode === "unreal" ? <UnrealExport /> : <FloorPlanView floorPlan={geometryData?.floor_plan} />}
 
             <div className="absolute top-4 left-4 z-20 flex rounded-lg border border-slate-200/70 bg-white/85 p-1 shadow-lg backdrop-blur-md">
               <button
@@ -302,6 +302,14 @@ export default function WorkspacePage() {
                 }`}
               >
                 <Map className="h-3.5 w-3.5" />Floor Plan
+              </button>
+              <button
+                onClick={() => setViewMode("unreal")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
+                  viewMode === "unreal" ? "bg-[#7c93c3] text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                🎮 Unreal
               </button>
             </div>
 
@@ -417,7 +425,7 @@ export default function WorkspacePage() {
                     floor_height: String(schema.floor_height || 3.2),
                     building_type: schema.building_type || "apartment",
                   });
-                  const res = await fetch(\`\${API_BASE}/api/cost-estimate?\${params}\`);
+                  const res = await fetch(`${API_BASE}/api/cost-estimate?${params}`);
                   const data = await res.json();
                   setBoqData(data);
                   setShowBOQ(true);
@@ -487,7 +495,7 @@ export default function WorkspacePage() {
                 </div>
               </div>
             )}
-            {/* NBC Compliance panel — bottom right */}}
+            {/* NBC Compliance panel — bottom right */}
             {complianceData && (
               <div className="absolute bottom-6 right-4 z-10 bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-xl p-4 shadow-lg w-80">
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
