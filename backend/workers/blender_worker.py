@@ -183,7 +183,6 @@ def mat(name, base, rough=0.5, metal=0.0, alpha=1.0, transmission=0.0,
             min(1,base[0]*0.8), min(1,base[1]*0.75), min(1,base[2]*0.7), 1.0)
         brk.inputs["Mortar"].default_value = (0.72,0.70,0.68,1.0)
         nt.links.new(coord.outputs["Generated"], brk.inputs["Vector"])
-        nt.links.new(brk.outputs["Color"], bsdf.inputs["Base Color"])
         bmp2 = nt.nodes.new("ShaderNodeBump")
         bmp2.location = (0,0)
         bmp2.inputs["Strength"].default_value = 0.5
@@ -197,13 +196,7 @@ def mat(name, base, rough=0.5, metal=0.0, alpha=1.0, transmission=0.0,
         wv.inputs["Scale"].default_value     = noise_scale
         wv.inputs["Distortion"].default_value = 2.0
         wv.inputs["Detail"].default_value    = 6.0
-        cr = nt.nodes.new("ShaderNodeValToRGB")
-        cr.location = (-200, 100)
-        cr.color_ramp.elements[0].color = (*[c*0.85 for c in base[:3]],1.0)
-        cr.color_ramp.elements[1].color = (*[min(1,c*1.1) for c in base[:3]],1.0)
         nt.links.new(coord.outputs["Generated"], wv.inputs["Vector"])
-        nt.links.new(wv.outputs["Fac"], cr.inputs["Fac"])
-        nt.links.new(cr.outputs["Color"], bsdf.inputs["Base Color"])
         if bump > 0:
             bmp2 = nt.nodes.new("ShaderNodeBump")
             bmp2.inputs["Strength"].default_value = bump
