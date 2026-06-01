@@ -684,8 +684,8 @@ def _roof_hip(bw, bd, top_z, oh, t, M):
     rh = min(bw,bd)*0.26
     # Four hip faces as tapered boxes
     for name,loc,dims,rot in [
-        ("Hip_N",(0, bd/2+oh/2, top_z+t+rh/2),(bw+oh*2, oh, rh),(math.radians(-30),0,0)),
-        ("Hip_S",(0,-bd/2-oh/2, top_z+t+rh/2),(bw+oh*2, oh, rh),(math.radians(30), 0,0)),
+        ("Hip_N",(0, bd/2+oh/2, top_z+t+rh/2),(bw+oh*2, oh, rh),(math.radians(30), 0,0)),
+        ("Hip_S",(0,-bd/2-oh/2, top_z+t+rh/2),(bw+oh*2, oh, rh),(math.radians(-30), 0,0)),
         ("Hip_E",( bw/2+oh/2,0, top_z+t+rh/2),(oh, bd+oh*2, rh),(0,math.radians(30),0)),
         ("Hip_W",(-bw/2-oh/2,0, top_z+t+rh/2),(oh, bd+oh*2, rh),(0,math.radians(-30),0)),
     ]:
