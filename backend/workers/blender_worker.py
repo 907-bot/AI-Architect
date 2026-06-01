@@ -741,15 +741,17 @@ def _roof_gable(bw, bd, top_z, oh, t, M, steep=False):
     """Gable/pitched roof for colonial/scandinavian."""
     add_box("Roof_Base",(0,0,top_z+t/2),(bw+oh*2,bd+oh*2,t), M["roof"])
     rh = bw*0.32 if steep else bw*0.22
-    # Two pitched faces
-    for name,y,rot in [
-        ("Pitch_L",0, math.radians(-40 if steep else -30)),
-        ("Pitch_R",0, math.radians( 40 if steep else  30)),
+    half_w = bw / 2 + oh
+    angle = math.radians(40 if steep else 30)
+    # Two pitched faces meeting at center ridge
+    for name, cx, rot in [
+        ("Pitch_L", -half_w / 2,  angle),
+        ("Pitch_R",  half_w / 2, -angle),
     ]:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(0,0,top_z+t+rh/2))
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(cx, 0, top_z + t + rh / 2))
         p = bpy.context.active_object; p.name = name
-        p.scale = (bw/2+oh, bd+oh*2, t)
-        p.rotation_euler = rot if isinstance(rot, tuple) else (0, rot, 0)
+        p.scale = (half_w, bd + oh * 2, t)
+        p.rotation_euler = (0, rot, 0)
         bpy.ops.object.transform_apply(scale=True)
         assign(p, M["roof_tile"] if not steep else M["roof"])
     add_box("Ridge",(0,0,top_z+t+rh),(bw*0.04,bd+oh*2,0.12), M["concrete"])
