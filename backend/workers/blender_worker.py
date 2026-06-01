@@ -8,6 +8,18 @@ Usage: blender --background --python backend/workers/blender_worker.py -- schema
 import bpy, sys, json, os, math, random
 from mathutils import Vector
 
+# ── Palette import (styles/materials.py lives next to this file) ──────────────
+_here = os.path.dirname(os.path.abspath(__file__))
+if _here not in sys.path:
+    sys.path.insert(0, _here)
+try:
+    from styles.materials import get_palette, get_lighting_config
+    _HAS_PALETTE = True
+except ImportError:          # graceful fallback when run in isolation
+    _HAS_PALETTE = False
+    def get_palette(s):      return {}
+    def get_lighting_config(s): return {}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. ARG / SCHEMA
 # ══════════════════════════════════════════════════════════════════════════════
@@ -21,101 +33,57 @@ def get_schema():
         return json.load(f)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. STYLE CONFIGS
+# 2. STYLE CONFIGS  (thin shim — geometry/roof params not in the palette)
 # ══════════════════════════════════════════════════════════════════════════════
-STYLE_CONFIGS = {
-    "modern": {
-        "wall_color":    (0.82, 0.80, 0.78), "wall_rough": 0.85,
-        "roof_color":    (0.15, 0.15, 0.17), "roof_type": "flat",
-        "glass_tint":    (0.72, 0.88, 0.98), "glass_alpha": 0.12,
-        "frame_color":   (0.08, 0.08, 0.09), "frame_metal": 0.9,
-        "accent_color":  (0.25, 0.45, 0.65),
-        "slab_offset":   0.15,               "overhang": 0.4,
-        "window_ratio":  0.70,               "bay_width": 3.8,
-        "ground_color":  (0.20, 0.18, 0.14), "grass_color": (0.18, 0.45, 0.15),
-        "sky_turbidity": 2.5,
-    },
-    "japanese": {
-        "wall_color":    (0.92, 0.88, 0.80), "wall_rough": 0.75,
-        "roof_color":    (0.22, 0.22, 0.25), "roof_type": "pagoda",
-        "glass_tint":    (0.90, 0.95, 0.88), "glass_alpha": 0.30,
-        "frame_color":   (0.30, 0.18, 0.08), "frame_metal": 0.0,
-        "accent_color":  (0.62, 0.12, 0.08),
-        "slab_offset":   0.0,                "overhang": 1.2,
-        "window_ratio":  0.55,               "bay_width": 3.2,
-        "ground_color":  (0.22, 0.19, 0.14), "grass_color": (0.12, 0.38, 0.10),
-        "sky_turbidity": 1.5,
-    },
-    "villa": {
-        "wall_color":    (0.92, 0.87, 0.78), "wall_rough": 0.88,
-        "roof_color":    (0.65, 0.30, 0.18), "roof_type": "hip",
-        "glass_tint":    (0.78, 0.90, 0.72), "glass_alpha": 0.18,
-        "frame_color":   (0.82, 0.78, 0.68), "frame_metal": 0.05,
-        "accent_color":  (0.70, 0.45, 0.22),
-        "slab_offset":   0.0,                "overhang": 0.8,
-        "window_ratio":  0.50,               "bay_width": 3.5,
-        "ground_color":  (0.28, 0.22, 0.15), "grass_color": (0.22, 0.52, 0.18),
-        "sky_turbidity": 2.0,
-    },
-    "asian": {
-        "wall_color":    (0.88, 0.82, 0.72), "wall_rough": 0.80,
-        "roof_color":    (0.58, 0.12, 0.08), "roof_type": "curved",
-        "glass_tint":    (0.72, 0.88, 0.80), "glass_alpha": 0.20,
-        "frame_color":   (0.55, 0.08, 0.05), "frame_metal": 0.1,
-        "accent_color":  (0.80, 0.62, 0.10),
-        "slab_offset":   0.0,                "overhang": 1.0,
-        "window_ratio":  0.45,               "bay_width": 3.0,
-        "ground_color":  (0.22, 0.18, 0.12), "grass_color": (0.15, 0.40, 0.12),
-        "sky_turbidity": 2.0,
-    },
-    "industrial": {
-        "wall_color":    (0.52, 0.48, 0.44), "wall_rough": 0.95,
-        "roof_color":    (0.28, 0.28, 0.30), "roof_type": "shed",
-        "glass_tint":    (0.60, 0.72, 0.78), "glass_alpha": 0.08,
-        "frame_color":   (0.18, 0.18, 0.20), "frame_metal": 0.95,
-        "accent_color":  (0.72, 0.32, 0.08),
-        "slab_offset":   0.0,                "overhang": 0.2,
-        "window_ratio":  0.65,               "bay_width": 4.5,
-        "ground_color":  (0.18, 0.16, 0.14), "grass_color": (0.14, 0.32, 0.10),
-        "sky_turbidity": 4.0,
-    },
-    "scandinavian": {
-        "wall_color":    (0.95, 0.93, 0.90), "wall_rough": 0.80,
-        "roof_color":    (0.18, 0.18, 0.20), "roof_type": "steep_gable",
-        "glass_tint":    (0.82, 0.90, 0.95), "glass_alpha": 0.10,
-        "frame_color":   (0.88, 0.85, 0.80), "frame_metal": 0.05,
-        "accent_color":  (0.62, 0.30, 0.15),
-        "slab_offset":   0.0,                "overhang": 0.6,
-        "window_ratio":  0.52,               "bay_width": 3.0,
-        "ground_color":  (0.25, 0.22, 0.18), "grass_color": (0.16, 0.42, 0.14),
-        "sky_turbidity": 1.8,
-    },
-    "colonial": {
-        "wall_color":    (0.95, 0.93, 0.90), "wall_rough": 0.85,
-        "roof_color":    (0.22, 0.20, 0.22), "roof_type": "gable",
-        "glass_tint":    (0.80, 0.90, 0.82), "glass_alpha": 0.15,
-        "frame_color":   (0.95, 0.93, 0.90), "frame_metal": 0.0,
-        "accent_color":  (0.12, 0.18, 0.38),
-        "slab_offset":   0.0,                "overhang": 0.5,
-        "window_ratio":  0.42,               "bay_width": 3.2,
-        "ground_color":  (0.25, 0.22, 0.16), "grass_color": (0.20, 0.50, 0.18),
-        "sky_turbidity": 2.2,
-    },
-    "classical": {
-        "wall_color":    (0.93, 0.90, 0.84), "wall_rough": 0.80,
-        "roof_color":    (0.55, 0.35, 0.25), "roof_type": "pitched",
-        "glass_tint":    (0.65, 0.80, 0.70), "glass_alpha": 0.20,
-        "frame_color":   (0.85, 0.82, 0.75), "frame_metal": 0.0,
-        "accent_color":  (0.65, 0.52, 0.30),
-        "slab_offset":   0.0,                "overhang": 0.6,
-        "window_ratio":  0.45,               "bay_width": 3.4,
-        "ground_color":  (0.28, 0.24, 0.18), "grass_color": (0.22, 0.52, 0.18),
-        "sky_turbidity": 2.0,
-    },
+# Non-colour layout parameters that remain inline (palette handles colours).
+_LAYOUT_DEFAULTS: dict = {
+    "roof_type": "flat",  "overhang": 0.4,
+    "window_ratio": 0.60, "bay_width": 3.5, "slab_offset": 0.0,
 }
 
-def get_style(name):
-    return STYLE_CONFIGS.get(name, STYLE_CONFIGS["modern"])
+_LAYOUT_OVERRIDES: dict = {
+    "modern":       {"roof_type": "flat",        "overhang": 0.4,  "window_ratio": 0.70, "bay_width": 3.8, "slab_offset": 0.15},
+    "japanese":     {"roof_type": "pagoda",      "overhang": 1.2,  "window_ratio": 0.55, "bay_width": 3.2},
+    "villa":        {"roof_type": "hip",         "overhang": 0.8,  "window_ratio": 0.50, "bay_width": 3.5},
+    "italian":      {"roof_type": "hip",         "overhang": 0.8,  "window_ratio": 0.50, "bay_width": 3.5},
+    "mediterranean":{"roof_type": "hip",         "overhang": 0.8,  "window_ratio": 0.50, "bay_width": 3.5},
+    "asian":        {"roof_type": "curved",      "overhang": 1.0,  "window_ratio": 0.45, "bay_width": 3.0},
+    "industrial":   {"roof_type": "shed",        "overhang": 0.2,  "window_ratio": 0.65, "bay_width": 4.5},
+    "scandinavian": {"roof_type": "steep_gable", "overhang": 0.6,  "window_ratio": 0.52, "bay_width": 3.0},
+    "colonial":     {"roof_type": "gable",       "overhang": 0.5,  "window_ratio": 0.42, "bay_width": 3.2},
+    "craftsman":    {"roof_type": "gable",       "overhang": 0.5,  "window_ratio": 0.42, "bay_width": 3.2},
+    "classical":    {"roof_type": "pitched",     "overhang": 0.6,  "window_ratio": 0.45, "bay_width": 3.4},
+    "greek":        {"roof_type": "pitched",     "overhang": 0.6,  "window_ratio": 0.45, "bay_width": 3.4},
+    "nordic":       {"roof_type": "steep_gable", "overhang": 0.6,  "window_ratio": 0.52, "bay_width": 3.0},
+}
+
+
+def get_style(name: str) -> dict:
+    """Return a style-config dict compatible with the old STYLE_CONFIGS API.
+
+    Colour slots are now sourced from ``styles.materials.get_palette()``;
+    this shim builds the legacy dict shape so the rest of the geometry code
+    continues to work without changes.
+    """
+    pal    = get_palette(name)
+    layout = {**_LAYOUT_DEFAULTS, **_LAYOUT_OVERRIDES.get(name.lower(), {})}
+
+    return {
+        # ── colours (from palette, already linear-sRGB) ───────────────────
+        "wall_color":   pal.get("wall",    (0.82, 0.80, 0.78)),
+        "wall_rough":   pal.get("wall_rough", 0.85),
+        "roof_color":   pal.get("roof",    (0.15, 0.15, 0.17)),
+        "glass_tint":   pal.get("glass",   (0.72, 0.88, 0.98)),
+        "glass_alpha":  pal.get("glass_alpha", 0.12),
+        "frame_color":  pal.get("frame",   (0.08, 0.08, 0.09)),
+        "frame_metal":  pal.get("frame_metal", 0.9),
+        "accent_color": pal.get("accent",  (0.25, 0.45, 0.65)),
+        "ground_color": pal.get("ground",  (0.20, 0.18, 0.14)),
+        "grass_color":  pal.get("grass",   (0.18, 0.45, 0.15)),
+        "sky_turbidity":pal.get("sky_turbidity", 2.5),
+        # ── layout (non-colour) ───────────────────────────────────────────
+        **layout,
+    }
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 3. SCENE UTILS
@@ -263,76 +231,140 @@ def mat(name, base, rough=0.5, metal=0.0, alpha=1.0, transmission=0.0,
     _mat_cache[name] = m
     return m
 
-def build_material_set(sc):
-    """Build the full material palette for a given style config."""
+def build_material_set(sc: dict, style_name: str = "modern") -> dict:
+    """Build the full Blender material set driven by ``styles/materials.py``.
+
+    All colour values are sourced from the photorealistic per-style palette so
+    that every material accurately reflects the curated colour-grade for each
+    architectural style.  The *sc* dict (from ``get_style()``) is still used
+    for the few scalar layout params (roughness overrides, metalness) that
+    aren't in the palette.
+    """
     _mat_cache.clear()
-    wc = sc["wall_color"];    wr = sc["wall_rough"]
-    rc = sc["roof_color"]
-    gc = sc["glass_tint"];    ga = sc["glass_alpha"]
-    fc = sc["frame_color"];   fm = sc["frame_metal"]
-    ac = sc["accent_color"]
-    gr = sc["ground_color"]
-    gs = sc["grass_color"]
+    pal = get_palette(style_name)     # full merged palette dict
+
+    # ── Convenience helpers ───────────────────────────────────────────────────
+    def p(slot: str, fallback=(0.5, 0.5, 0.5)):
+        """Return (R,G,B) from palette slot, defaulting to *fallback*."""
+        v = pal.get(slot, fallback)
+        return v if v is not None else fallback
+
+    def pf(slot: str, fallback: float = 0.5) -> float:
+        """Return float scalar from palette slot."""
+        v = pal.get(slot)
+        return float(v) if isinstance(v, (int, float)) else fallback
+
+    wc = p("wall");         wr = pf("wall_rough", sc.get("wall_rough", 0.85))
+    rc = p("roof");         rr = pf("roof_rough", 0.70)
+    gc = p("glass");        ga = pf("glass_alpha", sc.get("glass_alpha", 0.12))
+    fc = p("frame");        fm = pf("frame_metal", sc.get("frame_metal", 0.9))
+    ac = p("accent")
+    gr = p("ground");       gs = p("grass")
+    wbump = pf("wall_bump", 0.50)
+
+    # Foliage derived from palette
+    fol_a = p("foliage_a", gs)
+    fol_b = p("foliage_b", (gs[0]*0.75, gs[1]*0.82, gs[2]*0.72))
+    fol_dk= p("foliage_dark", (0.06, 0.28, 0.06))
+
+    # Pool water
+    pw_c  = p("pool_water",   (0.04, 0.52, 0.78))
+    pw_a  = pf("pool_water_alpha", 0.65)
+    pw_t  = pf("pool_water_trans", 0.85)
+    pt_c  = p("pool_tile",    (0.78, 0.90, 0.95))
+    wa_c  = p("water",        (0.05, 0.40, 0.65))
+    wa_a  = pf("water_alpha",  0.55)
+    wa_t  = pf("water_trans",  0.88)
+
+    # Interior
+    int_floor = p("interior_floor", p("wood_light", (0.62, 0.45, 0.28)))
+    int_ceil  = p("interior_ceil",  (0.95, 0.93, 0.90))
+
+    # Lantern emission
+    lantern_enabled = bool(pal.get("lantern"))
+    lantern_col     = p("lantern_color", (0.96, 0.78, 0.26)) if lantern_enabled else None
 
     return {
-        # Structural
-        "wall":        mat("wall",     wc, rough=wr,  bump=0.5, noise_scale=80),
-        "wall_brick":  mat("wall_brk", wc, rough=0.9, brick=True),
-        "wall_wood":   mat("wall_wd",  (0.48,0.32,0.18), rough=0.75, wave=True, noise_scale=20, bump=0.4),
-        "slab":        mat("slab",     (0.72,0.70,0.68), rough=0.92, bump=0.3, noise_scale=60),
-        "concrete":    mat("concrete", (0.62,0.60,0.58), rough=0.90, bump=0.5, noise_scale=70),
-        "facade":      mat("facade",   wc,  rough=max(0.7,wr-0.05), bump=0.25, noise_scale=90),
-        # Roof
-        "roof":        mat("roof",     rc,  rough=0.70, bump=0.4, noise_scale=50),
-        "roof_tile":   mat("roof_tile",rc,  rough=0.65, wave=True, noise_scale=12, bump=0.6),
-        "roof_metal":  mat("roof_met", rc,  rough=0.25, metal=0.8, wave=True, noise_scale=30),
-        # Glass & metal
-        "glass":       mat("glass",    gc, rough=0.02, metal=0.0, alpha=ga, transmission=0.95),
-        "glass_panel": mat("glass_p",  gc, rough=0.04, alpha=ga+0.06, transmission=0.90),
+        # ── Structural ───────────────────────────────────────────────────────
+        "wall":        mat("wall",     wc, rough=wr,  bump=wbump, noise_scale=80),
+        "wall_brick":  mat("wall_brk", p("wall_brick", wc), rough=0.9, brick=True),
+        "wall_wood":   mat("wall_wd",  p("wall_wood", (0.48, 0.32, 0.18)),
+                           rough=0.75, wave=True, noise_scale=20, bump=0.4),
+        "slab":        mat("slab",     p("slab",  (0.72, 0.70, 0.68)), rough=0.92, bump=0.3, noise_scale=60),
+        "concrete":    mat("concrete", p("concrete",(0.62, 0.60, 0.58)), rough=0.90, bump=0.5, noise_scale=70),
+        "facade":      mat("facade",   wc, rough=max(0.7, wr-0.05), bump=0.25, noise_scale=90),
+        # ── Roof ─────────────────────────────────────────────────────────────
+        "roof":        mat("roof",     rc, rough=rr,  bump=pf("roof_bump", 0.40), noise_scale=50),
+        "roof_tile":   mat("roof_tile",rc, rough=0.65, wave=True, noise_scale=12, bump=0.6),
+        "roof_metal":  mat("roof_met", p("roof_metal", rc), rough=0.25, metal=0.8, wave=True, noise_scale=30),
+        # ── Glass & metal ────────────────────────────────────────────────────
+        "glass":       mat("glass",    gc, rough=pf("glass_rough", 0.02),
+                           metal=0.0, alpha=ga, transmission=0.95),
+        "glass_panel": mat("glass_p",  gc, rough=0.04, alpha=min(1.0, ga+0.06), transmission=0.90),
         "frame":       mat("frame",    fc, rough=0.2+fm*0.1, metal=fm),
-        "steel":       mat("steel",    (0.65,0.65,0.67), rough=0.12, metal=0.95),
-        "railing":     mat("rail",     fc, rough=0.2, metal=max(fm,0.7)),
-        # Accent
+        "steel":       mat("steel",    p("steel", (0.65, 0.65, 0.67)), rough=0.12, metal=0.95),
+        "railing":     mat("rail",     fc, rough=0.2, metal=max(fm, 0.7)),
+        # ── Accent ───────────────────────────────────────────────────────────
         "accent":      mat("accent",   ac, rough=0.6, bump=0.2),
-        "column":      mat("column",   wc, rough=0.75, bump=0.3),
-        "wood_dark":   mat("wd_dark",  (0.28,0.18,0.08), rough=0.8, wave=True, noise_scale=15, bump=0.5),
-        "wood_light":  mat("wd_light", (0.62,0.45,0.28), rough=0.75, wave=True, noise_scale=18, bump=0.4),
-        # Ground
+        "column":      mat("column",   p("column", wc), rough=0.75, bump=0.3),
+        "wood_dark":   mat("wd_dark",  p("wood_dark",  (0.28, 0.18, 0.08)),
+                           rough=0.8, wave=True, noise_scale=15, bump=0.5),
+        "wood_light":  mat("wd_light", p("wood_light", (0.62, 0.45, 0.28)),
+                           rough=0.75, wave=True, noise_scale=18, bump=0.4),
+        # ── Ground ───────────────────────────────────────────────────────────
         "ground":      mat("ground",   gr, rough=1.0, bump=0.8, noise_scale=100),
         "grass":       mat("grass",    gs, rough=1.0, bump=0.6, noise_scale=80),
-        "pavement":    mat("pave",     (0.60,0.58,0.55), rough=0.88, bump=0.3),
-        "asphalt":     mat("asphalt",  (0.12,0.12,0.13), rough=0.95, bump=0.5),
-        "gravel":      mat("gravel",   (0.48,0.46,0.42), rough=1.0, bump=0.7, noise_scale=40),
-        "sand":        mat("sand",     (0.78,0.72,0.55), rough=1.0, bump=0.4, noise_scale=50),
-        # Water & pool
-        "pool_water":  mat("pw",       (0.04,0.52,0.78), rough=0.0, alpha=0.65, transmission=0.85),
-        "pool_tile":   mat("ptile",    (0.78,0.90,0.95), rough=0.15, bump=0.1),
-        # Nature
-        "bark":        mat("bark",     (0.30,0.20,0.12), rough=0.9, bump=0.7, noise_scale=25),
-        "foliage_a":   mat("fol_a",    gs, rough=1.0, bump=0.5),
-        "foliage_b":   mat("fol_b",    (gs[0]*0.75, gs[1]*0.82, gs[2]*0.72), rough=1.0),
-        "foliage_dark":mat("fol_dk",   (0.06,0.28,0.06), rough=1.0),
-        # Japanese-specific
-        "shoji":       mat("shoji",    (0.95,0.93,0.88), rough=0.9, alpha=0.7),
-        "bamboo":      mat("bamboo",   (0.72,0.78,0.38), rough=0.6, wave=True, noise_scale=8, bump=0.3),
-        "tatami":      mat("tatami",   (0.72,0.68,0.42), rough=0.85, wave=True, noise_scale=10),
-        "stone_zen":   mat("stone_z",  (0.52,0.52,0.50), rough=0.92, bump=0.5),
-        # Villa-specific
-        "terracotta":  mat("terra",    (0.70,0.38,0.22), rough=0.82, bump=0.6, noise_scale=25),
-        "plaster":     mat("plaster",  wc, rough=0.82, bump=0.45, noise_scale=55),
-        "marble":      mat("marble",   (0.92,0.90,0.88), rough=0.08, bump=0.15, noise_scale=30),
-        # Colonial / Classical
-        "white_paint": mat("wht_pnt",  (0.95,0.93,0.90), rough=0.78, bump=0.2),
-        "brick_red":   mat("brk_red",  (0.62,0.28,0.18), rough=0.9, brick=True),
-        # Industrial
-        "corten":      mat("corten",   (0.52,0.28,0.15), rough=0.85, bump=0.6),
-        "corrugated":  mat("corrug",   (0.48,0.48,0.50), rough=0.35, metal=0.7, wave=True, noise_scale=25),
-        "exposed_conc":mat("exp_conc", (0.55,0.53,0.52), rough=0.92, bump=0.6, noise_scale=65),
-        # Misc
+        "pavement":    mat("pave",     p("pavement", (0.60, 0.58, 0.55)), rough=0.88, bump=0.3),
+        "asphalt":     mat("asphalt",  p("asphalt",  (0.12, 0.12, 0.13)), rough=0.95, bump=0.5),
+        "gravel":      mat("gravel",   p("gravel",   (0.48, 0.46, 0.42)), rough=1.0, bump=0.7, noise_scale=40),
+        "sand":        mat("sand",     p("sand",     (0.78, 0.72, 0.55)), rough=1.0, bump=0.4, noise_scale=50),
+        "path":        mat("path",     p("path",     (0.65, 0.63, 0.60)), rough=0.9),
+        # ── Water & pool ─────────────────────────────────────────────────────
+        "pool_water":  mat("pw",   pw_c, rough=0.0, alpha=pw_a, transmission=pw_t),
+        "pool_tile":   mat("ptile",pt_c, rough=0.15, bump=0.1),
+        "water":       mat("water",wa_c, rough=0.0, alpha=wa_a, transmission=wa_t),
+        # ── Nature ───────────────────────────────────────────────────────────
+        "bark":        mat("bark",    p("bark", (0.30, 0.20, 0.12)), rough=0.9, bump=0.7, noise_scale=25),
+        "foliage_a":   mat("fol_a",  fol_a, rough=1.0, bump=0.5),
+        "foliage_b":   mat("fol_b",  fol_b, rough=1.0),
+        "foliage_dark":mat("fol_dk", fol_dk, rough=1.0),
+        # ── Japanese-specific ────────────────────────────────────────────────
+        "shoji":       mat("shoji",   p("shoji", (0.95, 0.93, 0.88)),
+                           rough=0.9, alpha=pf("shoji_alpha", 0.70)),
+        "bamboo":      mat("bamboo",  p("bamboo", (0.72, 0.78, 0.38)),
+                           rough=0.6, wave=True, noise_scale=8, bump=0.3),
+        "tatami":      mat("tatami",  p("tatami", (0.72, 0.68, 0.42)),
+                           rough=0.85, wave=True, noise_scale=10),
+        "stone_zen":   mat("stone_z", p("stone_zen", (0.52, 0.52, 0.50)), rough=0.92, bump=0.5),
+        # ── Villa-specific ───────────────────────────────────────────────────
+        "terracotta":  mat("terra",   p("terracotta", (0.70, 0.38, 0.22)), rough=0.82, bump=0.6, noise_scale=25),
+        "plaster":     mat("plaster", p("plaster", wc), rough=0.82, bump=0.45, noise_scale=55),
+        "marble":      mat("marble",  p("marble",  (0.92, 0.90, 0.88)), rough=0.08, bump=0.15, noise_scale=30),
+        # ── Colonial / Classical ─────────────────────────────────────────────
+        "white_paint": mat("wht_pnt", p("white_paint", (0.95, 0.93, 0.90)), rough=0.78, bump=0.2),
+        "brick_red":   mat("brk_red", p("brick_red",   (0.62, 0.28, 0.18)), rough=0.9, brick=True),
+        # ── Industrial ───────────────────────────────────────────────────────
+        "corten":      mat("corten",   p("corten",      (0.52, 0.28, 0.15)), rough=0.85, bump=0.6),
+        "corrugated":  mat("corrug",   p("corrugated",  (0.48, 0.48, 0.50)),
+                           rough=0.35, metal=0.7, wave=True, noise_scale=25),
+        "exposed_conc":mat("exp_conc", p("exposed_conc",(0.55, 0.53, 0.52)), rough=0.92, bump=0.6, noise_scale=65),
+        # ── Interior surfaces ────────────────────────────────────────────────
+        "interior_floor": mat("int_fl",  int_floor, rough=0.50, wave=True, noise_scale=18, bump=0.3),
+        "interior_wall":  mat("int_wl",  p("interior_wall",  wc),  rough=0.82, bump=0.3, noise_scale=70),
+        "interior_ceil":  mat("int_cl",  int_ceil,  rough=0.75, bump=0.2),
+        # ── Furniture ────────────────────────────────────────────────────────
+        "sofa":        mat("sofa",   p("sofa",          (0.35, 0.30, 0.28)), rough=0.88, bump=0.3),
+        "cushion":     mat("cushion",p("cushion_accent",(0.25, 0.45, 0.65)), rough=0.90),
+        "table_top":   mat("tbl",    p("table_top",     (0.62, 0.45, 0.28)),
+                           rough=0.35, wave=True, noise_scale=14, bump=0.2),
+        # ── Lantern (emissive) ───────────────────────────────────────────────
+        "lantern":     (mat("lantern", p("lantern_color",(0.96,0.78,0.26)),
+                            rough=0.9, emission=lantern_col)
+                        if lantern_enabled else
+                        mat("lantern", (0.9, 0.85, 0.75), rough=0.9)),
+        # ── Misc ─────────────────────────────────────────────────────────────
         "door":        mat("door",     fc, rough=0.4, metal=fm*0.5),
-        "path":        mat("path",     (0.65,0.63,0.60), rough=0.9),
-        "water":       mat("water",    (0.05,0.40,0.65), rough=0.0, alpha=0.55, transmission=0.88),
-        "dark_metal":  mat("dk_met",   (0.10,0.10,0.12), rough=0.18, metal=0.92),
+        "dark_metal":  mat("dk_met",   (0.10, 0.10, 0.12), rough=0.18, metal=0.92),
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -348,40 +380,61 @@ def setup_render(samples=128):
     sc.render.resolution_y = 1080
 
 def setup_lighting(bw, bd, total_h, sc_cfg, style_name):
+    """Configure Cycles HDRI sky + three-point lights from the style palette."""
+    lc = get_lighting_config(style_name)   # palette-driven lighting params
+
     world = bpy.context.scene.world
     if not world:
         world = bpy.data.worlds.new("World")
         bpy.context.scene.world = world
     world.use_nodes = True
     nt = world.node_tree; nt.nodes.clear()
-    out  = nt.nodes.new("ShaderNodeOutputWorld")
-    sky  = nt.nodes.new("ShaderNodeTexSky")
-    sky.sky_type  = "HOSEK_WILKIE"
-    sky.sun_elevation = math.radians(42)
-    sky.sun_rotation  = math.radians(215)
-    sky.turbidity = sc_cfg.get("sky_turbidity", 2.5)
-    bg   = nt.nodes.new("ShaderNodeBackground")
-    bg.inputs["Strength"].default_value = 1.3
+
+    out   = nt.nodes.new("ShaderNodeOutputWorld")
+    sky   = nt.nodes.new("ShaderNodeTexSky")
+    sky.sky_type      = "HOSEK_WILKIE"
+    sky.sun_elevation = math.radians(lc.get("sun_elevation", 42.0))
+    sky.sun_rotation  = math.radians(lc.get("sun_rotation",  215.0))
+    sky.turbidity     = lc.get("sky_turbidity", sc_cfg.get("sky_turbidity", 2.5))
+
+    bg  = nt.nodes.new("ShaderNodeBackground")
+    bg.inputs["Strength"].default_value = lc.get("ambient_strength", 1.3)
     coord = nt.nodes.new("ShaderNodeTexCoord")
     nt.links.new(coord.outputs["Generated"], sky.inputs["Vector"])
-    nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
-    nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
+    nt.links.new(sky.outputs["Color"],       bg.inputs["Color"])
+    nt.links.new(bg.outputs["Background"],   out.inputs["Surface"])
 
-    # Key sun
+    # ── Optional morning-mist fog (volume scatter) ────────────────────────────
+    if lc.get("fog"):
+        vol  = nt.nodes.new("ShaderNodeVolumePrincipled")
+        vol.inputs["Density"].default_value = lc.get("fog_density", 0.06)
+        fc_  = lc.get("fog_color", (0.82, 0.88, 0.92))
+        vol.inputs["Color"].default_value = (*fc_[:3], 1.0)
+        nt.links.new(vol.outputs["Volume"], out.inputs["Volume"])
+
+    # ── Key sun light ─────────────────────────────────────────────────────────
+    sun_elev = math.radians(lc.get("sun_elevation", 42.0))
+    sun_rot  = math.radians(lc.get("sun_rotation",  215.0))
     bpy.ops.object.light_add(type="SUN", location=(bw*2, -bd*2, total_h*3))
     sun = bpy.context.active_object
-    sun.data.energy = 4.5 if style_name == "japanese" else 5.5
+    sun.data.energy = lc.get("sun_energy", 5.5)
     sun.data.angle  = math.radians(0.53)
-    sun.rotation_euler = (math.radians(48), 0, math.radians(215))
+    sun_col = lc.get("sun_color")
+    if sun_col:
+        sun.data.color = (*sun_col[:3],)
+    sun.rotation_euler = (math.pi/2 - sun_elev, 0, sun_rot)
 
-    # Soft fill
+    # ── Soft fill light ───────────────────────────────────────────────────────
     bpy.ops.object.light_add(type="AREA", location=(-bw*2.5, bd*2.5, total_h*1.8))
     fill = bpy.context.active_object
-    fill.data.energy = 250 if style_name == "industrial" else 320
+    fill.data.energy = lc.get("fill_energy", 320)
     fill.data.size   = 28.0
+    fill_col = lc.get("fill_color")
+    if fill_col:
+        fill.data.color = (*fill_col[:3],)
     fill.rotation_euler = (math.radians(-38), 0, math.radians(-45))
 
-    # Rim light (back)
+    # ── Rim / back light ──────────────────────────────────────────────────────
     bpy.ops.object.light_add(type="AREA", location=(0, bd*3, total_h*2))
     rim = bpy.context.active_object
     rim.data.energy = 120
@@ -973,10 +1026,16 @@ def generate_pool(bw, bd, pool_cfg, base_z, M, style_name):
     for ri in range(5):
         add_box(f"Rung_{ri}",(px+pw/2-0.3,py+pl/2-0.3,pz-ri*0.32-0.15),(0.28,0.03,0.03), M["steel"])
 
-    # Japanese style: add koi pond instead
+    # Japanese style: replace pool water with photorealistic koi pond colour
     if style_name == "japanese":
-        assign(bpy.data.objects.get("Pool_Water") or bpy.context.active_object,
-               mat("koi", (0.05,0.32,0.42), rough=0.0, alpha=0.55, transmission=0.82))
+        koi_obj = bpy.data.objects.get("Pool_Water") or bpy.context.active_object
+        # Use palette koi-pond colour (Mossy Jade) with palette transmission values
+        koi_c   = M.get("pool_water")  # already set to Mossy Jade from palette
+        koi_a   = 0.55
+        koi_t   = 0.82
+        assign(koi_obj, mat("koi_pond", koi_c.inputs[0].default_value[:3]
+               if hasattr(koi_c, 'inputs') else (0.05, 0.32, 0.42),
+               rough=0.0, alpha=koi_a, transmission=koi_t))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 16. GARAGE
@@ -1089,27 +1148,47 @@ def _tree_simple(i, tx, ty, h, r, M, fm):
 # INTERIOR ROOMS & FURNITURE
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_interior(bw, bd, num_floors, floor_h, base_z, M, style_name):
-    """Generate interior floor materials and furniture for each floor."""
-    wall_t = 0.28
+    """Generate interior floor materials and furniture for each floor.
+
+    Uses palette-driven ``interior_floor``, ``interior_wall`` and
+    ``interior_ceil`` materials from the style-aware material set.
+    """
+    wall_t  = 0.28
     inner_w = bw - wall_t * 2
     inner_d = bd - wall_t * 2
 
-    # Floor materials per style
-    floor_mat = M.get("tatami") if style_name == "japanese" else (
-                M.get("marble") if style_name in ("villa","classical","colonial") else
-                M.get("wood_light"))
+    # ── Floor material: prefer dedicated palette slot, fall back gracefully ───
+    if style_name == "japanese":
+        floor_mat = M.get("interior_floor") or M.get("tatami") or M["wood_light"]
+    elif style_name in ("villa", "classical", "italian", "mediterranean"):
+        floor_mat = M.get("interior_floor") or M.get("marble") or M["wood_light"]
+    elif style_name == "industrial":
+        floor_mat = M.get("interior_floor") or M.get("exposed_conc") or M["concrete"]
+    else:
+        floor_mat = M.get("interior_floor") or M.get("wood_light") or M["facade"]
 
-    # Ceiling material
-    ceil_mat = M.get("white_paint", M["facade"])
+    # ── Interior wall material ────────────────────────────────────────────────
+    iwall_mat = M.get("interior_wall") or M["wall"]
+
+    # ── Ceiling material ──────────────────────────────────────────────────────
+    ceil_mat = M.get("interior_ceil") or M.get("white_paint") or M["facade"]
 
     for fi in range(num_floors):
-        fz = base_z + fi * floor_h
+        fz    = base_z + fi * floor_h
         slab_t = 0.28
 
         # Interior floor surface
         add_box(f"Floor_Mat_{fi}",
                 (0, 0, fz + slab_t + 0.02),
                 (inner_w, inner_d, 0.04), floor_mat)
+
+        # Interior walls (thin inset panels on E/W sides for material variety)
+        add_box(f"IWall_E_{fi}",
+                (inner_w/2 - 0.04, 0, fz + slab_t + floor_h/2),
+                (0.04, inner_d, floor_h - slab_t), iwall_mat)
+        add_box(f"IWall_W_{fi}",
+                (-inner_w/2 + 0.04, 0, fz + slab_t + floor_h/2),
+                (0.04, inner_d, floor_h - slab_t), iwall_mat)
 
         # Ceiling
         add_box(f"Ceiling_{fi}",
@@ -1133,7 +1212,9 @@ def generate_interior(bw, bd, num_floors, floor_h, base_z, M, style_name):
 
 def _furniture_living(cx, cz_unused, fz, rw, rd, M, style_name):
     """Sofa, coffee table, TV unit."""
-    wood = M.get("wood_light"); fab = M.get("wall"); dark = M.get("wood_dark")
+    wood = M.get("table_top") or M.get("wood_light")
+    fab  = M.get("sofa")     or M.get("wall")
+    dark = M.get("wood_dark")
     # Sofa
     add_box("Sofa_Base",    (cx - rw*0.2, -rd*0.25, fz + 0.22), (2.4, 0.9, 0.44), fab)
     add_box("Sofa_Back",    (cx - rw*0.2, -rd*0.25 - 0.4, fz + 0.5), (2.4, 0.15, 0.6), fab)
@@ -1157,7 +1238,8 @@ def _furniture_living(cx, cz_unused, fz, rw, rd, M, style_name):
 
 def _furniture_bedroom(cx, cz_unused, fz, rw, rd, M, style_name):
     """Bed, wardrobe, desk."""
-    wood = M.get("wood_light"); dark = M.get("wood_dark")
+    wood = M.get("table_top") or M.get("wood_light")
+    dark = M.get("wood_dark")
     mattress_mat = mat("mattress", (0.95,0.93,0.90), rough=0.9)
     pillow_mat   = mat("pillow",   (0.98,0.96,0.94), rough=0.95)
     # Bed frame
@@ -1182,7 +1264,8 @@ def _furniture_bedroom(cx, cz_unused, fz, rw, rd, M, style_name):
 
 def _furniture_office(cx, cz_unused, fz, rw, rd, M, style_name):
     """Desks and chairs for office/mid floors."""
-    wood = M.get("wood_light"); fab = M.get("wall")
+    wood = M.get("table_top") or M.get("wood_light")
+    fab  = M.get("sofa")     or M.get("wall")
     for di in range(3):
         dx = -rw*0.3 + di * rw*0.3
         add_box(f"ODesk_{di}",  (cx+dx, 0, fz+0.38), (1.2, 0.65, 0.04), wood)
@@ -1233,7 +1316,8 @@ def main():
 
     clear_scene()
     setup_render(samples=96)
-    M = build_material_set(sc_cfg)
+    # Pass style_name so build_material_set() loads the photorealistic palette
+    M = build_material_set(sc_cfg, style_name=style_name)
 
     generate_terrain(bw, bd, M, style_name)
     base_z = generate_foundation(bw, bd, M, style_name)
