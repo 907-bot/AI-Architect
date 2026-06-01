@@ -620,20 +620,24 @@ def generate_roof(bw, bd, top_z, M, sc_cfg, style_name):
     oh  = sc_cfg.get("overhang",0.4)
     t   = 0.35
 
-    if rt == "flat" or style_name == "modern":
-        _roof_flat(bw, bd, top_z, oh, t, M)
-    elif rt == "pagoda" or style_name == "japanese":
-        _roof_pagoda(bw, bd, top_z, oh, t, M)
-    elif rt == "hip" or style_name == "villa":
-        _roof_hip(bw, bd, top_z, oh, t, M)
-    elif rt == "curved" or style_name == "asian":
-        _roof_curved(bw, bd, top_z, oh, t, M)
-    elif rt == "shed" or style_name == "industrial":
-        _roof_shed(bw, bd, top_z, oh, t, M)
-    elif rt in ("steep_gable","gable","pitched") or style_name in ("scandinavian","colonial","classical"):
-        _roof_gable(bw, bd, top_z, oh, t, M, steep=(style_name=="scandinavian"))
+    # Respect explicit roof_type first; style_name is fallback only
+    if   rt == "flat":            _roof_flat(bw, bd, top_z, oh, t, M)
+    elif rt == "pagoda":          _roof_pagoda(bw, bd, top_z, oh, t, M)
+    elif rt == "hip":             _roof_hip(bw, bd, top_z, oh, t, M)
+    elif rt == "curved":          _roof_curved(bw, bd, top_z, oh, t, M)
+    elif rt == "shed":            _roof_shed(bw, bd, top_z, oh, t, M)
+    elif rt == "steep_gable":     _roof_gable(bw, bd, top_z, oh, t, M, steep=True)
+    elif rt in ("gable","pitched"): _roof_gable(bw, bd, top_z, oh, t, M, steep=False)
     else:
-        _roof_flat(bw, bd, top_z, oh, t, M)
+        # style-based fallback (no explicit roof_type)
+        if   style_name == "modern":       _roof_flat(bw, bd, top_z, oh, t, M)
+        elif style_name == "japanese":     _roof_pagoda(bw, bd, top_z, oh, t, M)
+        elif style_name == "villa":        _roof_hip(bw, bd, top_z, oh, t, M)
+        elif style_name == "asian":        _roof_curved(bw, bd, top_z, oh, t, M)
+        elif style_name == "industrial":   _roof_shed(bw, bd, top_z, oh, t, M)
+        elif style_name == "scandinavian": _roof_gable(bw, bd, top_z, oh, t, M, steep=True)
+        elif style_name in ("colonial","classical"): _roof_gable(bw, bd, top_z, oh, t, M, steep=False)
+        else:                            _roof_flat(bw, bd, top_z, oh, t, M)
 
 def _roof_flat(bw, bd, top_z, oh, t, M):
     add_box("Roof_Slab", (0,0,top_z+t/2), (bw+oh*2,bd+oh*2,t), M["roof"])
@@ -1281,7 +1285,26 @@ def _furniture_office(cx, cz_unused, fz, rw, rd, M, style_name):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 18. EXPORT
+# 18. APARTMENT PARTITIONS — interior dividing walls for multi-flat floors
+# ══════════════════════════════════════════════════════════════════════════════
+def _generate_apartment_partitions(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_name):
+    """Add an interior dividing wall splitting each floor into 2+ flats."""
+    wall_mat = M.get("facade") or M.get("wall")
+    wt   = 0.18
+    # Divide along the longer dimension
+    if bw >= bd:
+        # Split width-wise → flats on left/right
+        for fi in range(num_floors):
+            fz = base_z + fi*floor_h
+            add_box(f"Part_W_{fi}", (0, 0, fz+floor_h/2), (wt, bd*0.85, floor_h), wall_mat)
+    else:
+        # Split depth-wise → flats on front/back
+        for fi in range(num_floors):
+            fz = base_z + fi*floor_h
+            add_box(f"Part_D_{fi}", (0, 0, fz+floor_h/2), (bw*0.85, wt, floor_h), wall_mat)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 19. EXPORT
 # ══════════════════════════════════════════════════════════════════════════════
 def export_glb(output_path):
     # Remove cameras (they lock viewer orbit)
@@ -1298,7 +1321,7 @@ def export_glb(output_path):
     print(f"[BlenderWorker] Exported → {output_path}  ({os.path.getsize(output_path)//1024} KB)")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 19. MAIN
+# 20. MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
     s           = get_schema()
@@ -1315,10 +1338,15 @@ def main():
     garage_cfg  = s.get("garage", {"capacity":2}) if has_garage else {}
 
     sc_cfg    = get_style(style_name)
+    # Allow explicit roof_style from schema to override style default
+    roof_override = s.get("roof_style")
+    if roof_override:
+        sc_cfg["roof_type"] = roof_override
+    building_type = s.get("building_type", "building")
     total_h   = num_floors*floor_h+2.5
     rng       = random.Random(s.get("seed", 42))
 
-    print(f"[BlenderWorker] Style={style_name} | {num_floors}F {bw}×{bd}m | pool={has_pool} garage={has_garage}")
+    print(f"[BlenderWorker] Style={style_name} | {num_floors}F {bw}×{bd}m | roof={sc_cfg.get('roof_type','flat')} | pool={has_pool} garage={has_garage}")
 
     clear_scene()
     setup_render(samples=96)
@@ -1329,6 +1357,9 @@ def main():
     base_z = generate_foundation(bw, bd, M, style_name)
     generate_floors(bw, bd, num_floors, floor_h, base_z, M)
     generate_walls(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_name)
+    # Apartments get interior dividing walls (2+ flats per floor)
+    if building_type == "apartment":
+        _generate_apartment_partitions(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_name)
 
     if has_bals and num_floors > 1:
         generate_balconies(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_name)
