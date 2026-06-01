@@ -1,0 +1,16 @@
+@@ -154,6 +154,7 @@
+         "japanese": ("japanese_villa", 5),
+     }.get(style, ("standard", 1e4))
+ 
++    t = time.time()
+     setup_scene(seed)
+     if style == "apartment":
+         walls = _generate_apartment_partitions(W, D, num_floors, FH, style)
+@@ -237,6 +238,7 @@
+         if ext.get("generator") == "setup_garden":
+             setup_garden(style, pal)
+ 
++    print(f"[DEBUG] timings: scene={time.time()-t:.2f}s")
+     export_path = sys.argv[-1]
+     export_to_glb(export_path)
+     size_kb = os.path.getsize(export_path) // 1024

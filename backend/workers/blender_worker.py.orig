@@ -1461,15 +1461,15 @@ def _add_ceiling_features(inner_w, inner_d, fi, fz, floor_h, M, style_name):
 
     elif style_name == "industrial":
         grid = M.get("steel") or M.get("frame") or M["facade"]
-        for yi, y in enumerate((-inner_d*0.25, inner_d*0.25)):
-            add_box(f"CGrid_H_{fi}_{yi}", (0, y, cz), (inner_w, bt, bh*0.6), grid)
-        for xi, x in enumerate((-inner_w*0.25, inner_w*0.25)):
-            add_box(f"CGrid_V_{fi}_{xi}", (x, 0, cz), (bt, inner_d, bh*0.6), grid)
+        for y in (-inner_d*0.25, inner_d*0.25):
+            add_box(f"CGrid_H_{fi}_{y}", (0, y, cz), (inner_w, bt, bh*0.6), grid)
+        for x in (-inner_w*0.25, inner_w*0.25):
+            add_box(f"CGrid_V_{fi}_{x}", (x, 0, cz), (bt, inner_d, bh*0.6), grid)
 
     elif style_name == "scandinavian":
         beam = M.get("wood_light") or M["facade"]
-        for yi, y in enumerate((-inner_d*0.12, inner_d*0.12)):
-            add_box(f"CBeam_{fi}_{yi}", (0, y, cz), (inner_w, bt, bh*0.5), beam)
+        for y in (-inner_d*0.12, inner_d*0.12):
+            add_box(f"CBeam_{fi}_{y}", (0, y, cz), (inner_w, bt, bh*0.5), beam)
 
     elif style_name in ("classical", "villa", "italian", "mediterranean"):
         cornice = M.get("marble") or M.get("white_paint") or M["facade"]
@@ -1538,7 +1538,6 @@ def main():
     roof_override = s.get("roof_style")
     if roof_override:
         sc_cfg["roof_type"] = roof_override
-
     building_type = s.get("building_type", "building")
     total_h   = num_floors*floor_h+2.5
     rng       = random.Random(s.get("seed", 42))
@@ -1547,6 +1546,7 @@ def main():
 
     clear_scene()
     setup_render(samples=96)
+    # Pass style_name so build_material_set() loads the photorealistic palette
     M = build_material_set(sc_cfg, style_name=style_name)
 
     generate_terrain(bw, bd, M, style_name)
