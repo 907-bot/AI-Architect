@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Live Earth Command V2</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            background: #07101d;
+            color: #b0c8e0;
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden
+        }
+
+        #hdr {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 14px;
+            background: #091522;
+            border-bottom: 1px solid #1a3050;
+            flex-shrink: 0;
+            flex-wrap: wrap
+        }
+
+        .ht {
+            font-size: 14px;
+            font-weight: 700;
+            color: #d0e8ff;
+            letter-spacing: 1px
+        }
+
+        .ld {
+            width: 7px;
+            height: 7px;
+            background: #f44;
+            border-radius: 50%;
+            animation: bl 1s infinite
+        }
+
+        @keyframes bl {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .2
+            }
+        }
+
+        #clk,
+        #whdr {
+            font-size: 11px;
+            color: #4a6880
+        }
+
+        #clk {
+            margin-left: auto
+        }
+
+        #main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 55% 1fr;
+            gap: 8px;
+            padding: 8px;
+            overflow: hidden;
+            min-height: 0
+        }
+
+        #gp {
+            position: relative;
+            background: #010a16;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #162840;
+            min-height: 0
+        }
+
+        #gc {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab
+        }
+
+        #gc:active {
+            cursor: grabbing
+        }
+
+        #gi {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+            line-height: 1.8;
+            font-size: 11px
+        }
+
+        .sl {
+            font-size: 9px;
+            letter-spacing: 1.5px;
+            color: #2a5070;
+            margin-top: 8px;
+            margin-bottom: 1px
+        }
+
+        .sv {
+            font-weight: 700;
+            font-size: 12px
+        }
+
+        #btns {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            z-index: 5;
+            flex-wrap: wrap;
+            padding: 0 10px
+        }
+
+        .lb {
+            padding: 3px 9px;
+            font-size: 10px;
+            border-radius: 10px;
+            border: 1px solid;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: .5px;
+            background: rgba(0, 0, 0, .5);
+            transition: opacity .2s
+        }
+
+        .lb.off {
+            opacity: .3
+        }
+
+        #rp {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: hidden;
+            min-height: 0
+        }
+
+        #svp {
+            flex: 0 0 50%;
+            position: relative;
+            background: #010a16;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #162840
+        }
+
+        #svlbl {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 2;
+            padding: 4px 10px;
+            background: rgba(0, 6, 15, .9);
+            font-size: 10px;
+            color: #00c8f0;
+            display: flex;
+            justify-content: space-between
+        }
+
+        #svf {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding-top: 24px;
+            box-sizing: border-box;
+            display: block
+        }
+
+        #ip {
+            flex: 1;
+            background: #091522;
+            border-radius: 8px;
+            border: 1px solid #162840;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0
+        }
+
+        #tabs {
+            display: flex;
+            border-bottom: 1px solid #162840;
+            flex-shrink: 0
+        }
+
+        .tab {
+            flex: 1;
+            padding: 5px 2px;
+            font-size: 10px;
+            letter-spacing: .5px;
+            color: #2a5070;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            transition: color .2s
+        }
+
+        .tab.a {
+            color: #00c8f0;
+            border-bottom: 2px solid #00c8f0
+        }
+
+        #tc {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 11px
+        }
+
+        .tr {
+            padding: 3px 0;
+            border-bottom: 1px solid #0d1e30;
+            line-height: 1.6
+        }
+
+        .lbl {
+            color: #2a5070;
+            font-size: 10px
+        }
+
+        .bg {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #fff;
+            margin-right: 4px
+        }
+
+        #cnt {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: #1a4060;
+            pointer-events: none;
+            text-align: right;
+            line-height: 2
+        }
+    </style>
+</head>
+
+<body>
+    <div id="hdr">
+        <span style="font-size:16px">🌍</span>
+        <span class="ht">LIVE EARTH COMMAND V2</span>
+        <div class="ld"></div>
+        <span style="font-size:10px;color:#f44">LIVE</span>
+        <span id="clk"></span>
+        <span id="whdr"></span>
+    </div>
+    <div id="main">
+        <div id="gp">
+            <canvas id="gc"></canvas>
+            <div id="gi">
+                <div style="color:#00c8f0;font-size:9px;letter-spacing:1.5px">🛸 ISS LIVE</div>
+                <div><span class="lbl">Lat </span><span class="sv" style="color:#00c8f0" id="ilat">—</span></div>
+                <div><span class="lbl">Lng </span><span class="sv" style="color:#00c8f0" id="ilng">—</span></div>
+                <div><span class="lbl">Alt </span><span class="sv" style="color:#00c8f0" id="ialt">—</span></div>
+                <div><span class="lbl">Spd </span><span class="sv" style="color:#00c8f0" id="ispd">—</span></div>
+                <div><span class="lbl">Dist </span><span class="sv" style="color:#0ef" id="idst">—</span></div>
+                <div class="sl">📍 YOU</div>
+                <div><span class="lbl">Lat </span><span class="sv" style="color:#f74" id="ulat">—</span></div>
+                <div><span class="lbl">Lng </span><span class="sv" style="color:#f74" id="ulng">—</span></div>
+                <div style="margin-top:10px;font-size:9px;color:#1a3050">DRAG TO SPIN</div>
+            </div>
+            <div id="cnt">
+                <div>🟢 <span id="csat">2000</span> SATS</div>
+                <div>🟡 <span id="cflt">—</span> FLIGHTS</div>
+                <div>🟠 <span id="cvol">26</span> VOLCANOES</div>
+                <div>⚡ <span id="cltg">0</span> STRIKES</div>
+                <div>🔵 <span id="cbuy">12</span> BUOYS</div>
+            </div>
+            <div id="btns">
+                <button class="lb" id="bsat" style="color:#4f8;border-color:#4f8">🟢 SATS</button>
+                <button class="lb" id="bflt" style="color:#fd0;border-color:#fd0">🟡 FLIGHTS</button>
+                <button class="lb" id="bvol" style="color:#f80;border-color:#f80">🟠 VOLCANOES</button>
+                <button class="lb" id="bltg" style="color:#fff;border-color:#aaa">⚡ LIGHTNING</button>
+                <button class="lb" id="bbuy" style="color:#08f;border-color:#08f">🔵 BUOYS</button>
+            </div>
+        </div>
+        <div id="rp">
+            <div id="svp">
+                <div id="svlbl">
+                    <span>📸 STREET VIEW — YOUR LOCATION</span>
+                    <span id="svcoord" style="color:#2a5070"></span>
+                </div>
+                <iframe id="svf" allowfullscreen></iframe>
+            </div>
+            <div id="ip">
+                <div id="tabs">
+                    <button class="tab a" onclick="swTab(0)">ISS</button>
+                    <button class="tab" onclick="swTab(1)">FLIGHTS</button>
+                    <button class="tab" onclick="swTab(2)">VOLCANOES</button>
+                    <button class="tab" onclick="swTab(3)">BUOYS</button>
+                    <button class="tab" onclick="swTab(4)">QUAKES</button>
+                </div>
+                <div id="tc">
+                    <div id="t0"><span style="color:#2a5070">Fetching ISS data...</span></div>
+                    <div id="t1" hidden><span style="color:#2a5070">Fetching flights...</span></div>
+                    <div id="t2" hidden></div>
+                    <div id="t3" hidden><span style="color:#2a5070">Fetching marine data...</span></div>
+                    <div id="t4" hidden><span style="color:#2a5070">Fetching quakes...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Clock
+        const clkEl = document.getElementById('clk');
+        setInterval(() => { clkEl.textContent = new Date().toUTCString().slice(17, 25) + ' UTC'; }, 1000);
+
+        // Tabs
+        let curTab = 0;
+        const tabBtns = document.querySelectorAll('.tab');
+        function swTab(n) {
+            document.getElementById('t' + curTab).hidden = true;
+            tabBtns[curTab].classList.remove('a');
+            curTab = n;
+            document.getElementById('t' + n).hidden = false;
+            tabBtns[n].classList.add('a');
+        }
+
+        // Volcanoes static data
+        const VOLS = [
+            { n: "Kilauea", lat: 19.42, lng: -155.29, a: 4 }, { n: "Popocatepetl", lat: 19.02, lng: -98.62, a: 4 },
+            { n: "Fuego", lat: 14.47, lng: -90.88, a: 4 }, { n: "Nyiragongo", lat: -1.52, lng: 29.25, a: 4 },
+            { n: "Yasur", lat: -19.53, lng: 169.44, a: 4 }, { n: "Semeru", lat: -8.11, lng: 112.92, a: 3 },
+            { n: "Etna", lat: 37.73, lng: 15.00, a: 3 }, { n: "Stromboli", lat: 38.79, lng: 15.21, a: 3 },
+            { n: "Merapi", lat: -7.54, lng: 110.45, a: 3 }, { n: "Sakurajima", lat: 31.59, lng: 130.66, a: 3 },
+            { n: "Klyuchevskoy", lat: 56.06, lng: 160.64, a: 3 }, { n: "Dukono", lat: 1.69, lng: 127.88, a: 3 },
+            { n: "Ibu", lat: 1.49, lng: 127.63, a: 3 }, { n: "Sinabung", lat: 3.17, lng: 98.39, a: 3 },
+            { n: "Piton Fournaise", lat: -21.23, lng: 55.71, a: 3 }, { n: "Santa Maria", lat: 14.76, lng: -91.55, a: 3 },
+            { n: "Shishaldin", lat: 54.76, lng: -163.97, a: 2 }, { n: "Erebus", lat: -77.53, lng: 167.17, a: 2 },
+            { n: "Ruapehu", lat: -39.28, lng: 175.57, a: 2 }, { n: "Taal", lat: 14.01, lng: 120.99, a: 2 },
+            { n: "Krakatau", lat: -6.10, lng: 105.42, a: 2 }, { n: "Colima", lat: 19.51, lng: -103.62, a: 2 },
+            { n: "Ulawun", lat: -5.05, lng: 151.33, a: 2 }, { n: "Bagana", lat: -6.14, lng: 155.19, a: 2 },
+            { n: "Veniaminof", lat: 56.17, lng: -159.38, a: 2 }, { n: "Ambrym", lat: -16.25, lng: 168.12, a: 2 },
+        ];
+        const VC = ['', '#3b6d11', '#854f0b', '#c97020', '#a32d2d'];
+        const VN = ['', 'Watch', 'Advisory', 'Warning', 'Eruption'];
+        document.getElementById('t2').innerHTML = VOLS.map(v => `<div class="tr"><span class="bg" style="background:${VC[v.a]}">${VN[v.a]}</span><span style="color:#90b8d0">${v.n}</span><span class="lbl"> (${v.lat.toFixed(1)}°, ${v.lng.toFixed(1)}°)</span></div>`).join('');
+
+        // THREE.JS GLOBE
+        const gp = document.getElementById('gp'), gc = document.getElementById('gc');
+        const RD = new THREE.WebGLRenderer({ canvas: gc, antialias: true });
+        RD.setClearColor(0x010a16);
+        const SC = new THREE.Scene(), CM = new THREE.PerspectiveCamera(45, 1, .1, 500);
+        CM.position.z = 2.8;
+        function rsz() { const w = gp.clientWidth, h = gp.clientHeight; RD.setSize(w, h); CM.aspect = w / h; CM.updateProjectionMatrix(); }
+        rsz(); window.addEventListener('resize', rsz);
+
+        // Stars
+        const spa = new Float32Array(5000 * 3);
+        for (let i = 0; i < spa.length; i += 3) { const r = 35, t = Math.random() * 6.28, p = Math.acos(2 * Math.random() - 1); spa[i] = r * Math.sin(p) * Math.cos(t); spa[i + 1] = r * Math.cos(p); spa[i + 2] = r * Math.sin(p) * Math.sin(t); }
+        const sgb = new THREE.BufferGeometry(); sgb.setAttribute('position', new THREE.BufferAttribute(spa, 3));
+        SC.add(new THREE.Points(sgb, new THREE.PointsMaterial({ color: 0xffffff, size: .18, transparent: true, opacity: .5 })));
+
+        // Earth group (surface-fixed: rotates with globe)
+        const EG = new THREE.Group(); SC.add(EG);
+        EG.add(new THREE.Mesh(new THREE.SphereGeometry(1, 48, 48), new THREE.MeshPhongMaterial({ color: 0x0d3a6e, emissive: 0x051422, shininess: 25 })));
+        const LM = new THREE.LineBasicMaterial({ color: 0x1a5599, transparent: true, opacity: .3 });
+        for (let la = -75; la <= 75; la += 15) { const cL = Math.cos(la * Math.PI / 180), sL = Math.sin(la * Math.PI / 180), pts = []; for (let i = 0; i <= 64; i++) { const a = i / 64 * 6.28; pts.push(new THREE.Vector3(cL * Math.cos(a), sL, cL * Math.sin(a))); } EG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), LM)); }
+        for (let lo = 0; lo < 360; lo += 15) { const pts = []; for (let i = 0; i <= 64; i++) { const la = i / 64 * 180 - 90, ph = (90 - la) * Math.PI / 180, th = (lo + 180) * Math.PI / 180; pts.push(new THREE.Vector3(-Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th))); } EG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), LM)); }
+        EG.add(new THREE.Mesh(new THREE.SphereGeometry(1.05, 32, 32), new THREE.MeshPhongMaterial({ color: 0x2255cc, transparent: true, opacity: .08, side: THREE.BackSide })));
+        SC.add(new THREE.AmbientLight(0x445566, .9));
+        const SL = new THREE.DirectionalLight(0xffffff, 1.5); SL.position.set(5, 3, 5); SC.add(SL);
+
+        function ll(lat, lng, r) { r = r || 1.02; const ph = (90 - lat) * Math.PI / 180, th = (lng + 180) * Math.PI / 180; return new THREE.Vector3(-r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th)); }
+
+        // User dot (in EG, rotates with globe)
+        const uDot = new THREE.Mesh(new THREE.SphereGeometry(.032, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff3300 }));
+        EG.add(uDot);
+
+        // ISS dot (world space, orbits independently)
+        const iDot = new THREE.Mesh(new THREE.SphereGeometry(.028, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00eeff }));
+        SC.add(iDot);
+
+        // ===== SATELLITES =====
+        const SAT_N = 2000;
+        const satPos = new Float32Array(SAT_N * 3);
+        const satGeo = new THREE.BufferGeometry();
+        satGeo.setAttribute('position', new THREE.BufferAttribute(satPos, 3));
+        const satPts = new THREE.Points(satGeo, new THREE.PointsMaterial({ color: 0x44ff88, size: .016, transparent: true, opacity: .75 }));
+        SC.add(satPts);
+        const satData = [];
+        for (let i = 0; i < SAT_N; i++) {
+            let a, inc;
+            if (i < 1600) { a = (6371 + 300 + Math.random() * 1200) / 6371; inc = Math.random() * Math.PI; }
+            else if (i < 1850) { a = (6371 + 20200) / 6371; inc = (50 + Math.random() * 10) * Math.PI / 180; }
+            else { a = (6371 + 35786) / 6371; inc = Math.random() * 3 * Math.PI / 180; }
+            const raan = Math.random() * 6.28, incr = inc;
+            // Pre-cache constant trig values for performance
+            satData.push({ a, sI: Math.sin(incr), cI: Math.cos(incr), sR: Math.sin(raan), cR: Math.cos(raan), nu0: Math.random() * 6.28, n: Math.sqrt(1 / (a * a * a)) * 0.02 });
+        }
+        function updSats(t) {
+            for (let k = 0; k < SAT_N; k++) {
+                const s = satData[k], nu = s.nu0 + s.n * t, cN = Math.cos(nu), sN = Math.sin(nu);
+                satPos[k * 3] = s.a * (s.cR * cN - s.sR * sN * s.cI);
+                satPos[k * 3 + 1] = s.a * sN * s.sI;
+                satPos[k * 3 + 2] = -s.a * (s.sR * cN + s.cR * sN * s.cI);
+            }
+            satGeo.attributes.position.needsUpdate = true;
+        }
+
+        // ===== FLIGHTS =====
+        const FLT_MAX = 200;
+        const fltPos = new Float32Array(FLT_MAX * 3);
+        for (let k = 0; k < FLT_MAX; k++) { fltPos[k * 3] = fltPos[k * 3 + 1] = fltPos[k * 3 + 2] = 99; }
+        const fltGeo = new THREE.BufferGeometry();
+        fltGeo.setAttribute('position', new THREE.BufferAttribute(fltPos, 3));
+        fltGeo.attributes.position.needsUpdate = true;
+        const fltPts = new THREE.Points(fltGeo, new THREE.PointsMaterial({ color: 0xffdd00, size: .023, transparent: true, opacity: .9 }));
+        SC.add(fltPts);
+        function updFlights(data) {
+            const n = Math.min(data.length, FLT_MAX);
+            for (let k = 0; k < FLT_MAX; k++) {
+                if (k < n) { const f = data[k], p = ll(f.lat, f.lng, 1.02 + f.alt / 6371000); fltPos[k * 3] = p.x; fltPos[k * 3 + 1] = p.y; fltPos[k * 3 + 2] = p.z; }
+                else { fltPos[k * 3] = fltPos[k * 3 + 1] = fltPos[k * 3 + 2] = 99; }
+            }
+            fltGeo.attributes.position.needsUpdate = true;
+            document.getElementById('cflt').textContent = n;
+        }
+
+        // ===== VOLCANOES (in EG, stays on globe surface) =====
+        const volG = new THREE.Group(); EG.add(volG);
+        const volC = [0, 0x3b6d11, 0x854f0b, 0xf06010, 0xff3300];
+        VOLS.forEach(v => { const d = new THREE.Mesh(new THREE.SphereGeometry(.024, 6, 6), new THREE.MeshBasicMaterial({ color: volC[v.a] })); d.position.copy(ll(v.lat, v.lng)); volG.add(d); });
+
+        // ===== LIGHTNING =====
+        const LTG_MAX = 150;
+        const ltgPos = new Float32Array(LTG_MAX * 3);
+        for (let k = 0; k < LTG_MAX; k++) { ltgPos[k * 3] = ltgPos[k * 3 + 1] = ltgPos[k * 3 + 2] = 99; }
+        const ltgGeo = new THREE.BufferGeometry();
+        ltgGeo.setAttribute('position', new THREE.BufferAttribute(ltgPos, 3));
+        ltgGeo.attributes.position.needsUpdate = true;
+        const ltgMat = new THREE.PointsMaterial({ color: 0xffffff, size: .045, transparent: true, opacity: .9 });
+        const ltgPts = new THREE.Points(ltgGeo, ltgMat);
+        SC.add(ltgPts);
+        const strikes = [];
+        function addStrike(lat, lon) {
+            if (!ltgPts.visible) return;
+            strikes.push({ p: ll(lat, lon, 1.01), t: Date.now() });
+            if (strikes.length > LTG_MAX) strikes.shift();
+        }
+        function updLtg(now) {
+            for (let i = strikes.length - 1; i >= 0; i--)if (now - strikes[i].t > 2200) strikes.splice(i, 1);
+            const n = Math.min(strikes.length, LTG_MAX);
+            for (let k = 0; k < LTG_MAX; k++) {
+                if (k < n) { ltgPos[k * 3] = strikes[k].p.x; ltgPos[k * 3 + 1] = strikes[k].p.y; ltgPos[k * 3 + 2] = strikes[k].p.z; }
+                else { ltgPos[k * 3] = ltgPos[k * 3 + 1] = ltgPos[k * 3 + 2] = 99; }
+            }
+            ltgGeo.attributes.position.needsUpdate = true;
+            ltgMat.opacity = .5 + .5 * Math.abs(Math.sin(now * .008));
+            document.getElementById('cltg').textContent = strikes.length;
+        }
+        // Lightning: Blitzortung WebSocket → fallback simulation
+        let ltgSim = false;
+        function simLtg() {
+            if (ltgSim) return; ltgSim = true;
+            setInterval(() => { for (let i = 0; i < 2; i++)addStrike((Math.random() - .5) * 120, (Math.random() - .5) * 360); }, 700);
+        }
+        try {
+            const ws = new WebSocket('wss://ws1.blitzortung.org/');
+            ws.onopen = () => ws.send(JSON.stringify({ west: -180, east: 180, north: 90, south: -90 }));
+            ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.lat !== undefined && d.lon !== undefined) addStrike(d.lat, d.lon); } catch (_) { } };
+            ws.onerror = () => simLtg(); ws.onclose = () => { if (!ltgSim) simLtg(); };
+            setTimeout(() => { if (ws.readyState !== 1 && !ltgSim) simLtg(); }, 4000);
+        } catch (e) { simLtg(); }
+
+        // ===== BUOYS (in EG, stays on globe surface) =====
+        const BUOYS = [
+            { lat: 27.5, lng: -72.3 }, { lat: 31.8, lng: -69.6 }, { lat: 40.3, lng: -73.2 }, { lat: 34.9, lng: -120.9 },
+            { lat: 36.8, lng: -122.5 }, { lat: 23.4, lng: -162.3 }, { lat: 17.2, lng: -157.8 }, { lat: 38.7, lng: 135.3 },
+            { lat: -33.9, lng: 25.6 }, { lat: 59.0, lng: 2.0 }, { lat: 1.0, lng: 94.0 }, { lat: -20.0, lng: 55.7 },
+        ];
+        const buyG = new THREE.Group(); EG.add(buyG);
+        BUOYS.forEach(b => { const d = new THREE.Mesh(new THREE.SphereGeometry(.02, 6, 6), new THREE.MeshBasicMaterial({ color: 0x2288ff })); d.position.copy(ll(b.lat, b.lng)); buyG.add(d); });
+
+        // ===== LAYER TOGGLES =====
+        const layerMap = { sat: satPts, flt: fltPts, vol: volG, ltg: ltgPts, buy: buyG };
+        ['sat', 'flt', 'vol', 'ltg', 'buy'].forEach(k => {
+            const btn = document.getElementById('b' + k);
+            btn.addEventListener('click', () => { const l = layerMap[k]; l.visible = !l.visible; btn.classList.toggle('off', !l.visible); });
+        });
+
+        // ===== MOUSE/TOUCH DRAG =====
+        let isDrag = false, lx = 0, rvy = 0;
+        gc.addEventListener('mousedown', e => { isDrag = true; lx = e.clientX; });
+        document.addEventListener('mouseup', () => { isDrag = false; });
+        document.addEventListener('mousemove', e => { if (!isDrag) return; rvy = (e.clientX - lx) * .007; EG.rotation.y += rvy; lx = e.clientX; });
+        gc.addEventListener('touchstart', e => { isDrag = true; lx = e.touches[0].clientX; }, { passive: true });
+        gc.addEventListener('touchend', () => { isDrag = false; });
+        gc.addEventListener('touchmove', e => { if (!isDrag) return; rvy = (e.touches[0].clientX - lx) * .007; EG.rotation.y += rvy; lx = e.touches[0].clientX; }, { passive: true });
+
+        // ===== ANIMATION LOOP =====
+        let pulse = 0, issLine = null, issTrail = [];
+        const t0 = Date.now();
+        (function anim() {
+            requestAnimationFrame(anim);
+            const now = Date.now(), dt = (now - t0) / 1000;
+            pulse += .05;
+            if (!isDrag) { rvy *= .94; EG.rotation.y += .003 + rvy; }
+            uDot.scale.setScalar(1 + .4 * Math.sin(pulse));
+            iDot.scale.setScalar(1 + .35 * Math.sin(pulse * 1.5 + 1));
+            if (satPts.visible) updSats(dt);
+            updLtg(now);
+            RD.render(SC, CM);
+        })();
+
+        // ===== USER LOCATION =====
+        let uLat = 13.3, uLng = 77.5;
+        function initLoc() {
+            if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { uLat = p.coords.latitude; uLng = p.coords.longitude; afterLoc(); }, afterLoc, { timeout: 7000 });
+            else afterLoc();
+        }
+        function afterLoc() {
+            uDot.position.copy(ll(uLat, uLng));
+            document.getElementById('ulat').textContent = uLat.toFixed(4) + '°';
+            document.getElementById('ulng').textContent = uLng.toFixed(4) + '°';
+            document.getElementById('svcoord').textContent = uLat.toFixed(3) + ', ' + uLng.toFixed(3);
+            document.getElementById('svf').src = 'https://maps.google.com/maps?q=&layer=c&cbll=' + uLat + ',' + uLng + '&cbp=12,0,,0,0&output=svembed';
+            fetchWeather(); fetchFlights(); fetchBuoys();
+        }
+
+        // ===== ISS =====
+        async function fetchISS() {
+            try {
+                const d = await (await fetch('https://api.wheretheiss.at/v1/satellites/25544')).json();
+                const np = ll(d.latitude, d.longitude, 1.18);
+                iDot.position.copy(np);
+                issTrail.push(np.clone()); if (issTrail.length > 20) issTrail.shift();
+                if (issLine) { SC.remove(issLine); issLine.geometry.dispose(); }
+                if (issTrail.length > 1) { issLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(issTrail), new THREE.LineBasicMaterial({ color: 0x00eeff, transparent: true, opacity: .4 })); SC.add(issLine); }
+                document.getElementById('ilat').textContent = d.latitude.toFixed(2) + '°';
+                document.getElementById('ilng').textContent = d.longitude.toFixed(2) + '°';
+                document.getElementById('ialt').textContent = Math.round(d.altitude) + ' km';
+                document.getElementById('ispd').textContent = Math.round(d.velocity).toLocaleString() + ' km/h';
+                const dLa = (d.latitude - uLat) * Math.PI / 180, dLo = (d.longitude - uLng) * Math.PI / 180;
+                const aa = Math.sin(dLa / 2) ** 2 + Math.cos(uLat * Math.PI / 180) * Math.cos(d.latitude * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
+                const dist = Math.round(6371 * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa)));
+                document.getElementById('idst').textContent = dist.toLocaleString() + ' km';
+                document.getElementById('t0').innerHTML =
+                    `<div class="tr"><span class="lbl">Latitude </span><span style="color:#0ef;font-weight:700">${d.latitude.toFixed(4)}°</span></div>
+       <div class="tr"><span class="lbl">Longitude </span><span style="color:#0ef;font-weight:700">${d.longitude.toFixed(4)}°</span></div>
+       <div class="tr"><span class="lbl">Altitude </span><span style="color:#0ef;font-weight:700">${Math.round(d.altitude)} km</span></div>
+       <div class="tr"><span class="lbl">Speed </span><span style="color:#0ef;font-weight:700">${Math.round(d.velocity).toLocaleString()} km/h</span></div>
+       <div class="tr"><span class="lbl">Visibility </span><span style="color:#0ef;font-weight:700">${d.visibility || '—'}</span></div>
+       <div class="tr"><span class="lbl">Distance from you </span><span style="color:#0ef;font-weight:700">${dist.toLocaleString()} km</span></div>`;
+            } catch (e) { }
+        }
+        setInterval(fetchISS, 5000); fetchISS();
+
+        // ===== FLIGHTS via OpenSky =====
+        async function fetchFlights() {
+            const mg = 8;
+            try {
+                const d = await (await fetch(`https://opensky-network.org/api/states/all?lamin=${uLat - mg}&lomin=${uLng - mg}&lamax=${uLat + mg}&lomax=${uLng + mg}`)).json();
+                if (!d.states) throw 0;
+                const data = d.states.filter(s => s[5] && s[6] && !s[8]).map(s => ({ call: (s[1] || '???').trim(), lat: s[6], lng: s[5], alt: s[7] || 10000, spd: s[9] || 0, ctry: s[2] || '?' }));
+                updFlights(data);
+                document.getElementById('t1').innerHTML = data.length === 0
+                    ? '<div style="color:#2a5070">No flights in range right now</div>'
+                    : '<div style="color:#2a5070;margin-bottom:6px">' + data.length + ' flights within 8° of you</div>' +
+                    data.slice(0, 12).map(f => `<div class="tr"><span class="bg" style="background:#1a1600;color:#fd0;border:1px solid #fd04">${f.call || '???'}</span><span style="color:#90b8d0">${(f.alt / 1000).toFixed(1)} km</span><span class="lbl"> · ${Math.round(f.spd * 3.6)} km/h · ${f.ctry}</span></div>`).join('');
+            } catch (e) {
+                document.getElementById('t1').innerHTML = '<div style="color:#2a5070">OpenSky rate-limited — refreshes every 25s. Showing sample dots.</div>';
+                updFlights([{ call: 'AI101', lat: uLat + 1.5, lng: uLng + 3, alt: 10600, spd: 250 }, { call: '6E202', lat: uLat - 2, lng: uLng + 1.2, alt: 8200, spd: 220 }, { call: 'SG303', lat: uLat + 3, lng: uLng - 2, alt: 11200, spd: 270 }, { call: 'IX204', lat: uLat - .5, lng: uLng + 5, alt: 9500, spd: 235 }]);
+            }
+        }
+        setInterval(fetchFlights, 25000);
+
+        // ===== WEATHER =====
+        async function fetchWeather() {
+            try {
+                const d = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${uLat}&longitude=${uLng}&current_weather=true&timezone=auto`)).json();
+                const w = d.current_weather;
+                const wc = { 0: 'Clear', 1: 'Clear', 2: 'Partly Cloudy', 3: 'Overcast', 45: 'Foggy', 51: 'Drizzle', 61: 'Rain', 63: 'Rain', 65: 'Heavy Rain', 71: 'Snow', 80: 'Showers', 95: 'Thunderstorm' };
+                document.getElementById('whdr').textContent = '  |  ' + Math.round(w.temperature) + '°C · ' + (wc[w.weathercode] || '?') + ' · 💨 ' + Math.round(w.windspeed) + ' km/h';
+            } catch (e) { }
+        }
+
+        // ===== OCEAN BUOYS via Open-Meteo Marine =====
+        async function fetchBuoys() {
+            try {
+                const d = await (await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${uLat}&longitude=${uLng}&hourly=wave_height,sea_surface_temperature&timezone=auto&forecast_days=1`)).json();
+                const wh = d.hourly?.wave_height?.[0], st = d.hourly?.sea_surface_temperature?.[0];
+                document.getElementById('t3').innerHTML =
+                    `<div style="color:#2a5070;margin-bottom:8px">Marine conditions near your location (Open-Meteo)</div>` +
+                    (wh != null ? `<div class="tr"><span class="lbl">Wave height </span><span style="color:#08f;font-weight:700">${wh.toFixed(2)} m</span></div>` : '<div class="tr"><span class="lbl">Wave height </span><span style="color:#2a5070">Inland — no wave data</span></div>') +
+                    (st != null ? `<div class="tr"><span class="lbl">Sea surface temp </span><span style="color:#08f;font-weight:700">${st.toFixed(1)}°C</span></div>` : '') +
+                    `<div class="tr"><span class="lbl">Globe markers </span><span style="color:#08f;font-weight:700">${BUOYS.length} major NDBC/WMO buoy stations</span></div>
+       <div style="margin-top:8px;color:#1a3050;font-size:10px">Blue dots on globe = buoy positions. Drag globe to explore them.</div>`;
+            } catch (e) { document.getElementById('t3').innerHTML = '<span style="color:#2a5070">Marine API unavailable</span>'; }
+        }
+
+        // ===== EARTHQUAKES =====
+        async function fetchQuakes() {
+            try {
+                const d = await (await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson')).json();
+                const fs = d.features.sort((a, b) => (b.properties.mag || 0) - (a.properties.mag || 0)).slice(0, 8);
+                document.getElementById('t4').innerHTML = fs.length === 0
+                    ? '<span style="color:#2a5070">No earthquakes this hour ✓</span>'
+                    : fs.map(f => { const m = (f.properties.mag || 0).toFixed(1), p = (f.properties.place || '?').slice(0, 28); const c = parseFloat(m) >= 4 ? '#a32d2d' : parseFloat(m) >= 2.5 ? '#854f0b' : '#3b6d11'; return `<div class="tr"><span class="bg" style="background:${c}">M${m}</span><span style="color:#7090a0">${p}</span></div>`; }).join('');
+            } catch (e) { }
+        }
+        setInterval(fetchQuakes, 60000); fetchQuakes();
+
+        initLoc();
+    </script>
+</body>
+
+</html>

@@ -981,7 +981,7 @@ def generate_lobby(bw, bd, base_z, M, style_name):
                 (lw+0.6,0.35,0.15), M["pavement"])
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 14. STAIRCASE CORE
+# 15. STAIRCASE CORE
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_staircase(bw, bd, num_floors, floor_h, base_z, M):
     sw, sd = 3.0, 5.0
@@ -998,7 +998,7 @@ def generate_staircase(bw, bd, num_floors, floor_h, base_z, M):
                 (sw, td, th*(step+1)), M["slab"])
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 15. POOL
+# 16. POOL
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_pool(bw, bd, pool_cfg, base_z, M, style_name):
     pw = float(pool_cfg.get("width",12)); pl = float(pool_cfg.get("length",6))
@@ -1048,7 +1048,7 @@ def generate_pool(bw, bd, pool_cfg, base_z, M, style_name):
                rough=0.0, alpha=koi_a, transmission=koi_t))
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 16. GARAGE
+# 17. GARAGE
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_garage(bw, bd, garage_cfg, base_z, M, style_name):
     cap = int(garage_cfg.get("capacity",2))
@@ -1086,7 +1086,20 @@ def generate_garage(bw, bd, garage_cfg, base_z, M, style_name):
                 mat(f"wht_{di}",(0.9,0.9,0.9), rough=0.7))
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 17. STYLE-SPECIFIC VEGETATION
+# 18. KOI POND (Japanese style auto water feature)
+# ══════════════════════════════════════════════════════════════════════════════
+def _generate_koi_pond(bw, bd, base_z, M):
+    pw = 3.0; pl = 2.5; pd = 0.5
+    px = bw/2 + pw/2 + 1.2; py = -(bd/4); pz = base_z
+    stone = M.get("stone_zen") or M["concrete"]
+    water = M.get("water") or M["pool_water"]
+    add_box("Koi_Basin", (px, py, pz - pd/2), (pw + 0.4, pl + 0.4, pd), stone)
+    add_box("Koi_Water", (px, py, pz - 0.02), (pw - 0.1, pl - 0.1, 0.06), water)
+    for i, (rx, ry) in enumerate([(-pw*0.3, -pl*0.3), (pw*0.3, pl*0.3), (-pw*0.3, pl*0.3), (pw*0.3, -pl*0.3)]):
+        add_box(f"Koi_Stone_{i}", (px + rx, py + ry, pz + 0.06), (0.2, 0.18, 0.12), stone)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 19. STYLE-SPECIFIC VEGETATION
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_vegetation(bw, bd, M, style_name, rng):
     # Safe positions (away from pool-right, garage-left, lobby-front)
@@ -1205,6 +1218,9 @@ def generate_interior(bw, bd, num_floors, floor_h, base_z, M, style_name):
                 (0, 0, fz + floor_h - 0.05),
                 (inner_w, inner_d, 0.06), ceil_mat)
 
+        # Per-style ceiling structural features (beams, grids, cornices)
+        _add_ceiling_features(inner_w, inner_d, fi, fz, floor_h, M, style_name)
+
         # Interior partition wall (splits floor into rooms)
         if inner_w > 10:
             add_box(f"Partition_V_{fi}",
@@ -1218,6 +1234,46 @@ def generate_interior(bw, bd, num_floors, floor_h, base_z, M, style_name):
             _furniture_bedroom(0, 0, fz + slab_t, inner_w, inner_d, M, style_name)
         else:
             _furniture_office(0, 0, fz + slab_t, inner_w, inner_d, M, style_name)
+
+
+def _add_ceiling_features(inner_w, inner_d, fi, fz, floor_h, M, style_name):
+    """Per-style ceiling beams, grids, or cornices for interior realism."""
+    bt = 0.10
+    bh = 0.18
+    cz = fz + floor_h - 0.05 - bh / 2
+
+    if style_name == "japanese":
+        beam = M.get("wood_dark") or M["facade"]
+        add_box(f"CBeam_NS_{fi}", (0, 0, cz), (inner_w, bt, bh), beam)
+        add_box(f"CBeam_EW_{fi}", (0, 0, cz), (bt, inner_d, bh), beam)
+        for i, x in [(0, -inner_w*0.28), (1, inner_w*0.28)]:
+            add_box(f"CBeam_X{i}_{fi}", (x, 0, cz), (bt, inner_d, bh), beam)
+
+    elif style_name == "asian":
+        beam = M.get("wood_dark") or M["facade"]
+        add_box(f"CBeam_NS_{fi}", (0, 0, cz), (inner_w, bt, bh), beam)
+        for i, x in [(0, -inner_w*0.25), (1, inner_w*0.25)]:
+            add_box(f"CBeam_X{i}_{fi}", (x, 0, cz), (bt, inner_d*0.6, bh), beam)
+
+    elif style_name == "industrial":
+        grid = M.get("steel") or M.get("frame") or M["facade"]
+        for y in (-inner_d*0.25, inner_d*0.25):
+            add_box(f"CGrid_H_{fi}_{y}", (0, y, cz), (inner_w, bt, bh*0.6), grid)
+        for x in (-inner_w*0.25, inner_w*0.25):
+            add_box(f"CGrid_V_{fi}_{x}", (x, 0, cz), (bt, inner_d, bh*0.6), grid)
+
+    elif style_name == "scandinavian":
+        beam = M.get("wood_light") or M["facade"]
+        for y in (-inner_d*0.12, inner_d*0.12):
+            add_box(f"CBeam_{fi}_{y}", (0, y, cz), (inner_w, bt, bh*0.5), beam)
+
+    elif style_name in ("classical", "villa", "italian", "mediterranean"):
+        cornice = M.get("marble") or M.get("white_paint") or M["facade"]
+        ch = 0.06
+        add_box(f"CorN_{fi}", (0,  inner_d/2, cz), (inner_w, ch, bh), cornice)
+        add_box(f"CorS_{fi}", (0, -inner_d/2, cz), (inner_w, ch, bh), cornice)
+        add_box(f"CorE_{fi}", ( inner_w/2, 0, cz), (ch, inner_d, bh), cornice)
+        add_box(f"CorW_{fi}", (-inner_w/2, 0, cz), (ch, inner_d, bh), cornice)
 
 
 def _furniture_living(cx, cz_unused, fz, rw, rd, M, style_name):
@@ -1244,6 +1300,21 @@ def _furniture_living(cx, cz_unused, fz, rw, rd, M, style_name):
     add_box("DiningTable",  (cx + rw*0.22, -rd*0.3, fz + 0.38), (1.6, 0.9, 0.04), wood)
     for di, (dx, dy) in enumerate([(-0.6,-0.25),(-0.6,0.25),(0.6,-0.25),(0.6,0.25)]):
         add_box(f"Chair_{di}", (cx + rw*0.22 + dx, -rd*0.3 + dy, fz + 0.25), (0.45,0.45,0.44), fab)
+
+    # ── Lantern / floor lamp per style ──────────────────────────────────────
+    lm = M.get("lantern")
+    if lm:
+        lx = cx - rw*0.3
+        ly = rd*0.38
+        if style_name == "japanese":
+            add_cylinder("Lantern", (lx, ly, fz + 0.55), 0.15, 0.55, verts=8, mat=lm)
+            add_box("Lantern_Base", (lx, ly, fz + 0.02), (0.25, 0.25, 0.04), dark or wood)
+        elif style_name == "industrial":
+            add_cylinder("Lantern", (cx, -rd*0.1, fz + 1.8), 0.08, 0.25, verts=8, mat=lm)
+            add_box("Lantern_Cord", (cx, -rd*0.1, fz + 2.5), (0.02, 0.02, 1.4), M.get("steel") or dark)
+        else:
+            add_cylinder("Lantern", (lx, ly, fz + 0.9), 0.12, 0.45, verts=8, mat=lm)
+            add_box("Lantern_Pole", (lx, ly, fz + 0.38), (0.04, 0.04, 1.2), M.get("steel") or dark)
 
 
 def _furniture_bedroom(cx, cz_unused, fz, rw, rd, M, style_name):
@@ -1285,7 +1356,7 @@ def _furniture_office(cx, cz_unused, fz, rw, rd, M, style_name):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 18. APARTMENT PARTITIONS — interior dividing walls for multi-flat floors
+# 20. APARTMENT PARTITIONS — interior dividing walls for multi-flat floors
 # ══════════════════════════════════════════════════════════════════════════════
 def _generate_apartment_partitions(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_name):
     """Add an interior dividing wall splitting each floor into 2+ flats."""
@@ -1304,7 +1375,7 @@ def _generate_apartment_partitions(bw, bd, num_floors, floor_h, base_z, M, sc_cf
             add_box(f"Part_D_{fi}", (0, 0, fz+floor_h/2), (bw*0.85, wt, floor_h), wall_mat)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 19. EXPORT
+# 21. EXPORT
 # ══════════════════════════════════════════════════════════════════════════════
 def export_glb(output_path):
     # Remove cameras (they lock viewer orbit)
@@ -1321,7 +1392,7 @@ def export_glb(output_path):
     print(f"[BlenderWorker] Exported → {output_path}  ({os.path.getsize(output_path)//1024} KB)")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 20. MAIN
+# 22. MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
     s           = get_schema()
@@ -1375,6 +1446,9 @@ def main():
 
     if has_pool:    generate_pool(bw, bd, pool_cfg, base_z, M, style_name)
     if has_garage:  generate_garage(bw, bd, garage_cfg, base_z, M, style_name)
+    # Auto koi pond for Japanese style (only if no pool already)
+    if style_name == "japanese" and not has_pool:
+        _generate_koi_pond(bw, bd, base_z, M)
 
     generate_vegetation(bw, bd, M, style_name, rng)
     setup_lighting(bw, bd, total_h, sc_cfg, style_name)
