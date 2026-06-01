@@ -952,39 +952,80 @@ def generate_balconies(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_nam
 # 13. INTERACTIVE DOORS (for walkthrough mode)
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_interactive_doors(bw, bd, num_floors, floor_h, base_z, M, style_name):
-    """Generate interactive doors that can be opened in walkthrough mode"""
-    door_w, door_h = 1.0, 2.2
+    """Generate doors at room doorways using actual floor plan positions.
+
+    Doors are placed at shared edges between adjacent rooms — same logic
+    as _build_interior_walls but creates standalone door objects tagged for
+    walkthrough interaction.
+    """
+    wall_t = 0.28
+    iw = bw - wall_t * 2
+    id_ = bd - wall_t * 2
+    dw, dh = 0.9, 2.2
     door_t = 0.08
+    door_mat = M.get("door") or M["wall"]
 
-    # Main entrance door
-    add_box("MainEntrance_Door", (0, -bd/2+0.06, base_z+door_h/2), (door_w, door_t, door_h), M["door"])
-    # Mark as interactive door for frontend
-    bpy.data.objects["MainEntrance_Door"]["isDoor"] = True
-    bpy.data.objects["MainEntrance_Door"]["isOpen"] = False
+    # Main entrance door at front-center of entry room
+    c1 = iw * 0.40
+    cx1 = -iw/2 + c1/2
+    entrance_x = cx1
+    entrance_y = -bd/2 + 0.06
+    add_box("MainEntrance_Door", (entrance_x, entrance_y, base_z + dh/2), (dw, door_t, dh), door_mat)
+    obj = bpy.data.objects.get("MainEntrance_Door")
+    if obj:
+        obj["isDoor"] = True
+        obj["isOpen"] = False
+        obj["roomFrom"] = "outside"
+        obj["roomTo"] = "entry"
 
-    # Interior doors for each floor
-    for floor in range(num_floors):
-        z = base_z + floor * floor_h + door_h/2
+    for fi in range(num_floors):
+        rooms = _get_floor_rooms(iw, id_, fi, num_floors)
+        fz = base_z + fi * floor_h
+        room_boxes = []
+        for t, cx, cy, w, d in rooms:
+            x1, x2 = cx - w/2, cx + w/2
+            y1, y2 = cy - d/2, cy + d/2
+            room_boxes.append((t, x1, x2, y1, y2))
 
-        # Door to living room
-        add_box(f"Door_Living_{floor}", (-bw*0.15, -bd*0.1, z), (door_w, door_t, door_h), M["door"])
-        bpy.data.objects[f"Door_Living_{floor}"]["isDoor"] = True
-        bpy.data.objects[f"Door_Living_{floor}"]["isOpen"] = False
+        done = set()
+        for i, (ti, x1, x2, y1, y2) in enumerate(room_boxes):
+            for j, (tj, x1b, x2b, y1b, y2b) in enumerate(room_boxes):
+                if i >= j:
+                    continue
+                key = f"{i}-{j}" if i < j else f"{j}-{i}"
+                if key in done:
+                    continue
 
-        # Door to kitchen
-        add_box(f"Door_Kitchen_{floor}", (bw*0.25, -bd*0.15, z), (door_w, door_t, door_h), M["door"])
-        bpy.data.objects[f"Door_Kitchen_{floor}"]["isDoor"] = True
-        bpy.data.objects[f"Door_Kitchen_{floor}"]["isOpen"] = False
+                # Same X span → stacked in Y → horizontal door
+                if round(x1, 2) == round(x1b, 2) and round(x2, 2) == round(x2b, 2):
+                    gap = abs(y2 - y1b)
+                    if gap < 0.2:
+                        wall_y = (y2 + y1b) / 2
+                        cx_mid = (x1 + x2) / 2
+                        name = f"IntDoor_{fi}_{ti}_{tj}"
+                        add_box(name, (cx_mid, wall_y + 0.03, fz + dh/2), (dw, door_t, dh), door_mat)
+                        obj = bpy.data.objects.get(name)
+                        if obj:
+                            obj["isDoor"] = True
+                            obj["isOpen"] = False
+                            obj["roomFrom"] = ti
+                            obj["roomTo"] = tj
+                        done.add(key)
 
-        # Bedroom doors (upper floors)
-        if floor > 0:
-            add_box(f"Door_Bedroom_{floor}", (-bw*0.1, bd*0.1, z), (door_w, door_t, door_h), M["door"])
-            bpy.data.objects[f"Door_Bedroom_{floor}"]["isDoor"] = True
-            bpy.data.objects[f"Door_Bedroom_{floor}"]["isOpen"] = False
-
-            add_box(f"Door_Bathroom_{floor}", (bw*0.2, bd*0.2, z), (door_w*0.8, door_t, door_h), M["door"])
-            bpy.data.objects[f"Door_Bathroom_{floor}"]["isDoor"] = True
-            bpy.data.objects[f"Door_Bathroom_{floor}"]["isOpen"] = False
+                # Same Y span → stacked in X → vertical door
+                if round(y1, 2) == round(y1b, 2) and round(y2, 2) == round(y2b, 2):
+                    if abs(x2 - x1b) < 0.2:
+                        wall_x = (x2 + x1b) / 2
+                        cy_mid = (y1 + y2) / 2
+                        name = f"IntDoor_{fi}_{ti}_{tj}"
+                        add_box(name, (wall_x + 0.03, cy_mid, fz + dh/2), (door_t, dw, dh), door_mat)
+                        obj = bpy.data.objects.get(name)
+                        if obj:
+                            obj["isDoor"] = True
+                            obj["isOpen"] = False
+                            obj["roomFrom"] = ti
+                            obj["roomTo"] = tj
+                        done.add(key)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 14. LOBBY / ENTRANCE
@@ -1022,18 +1063,29 @@ def generate_lobby(bw, bd, base_z, M, style_name):
 # 15. STAIRCASE CORE
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_staircase(bw, bd, num_floors, floor_h, base_z, M):
-    sw, sd = 3.0, 5.0
-    sx = bw/2-sw-0.8; sy = -bd/2+sd/2+0.8
-    shaft_h = num_floors*floor_h+1.0
+    wall_t = 0.28
+    iw = bw - wall_t * 2
+    id_ = bd - wall_t * 2
+    c3 = iw * 0.35
+    d_front = id_ * 0.45
+    cx3 = -iw/2 + iw*0.40 + iw*0.25 + c3/2
+    cy_front = -id_ * 0.25
+
+    sw = min(c3 * 0.75, 3.5)
+    sd = min(d_front * 0.55, 4.5)
+    sx, sy = cx3, cy_front
+    shaft_h = num_floors * floor_h + 1.0
     add_box("StairCore",     (sx,sy,base_z+shaft_h/2),(sw+0.5,sd+0.5,shaft_h+0.3), M["concrete"])
     add_box("StairCore_Inn", (sx,sy,base_z+shaft_h/2),(sw,sd,shaft_h),             M["wall"])
-    td, th = sd/16, floor_h/16
-    for fi in range(num_floors-1):
-        fz = base_z+fi*floor_h
+    td = sd / 16
+    th = floor_h / 16
+    for fi in range(num_floors - 1):
+        fz = base_z + fi * floor_h
         for step in range(16):
+            sy_step = sy - sd/2 + step * td + td / 2
             add_box(f"Stair_{fi}_{step}",
-                (sx, -bd/2+0.8+step*td+td/2, fz+step*th+th/2),
-                (sw, td, th*(step+1)), M["slab"])
+                (sx, sy_step, fz + step * th + th / 2),
+                (sw, td, th * (step + 1)), M["slab"])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 16. POOL
@@ -1211,61 +1263,52 @@ def _tree_simple(i, tx, ty, h, r, M, fm):
 def _get_floor_rooms(iw, id_, fi, num_floors):
     """Return list of (type, cx, cy, w, d) for rooms on a given floor.
 
-    Uses a 40/25/35 column split (width) and 55/45 depth split for
-    realistic proportions across all floors.
-    Dimensions are FULL (room spans entire column/row) — floor surfaces
-    should be inset by 0.04 in generate_interior to avoid z-fighting.
+    Clean 3-column × 2-row grid layout:
+      - Columns: left 40%, center 25%, right 35%
+      - Rows: back 55%, front 45%
+    Every floor has all 6 cells filled — walls align perfectly.
     """
     rooms = []
-
     def r(name, cx, cy, w, d):
         rooms.append((name, cx, cy, w, d))
 
-    # Column widths: left 40%, center 25%, right 35%
     c1 = iw * 0.40
     c2 = iw * 0.25
     c3 = iw * 0.35
-    # Depth split: back 55%, front 45%
+
     d_back = id_ * 0.55
     d_front = id_ * 0.45
 
-    # Center X positions for each column
     cx1 = -iw/2 + c1/2
     cx2 = -iw/2 + c1 + c2/2
     cx3 = -iw/2 + c1 + c2 + c3/2
-    # Center Y for back/front rows
+
     cy_back = id_ * 0.25
     cy_front = -id_ * 0.25
 
     if fi == 0:
-        # Ground floor
-        # Back row: Living (c1) | Kitchen (c3) — center column is open gap
+        # Ground: living/dining/kitchen (back), entry/hall/stairs (front)
         r("living",  cx1, cy_back, c1, d_back)
+        r("dining",  cx2, cy_back, c2, d_back)
         r("kitchen", cx3, cy_back, c3, d_back)
-        # Front row: Entry (c1) | Hall (c2) | Powder (c3/2) | Stairs (c3/2)
         r("entry",   cx1, cy_front, c1, d_front)
         r("hall",    cx2, cy_front, c2, d_front)
-        r("powder",  cx3 - c3*0.25, cy_front + d_front*0.22, c3*0.45, d_front*0.42)
-        r("stairs",  cx3 - c3*0.25, cy_front - d_front*0.22, c3*0.45, d_front*0.40)
+        r("stairs",  cx3, cy_front, c3, d_front)
 
     elif fi == num_floors - 1:
-        # Top floor
-        # Back row: Master (40%) | Bath (25%) | Bedroom (35%)
+        # Top: master/bath/bedroom (back), study/hall/stairs (front)
         r("master",  cx1, cy_back, c1, d_back)
         r("bath_top", cx2, cy_back, c2, d_back)
         r("bed_top", cx3, cy_back, c3, d_back)
-        # Front row: Study (40%) | Hall (25%) | Stairs (35%)
         r("study",   cx1, cy_front, c1, d_front)
         r("hall_top", cx2, cy_front, c2, d_front)
         r("stairs_top", cx3, cy_front, c3, d_front)
 
     else:
-        # Mid floors
-        # Back row: Bedroom (40%) | Bath (25%) | Bedroom (35%)
-        r("bedroom", cx1, cy_back, c1, d_back)
+        # Mid: bedroom/bathroom/bedroom2 (back), bedroom3/hall/stairs (front)
+        r("bedroom",  cx1, cy_back, c1, d_back)
         r("bathroom", cx2, cy_back, c2, d_back)
         r("bedroom2", cx3, cy_back, c3, d_back)
-        # Front row: Bedroom (40%) | Hall (25%) | Stairs (35%)
         r("bedroom3", cx1, cy_front, c1, d_front)
         r("hall_mid", cx2, cy_front, c2, d_front)
         r("stairs_mid", cx3, cy_front, c3, d_front)
@@ -1617,9 +1660,23 @@ def main():
 
     export_glb(output_path)
 
+    # Collect room data for walkthrough path generation
+    wall_t = 0.28
+    iw = bw - wall_t * 2
+    id_ = bd - wall_t * 2
+    all_rooms = []
+    for fi in range(num_floors):
+        floor_rooms = _get_floor_rooms(iw, id_, fi, num_floors)
+        for t, cx, cy, w, d in floor_rooms:
+            all_rooms.append({
+                "name": t, "floor": fi,
+                "cx": round(cx, 3), "cy": round(cy, 3),
+                "width": round(w, 3), "depth": round(d, 3)})
+
     meta = {"status":"success","output_path":output_path,"style":style_name,
             "floors":num_floors,"width":bw,"depth":bd,
-            "features":{"pool":has_pool,"garage":has_garage,"balconies":has_bals}}
+            "features":{"pool":has_pool,"garage":has_garage,"balconies":has_bals},
+            "rooms": all_rooms}
     with open(output_path.replace(".glb","_meta.json"),"w") as f:
         json.dump(meta,f,indent=2)
     print("[BlenderWorker] DONE")
