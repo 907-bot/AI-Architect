@@ -336,6 +336,22 @@ function EmptyBuilding() {
 }
 
 // ─── Placed assets ────────────────────────────────────────────────────────────
+function ModelLoader({ url, scale }: { url: string; scale: number }) {
+  const { scene } = useGLTF(url);
+  const cloned = useMemo(() => scene.clone(), [scene]);
+  
+  useEffect(() => {
+    cloned.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+  }, [cloned]);
+
+  return <primitive object={cloned} scale={scale} />;
+}
+
 function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect:(id:string)=>void }) {
   const selected = useStore(s=>s.selectedAssetUid)===asset.placement_id;
   const s = asset.scale||1;
@@ -343,12 +359,26 @@ function PlacedAssetMesh({ asset, onSelect }: { asset: PlacedAsset; onSelect:(id
   const pos:[number,number,number] = Array.isArray(asset.position)
     ? asset.position as [number,number,number]
     : [asset.position.x, asset.position.y, asset.position.z];
+
+  const glbUrl = `${API_BASE}/cache/sketchfab/${asset.asset_uid}.glb`;
+
   return (
     <group position={pos} onClick={e=>{e.stopPropagation();onSelect(asset.placement_id);}}>
-      <mesh position={[0,size[1]/2,0]} castShadow>
-        <boxGeometry args={size} />
-        <meshStandardMaterial color={selected?"#7c93c3":"#94a3b8"} roughness={0.6} />
-      </mesh>
+      <MeshBoundary fallback={
+        <mesh position={[0,size[1]/2,0]} castShadow>
+          <boxGeometry args={size} />
+          <meshStandardMaterial color={selected?"#7c93c3":"#94a3b8"} opacity={0.6} transparent roughness={0.6} />
+        </mesh>
+      }>
+        <React.Suspense fallback={
+          <mesh position={[0,size[1]/2,0]} castShadow>
+            <boxGeometry args={size} />
+            <meshStandardMaterial color="#3b82f6" opacity={0.4} transparent roughness={0.6} />
+          </mesh>
+        }>
+          <ModelLoader url={glbUrl} scale={s} />
+        </React.Suspense>
+      </MeshBoundary>
       {selected && (
         <mesh position={[0,size[1]/2,0]}>
           <boxGeometry args={[size[0]+0.1,size[1]+0.1,size[2]+0.1]} />

@@ -419,11 +419,18 @@ async def generate(body: GenerateRequest):
             style=schema.get("style", "modern")
         )
         
+        # Compile scene using the compiler to get a proper 3D representation and floor plan!
+        from backend.toon.models import SceneGraph
+        scene = SceneGraph.from_dict(scene_graph)
+        geometry = compile_scene(scene)
+        geometry["schema"] = schema
+        geometry["floors"] = floors
+
         return {
             "success": True,
             "toon": "",
             "scene_graph": scene_graph,
-            "geometry": {"floors": floors, "schema": schema},
+            "geometry": geometry,
             "glb_path": glb_path or "",
             "model_path": glb_path or "",
             "blender_rendered": glb_path is not None,

@@ -229,7 +229,7 @@ class ArtifactPipeline:
 
     def _generate_svg_floorplan(self, scene_graph: Dict[str, Any]) -> str:
         """Generate a polished SVG floorplan from room data."""
-        rooms = scene_graph.get("rooms", [])
+        rooms = scene_graph.get("rooms") or scene_graph.get("house", {}).get("rooms", [])
         if not rooms:
             return "<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><text x='10' y='100'>No rooms</text></svg>"
 

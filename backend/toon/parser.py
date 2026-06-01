@@ -52,7 +52,7 @@ class _Parser:
         width = 4.0
         depth = 4.0
         height = 3.0
-        floor = 0
+        floor = self.current_floor
         x = None
         y = None
         self._expect("{")

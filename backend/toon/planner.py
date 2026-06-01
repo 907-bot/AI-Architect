@@ -48,17 +48,23 @@ def prompt_to_toon(prompt: str) -> str:
 
     lines = [
         f"HOUSE {style}_{'apartment' if is_apartment else 'house'} {{",
-        f"  STYLE {style}"
+        f"  STYLE {style}",
+        f"  FLOORS {floor_count}"
     ]
+    # Group rooms by floor to output clear FLOOR N directive blocks
+    rooms_by_floor = {}
     for name, room_type, size, floor in rooms:
-        lines.extend([
-            "",
-            f"  ROOM {name} {{",
-            f"    type {room_type}",
-            f"    size {size}",
-            f"    floor {floor}",
-            "  }"
-        ])
+        rooms_by_floor.setdefault(floor, []).append((name, room_type, size))
+
+    for floor_num in sorted(rooms_by_floor.keys()):
+        lines.extend(["", f"  FLOOR {floor_num}"])
+        for name, room_type, size in rooms_by_floor[floor_num]:
+            lines.extend([
+                f"  ROOM {name} {{",
+                f"    type {room_type}",
+                f"    size {size}",
+                "  }"
+            ])
     lines.extend(["", f"  ROOF {roof}", "}"])
     return "\n".join(lines)
 

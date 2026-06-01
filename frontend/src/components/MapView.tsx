@@ -7,7 +7,7 @@ declare global { interface Window { L: any; } }
 
 type MapMode = "satellite" | "street" | "streetview";
 
-export default function MapView() {
+export default function MapView({ onClose }: { onClose?: () => void }) {
   const { plotLat, plotLng, plotWidth, plotDepth, setPlotData, setZoningData, zoningData } = useStore();
   const mapRef      = useRef<HTMLDivElement>(null);
   const svRef       = useRef<HTMLIFrameElement>(null);
@@ -208,6 +208,13 @@ export default function MapView() {
     <div className="absolute inset-0 flex flex-col bg-[#1a1a2e]">
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] border-b border-white/10 flex-shrink-0">
+        {onClose && (
+          <button onClick={onClose} 
+            className="flex items-center justify-center p-1 rounded bg-white/5 hover:bg-white/15 text-white/70 hover:text-white transition mr-1.5"
+            title="Back to workspace">
+            <span className="text-[9px] font-bold px-1">← Back</span>
+          </button>
+        )}
         <MapPin className="w-3.5 h-3.5 text-[#7c93c3]" />
         <div className="flex-1 min-w-0">
           <p className="text-[9px] font-bold uppercase tracking-widest text-white/60">Plot Location</p>

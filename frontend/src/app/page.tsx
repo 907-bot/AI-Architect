@@ -242,7 +242,7 @@ export default function WorkspacePage() {
               </button>
               {showMap && (
                 <div className="px-3 pb-3 space-y-2">
-                  <MapView />
+                  <MapView onClose={() => setShowMap(false)} />
                   <div className="grid grid-cols-2 gap-2 text-[11px]">
                     <div>
                       <label className="text-slate-400 block mb-1">Width (m)</label>
