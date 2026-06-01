@@ -167,11 +167,13 @@ def mat(name, base, rough=0.5, metal=0.0, alpha=1.0, transmission=0.0,
                 bsdf.inputs[em].default_value = (*emission[:3],1.0); break
         bsdf.inputs["Emission Strength"].default_value = 3.0
 
-    coord = nt.nodes.new("ShaderNodeTexCoord")
-    coord.location = (-800,0)
+    # For GLB export compatibility: connect Base Color only when needed
+    # (bump/wave create extra nodes but never touch the Base Color socket)
+    if bump > 0 or wave or brick:
+        coord = nt.nodes.new("ShaderNodeTexCoord")
+        coord.location = (-800,0)
 
     if brick:
-        # Realistic brick texture
         brk = nt.nodes.new("ShaderNodeTexBrick")
         brk.location = (-400, 100)
         brk.inputs["Scale"].default_value      = 8.0
@@ -182,7 +184,6 @@ def mat(name, base, rough=0.5, metal=0.0, alpha=1.0, transmission=0.0,
         brk.inputs["Mortar"].default_value = (0.72,0.70,0.68,1.0)
         nt.links.new(coord.outputs["Generated"], brk.inputs["Vector"])
         nt.links.new(brk.outputs["Color"], bsdf.inputs["Base Color"])
-        # Bump from brick
         bmp2 = nt.nodes.new("ShaderNodeBump")
         bmp2.location = (0,0)
         bmp2.inputs["Strength"].default_value = 0.5
@@ -222,7 +223,7 @@ def mat(name, base, rough=0.5, metal=0.0, alpha=1.0, transmission=0.0,
         cr.color_ramp.elements[1].color = (*[min(1,c*1.08) for c in base[:3]],1.0)
         nt.links.new(coord.outputs["Generated"], ns.inputs["Vector"])
         nt.links.new(ns.outputs["Fac"], cr.inputs["Fac"])
-        nt.links.new(cr.outputs["Color"], bsdf.inputs["Base Color"])
+        # DO NOT connect to Base Color — keep the default_value for GLB export
         bmp2 = nt.nodes.new("ShaderNodeBump")
         bmp2.inputs["Strength"].default_value = bump
         bmp2.inputs["Distance"].default_value = 0.003
@@ -1215,52 +1216,66 @@ def _tree_simple(i, tx, ty, h, r, M, fm):
 # INTERIOR ROOMS & FURNITURE  — practical room-based floor plans
 # ══════════════════════════════════════════════════════════════════════════════
 def _get_floor_rooms(iw, id_, fi, num_floors):
-    """Return list of (type, cx, cy, w, d) for rooms on a given floor."""
-    col3 = iw / 3
-    row2 = id_ / 2
-    wt = 0.16
-    gap = 0.18
-    door_gap = 1.0
+    """Return list of (type, cx, cy, w, d) for rooms on a given floor.
+
+    Uses a 40/25/35 column split (width) and 55/45 depth split for
+    realistic proportions across all floors.
+    Dimensions are FULL (room spans entire column/row) — floor surfaces
+    should be inset by 0.04 in generate_interior to avoid z-fighting.
+    """
     rooms = []
 
     def r(name, cx, cy, w, d):
         rooms.append((name, cx, cy, w, d))
 
+    # Column widths: left 40%, center 25%, right 35%
+    c1 = iw * 0.40
+    c2 = iw * 0.25
+    c3 = iw * 0.35
+    # Depth split: back 55%, front 45%
+    d_back = id_ * 0.55
+    d_front = id_ * 0.45
+
+    # Center X positions for each column
+    cx1 = -iw/2 + c1/2
+    cx2 = -iw/2 + c1 + c2/2
+    cx3 = -iw/2 + c1 + c2 + c3/2
+    # Center Y for back/front rows
+    cy_back = id_ * 0.25
+    cy_front = -id_ * 0.25
+
     if fi == 0:
-        # Ground: entry row (front) + living/kitchen row (back)
-        # Back row (y > 0): Living | Dining | Kitchen
-        by = row2 / 2
-        r("living", -col3, by, col3 - wt, row2 - wt)
-        r("dining", 0, by, col3 - wt, row2 - wt)
-        r("kitchen", col3, by, col3 - wt, row2 - wt)
-        # Front row (y < 0): Entry | Hall | Pwdr/Stairs
-        fy = -row2 / 2
-        r("entry", -col3, fy, col3 - wt, row2 - wt)
-        r("hall", 0, fy, col3 * 0.4 - wt, row2 - wt)
-        r("powder", col3 * 0.7, fy, col3 * 0.35 - wt, row2 * 0.45 - wt)
-        r("stairs", col3 * 0.7, fy - row2 * 0.25, col3 * 0.35 - wt, row2 * 0.45 - wt)
+        # Ground floor
+        # Back row: Living (c1) | Kitchen (c3) — center column is open gap
+        r("living",  cx1, cy_back, c1, d_back)
+        r("kitchen", cx3, cy_back, c3, d_back)
+        # Front row: Entry (c1) | Hall (c2) | Powder (c3/2) | Stairs (c3/2)
+        r("entry",   cx1, cy_front, c1, d_front)
+        r("hall",    cx2, cy_front, c2, d_front)
+        r("powder",  cx3 - c3*0.25, cy_front + d_front*0.22, c3*0.45, d_front*0.42)
+        r("stairs",  cx3 - c3*0.25, cy_front - d_front*0.22, c3*0.45, d_front*0.40)
+
     elif fi == num_floors - 1:
-        # Top floor: Master bedroom | Hall | Bedroom  | Bath
-        by = row2 / 2
-        r("master", -col3, by, col3 - wt, row2 - wt)
-        r("hall_top", 0, by, col3 * 0.35 - wt, row2 * 0.6 - wt)
-        r("bath_top", col3 * 0.35, by, col3 * 0.65 - wt, row2 * 0.4 - wt)
-        r("bed_top", col3, by, col3 - wt, row2 - wt)
-        fy = -row2 / 2
-        r("study", -col3 * 0.7, fy, col3 * 0.7 - wt, row2 - wt)
-        r("hall_top2", 0, fy, col3 * 0.35 - wt, row2 - wt)
-        r("stairs_top", col3 * 0.7, fy, col3 * 0.35 - wt, row2 - wt)
+        # Top floor
+        # Back row: Master (40%) | Bath (25%) | Bedroom (35%)
+        r("master",  cx1, cy_back, c1, d_back)
+        r("bath_top", cx2, cy_back, c2, d_back)
+        r("bed_top", cx3, cy_back, c3, d_back)
+        # Front row: Study (40%) | Hall (25%) | Stairs (35%)
+        r("study",   cx1, cy_front, c1, d_front)
+        r("hall_top", cx2, cy_front, c2, d_front)
+        r("stairs_top", cx3, cy_front, c3, d_front)
+
     else:
-        # Mid floors: Bedroom | Hall | Bedroom  / Bath | Hall | Study/Stairs
-        by = row2 / 2
-        r("bedroom", -col3, by, col3 - wt, row2 - wt)
-        r("hall_mid", 0, by, col3 * 0.35 - wt, row2 * 0.6 - wt)
-        r("bathroom", col3 * 0.35, by, col3 * 0.65 - wt, row2 * 0.4 - wt)
-        r("bedroom2", col3, by, col3 - wt, row2 - wt)
-        fy = -row2 / 2
-        r("bedroom3", -col3 * 0.7, fy, col3 * 0.7 - wt, row2 - wt)
-        r("hall_mid2", 0, fy, col3 * 0.35 - wt, row2 - wt)
-        r("stairs_mid", col3 * 0.7, fy, col3 * 0.35 - wt, row2 - wt)
+        # Mid floors
+        # Back row: Bedroom (40%) | Bath (25%) | Bedroom (35%)
+        r("bedroom", cx1, cy_back, c1, d_back)
+        r("bathroom", cx2, cy_back, c2, d_back)
+        r("bedroom2", cx3, cy_back, c3, d_back)
+        # Front row: Bedroom (40%) | Hall (25%) | Stairs (35%)
+        r("bedroom3", cx1, cy_front, c1, d_front)
+        r("hall_mid", cx2, cy_front, c2, d_front)
+        r("stairs_mid", cx3, cy_front, c3, d_front)
 
     return rooms
 
@@ -1274,49 +1289,77 @@ def _build_interior_walls(rooms, iw, id_, fi, fz, floor_h, M):
     door_mat = M.get("door") or iw_mat
     done = set()
 
-    for i, (t1, cx1, cy1, w1, d1) in enumerate(rooms):
-        x1_min, x1_max = cx1 - w1/2, cx1 + w1/2
-        y1_min, y1_max = cy1 - d1/2, cy1 + d1/2
+    room_boxes = []
+    for t, cx, cy, w, d in rooms:
+        x1, x2 = cx - w/2, cx + w/2
+        y1, y2 = cy - d/2, cy + d/2
+        room_boxes.append((t, x1, x2, y1, y2))
 
-        for j, (t2, cx2, cy2, w2, d2) in enumerate(rooms):
+    # Shared x-edges → vertical walls; shared y-edges → horizontal walls
+    for i, (_, x1, x2, y1, y2) in enumerate(room_boxes):
+        for j, (_, x1b, x2b, y1b, y2b) in enumerate(room_boxes):
             if i >= j:
                 continue
             key = f"{i}-{j}" if i < j else f"{j}-{i}"
             if key in done:
                 continue
-            x2_min, x2_max = cx2 - w2/2, cx2 + w2/2
-            y2_min, y2_max = cy2 - d2/2, cy2 + d2/2
 
-            # Check adjacency: rooms share an edge within tolerance
-            tol = 0.25
-            overlap_x = max(0, min(x1_max, x2_max) - max(x1_min, x2_min))
-            overlap_y = max(0, min(y1_max, y2_max) - max(y1_min, y2_min))
+            # Shared Y edge: rooms are side-by-side in X, adjacent in Y
+            if round(x1, 2) == round(x1b, 2) and round(x2, 2) == round(x2b, 2):
+                # Same X span — they're stacked in Y
+                gap = abs(y2 - y1b)
+                if gap < 0.2:
+                    # Room i above room j
+                    wall_y = (y2 + y1b) / 2
+                    cx_mid = (x1 + x2) / 2
+                    cw = x2 - x1
+                    wall_w = cw - dw
+                    if wall_w > 0.05:
+                        add_box(f"IntW_H_{fi}_{i}_{j}", (cx_mid, wall_y, fz + floor_h/2), (wall_w, wt, floor_h), iw_mat)
+                    obj = add_box(f"IntDoor_H_{fi}_{i}_{j}", (cx_mid, wall_y + 0.03, fz + dh/2), (dw, 0.05, dh), door_mat)
+                    obj["isDoor"] = True
+                    obj["isOpen"] = False
+                    done.add(key)
+                elif abs(y2b - y1) < 0.2:
+                    # Room j above room i
+                    wall_y = (y2b + y1) / 2
+                    cx_mid = (x1 + x2) / 2
+                    cw = x2 - x1
+                    wall_w = cw - dw
+                    if wall_w > 0.05:
+                        add_box(f"IntW_H_{fi}_{j}_{i}", (cx_mid, wall_y, fz + floor_h/2), (wall_w, wt, floor_h), iw_mat)
+                    obj = add_box(f"IntDoor_H_{fi}_{j}_{i}", (cx_mid, wall_y + 0.03, fz + dh/2), (dw, 0.05, dh), door_mat)
+                    obj["isDoor"] = True
+                    obj["isOpen"] = False
+                    done.add(key)
 
-            # Horizontal adjacent (share y edge)
-            if overlap_x > 0.5 and abs(y1_max - y2_min) < tol:
-                done.add(key)
-                wall_y = (y1_max + y2_min) / 2
-                cx = (max(x1_min, x2_min) + min(x1_max, x2_max)) / 2
-                cw = min(x1_max, x2_max) - max(x1_min, x2_min)
-                wall_w = cw - dw
-                if wall_w > 0.05:
-                    add_box(f"IntW_H_{fi}_{i}_{j}", (cx, wall_y, fz + floor_h/2), (wall_w, wt, floor_h), iw_mat)
-                obj = add_box(f"IntDoor_H_{fi}_{i}_{j}", (cx, wall_y + 0.03, fz + dh/2), (dw, 0.05, dh), door_mat)
-                obj["isDoor"] = True
-                obj["isOpen"] = False
-
-            # Vertical adjacent (share x edge)
-            if overlap_y > 0.5 and abs(x1_max - x2_min) < tol:
-                done.add(key)
-                wall_x = (x1_max + x2_min) / 2
-                cy = (max(y1_min, y2_min) + min(y1_max, y2_max)) / 2
-                cd = min(y1_max, y2_max) - max(y1_min, y2_min)
-                wall_d = cd - dw
-                if wall_d > 0.05:
-                    add_box(f"IntW_V_{fi}_{i}_{j}", (wall_x, cy, fz + floor_h/2), (wt, wall_d, floor_h), iw_mat)
-                obj = add_box(f"IntDoor_V_{fi}_{i}_{j}", (wall_x + 0.03, cy, fz + dh/2), (0.05, dw, dh), door_mat)
-                obj["isDoor"] = True
-                obj["isOpen"] = False
+            # Shared X edge: rooms are stacked in Y, adjacent in X
+            if round(y1, 2) == round(y1b, 2) and round(y2, 2) == round(y2b, 2):
+                # Same Y span — they're side-by-side in X
+                if abs(x2 - x1b) < 0.2:
+                    # Room i left of room j
+                    wall_x = (x2 + x1b) / 2
+                    cy_mid = (y1 + y2) / 2
+                    cd = y2 - y1
+                    wall_d = cd - dw
+                    if wall_d > 0.05:
+                        add_box(f"IntW_V_{fi}_{i}_{j}", (wall_x, cy_mid, fz + floor_h/2), (wt, wall_d, floor_h), iw_mat)
+                    obj = add_box(f"IntDoor_V_{fi}_{i}_{j}", (wall_x + 0.03, cy_mid, fz + dh/2), (0.05, dw, dh), door_mat)
+                    obj["isDoor"] = True
+                    obj["isOpen"] = False
+                    done.add(key)
+                elif abs(x2b - x1) < 0.2:
+                    # Room j left of room i
+                    wall_x = (x2b + x1) / 2
+                    cy_mid = (y1 + y2) / 2
+                    cd = y2 - y1
+                    wall_d = cd - dw
+                    if wall_d > 0.05:
+                        add_box(f"IntW_V_{fi}_{j}_{i}", (wall_x, cy_mid, fz + floor_h/2), (wt, wall_d, floor_h), iw_mat)
+                    obj = add_box(f"IntDoor_V_{fi}_{j}_{i}", (wall_x + 0.03, cy_mid, fz + dh/2), (0.05, dw, dh), door_mat)
+                    obj["isDoor"] = True
+                    obj["isOpen"] = False
+                    done.add(key)
 
 
 def _place_room_furniture(room_type, cx, cy, w, d, fi, fz, M, style_name):
@@ -1421,10 +1464,10 @@ def generate_interior(bw, bd, num_floors, floor_h, base_z, M, style_name):
 
         rooms = _get_floor_rooms(iw, id_, fi, num_floors)
 
-        # Per-room floor surfaces
+        # Per-room floor surfaces (inset 0.04 to avoid z-fighting with walls)
         for room_type, cx, cy, w, d in rooms:
             fm = _floor_mat_for_room(room_type, M, style_name)
-            add_box(f"F_{room_type}_{fi}", (cx, cy, fz + slab_t + 0.02), (w, d, 0.04), fm)
+            add_box(f"F_{room_type}_{fi}", (cx, cy, fz + slab_t + 0.02), (w - 0.08, d - 0.08, 0.04), fm)
 
         # Interior walls between rooms
         _build_interior_walls(rooms, iw, id_, fi, fz, floor_h, M)

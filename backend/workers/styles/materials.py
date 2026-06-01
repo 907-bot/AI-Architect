@@ -140,7 +140,7 @@ _JAPANESE: Pal = {
     "accent":         _hex("#6B5C3E"),  # Aged Bronze
     "frame":          _hex("#C8A97B"),  # Natural Bamboo (shoji lattice)
     "frame_metal":    0.0,              # pure wood, no metalness
-    "column":         _hex("#F2EDE4"),
+    "column":         _hex("#4A2C2A"),  # Dark Persimmon Wood — distinct from wall
     "wood_dark":      _hex("#4A2C2A"),  # Dark Persimmon Wood
     "wood_light":     _hex("#B8824E"),  # Aged Hinoki Cedar (engawa floor)
     # ── Glass / screens ───────────────────────────────────────────────────────
@@ -215,9 +215,9 @@ _VILLA: Pal = {
     "roof_tile":      _hex("#A64E2A"),
     "roof_metal":     _hex("#7A5C3A"),
     "accent":         _hex("#B38A1A"),  # Warm gold ornament
-    "frame":          _hex("#C8A87A"),  # Warm sand window trim
-    "frame_metal":    0.05,
-    "column":         _hex("#EDE0CC"),
+    "frame":          _hex("#8A6A4A"),  # Warm brown — darker than wall for contrast
+    "frame_metal":    0.10,
+    "column":         _hex("#C8A87A"),  # Warm sand stone — distinct from plaster wall
     "wood_dark":      _hex("#5C3A1E"),
     "wood_light":     _hex("#A87840"),
     "glass":          _hex("#C8E6BF"),  # Warm green-tinted glass
@@ -281,9 +281,9 @@ _SCANDINAVIAN: Pal = {
     "roof_tile":      _hex("#2E2E30"),
     "roof_metal":     _hex("#2A2A2C"),
     "accent":         _hex("#9E4C26"),  # Burnt terracotta (hygge accent)
-    "frame":          _hex("#DEDAD4"),  # White-painted wood frame
-    "frame_metal":    0.05,
-    "column":         _hex("#F2F0ED"),
+    "frame":          _hex("#1A1A1E"),  # Dark charcoal — strong contrast with white wall
+    "frame_metal":    0.40,
+    "column":         _hex("#5C4433"),  # Dark wenge — distinct from white wall
     "wood_dark":      _hex("#5C4433"),  # Dark wenge
     "wood_light":     _hex("#C8A878"),  # Light oak floorboards
     "glass":          _hex("#D2E8F0"),  # Cool Scandinavian light
@@ -416,7 +416,7 @@ _COLONIAL: Pal = {
     "roof_tile":      _hex("#383638"),
     "roof_metal":     _hex("#383638"),
     "accent":         _hex("#1E2E60"),  # Deep navy blue trim
-    "frame":          _hex("#F2F0EC"),  # White window trim
+    "frame":          _hex("#142018"),  # Dark hunter green — classic colonial
     "frame_metal":    0.0,
     "column":         _hex("#F2F0EC"),  # White columns
     "wood_dark":      _hex("#4A3826"),
@@ -480,9 +480,9 @@ _CLASSICAL: Pal = {
     "roof_tile":      _hex("#8C5A3C"),
     "roof_metal":     _hex("#7A6040"),
     "accent":         _hex("#A87A30"),  # Greek gold leaf
-    "frame":          _hex("#D8CEB8"),  # Stone-coloured frame
-    "frame_metal":    0.0,
-    "column":         _hex("#EEE9DC"),  # Marble columns
+    "frame":          _hex("#3A3028"),  # Dark bronze — contrasts with stone wall
+    "frame_metal":    0.30,
+    "column":         _hex("#B8A88A"),  # Warm travertine — darker than wall
     "wood_dark":      _hex("#5C3C20"),
     "wood_light":     _hex("#A88050"),
     "glass":          _hex("#A8CCAC"),  # Aged green glass
@@ -548,7 +548,7 @@ _MODERN: Pal = {
     "accent":         _hex("#406CA5"),
     "frame":          _hex("#141416"),  # Matte black aluminium
     "frame_metal":    0.90,
-    "column":         _hex("#D2CDCA"),
+    "column":         _hex("#6A5C4A"),  # Dark warm grey — contrasts with wall
     "wood_dark":      _hex("#472D20"),
     "wood_light":     _hex("#9E7245"),
     "glass":          _hex("#B8E0F7"),  # Floor-to-ceiling glazing
@@ -677,10 +677,10 @@ _CLEAN: Pal = {
     "roof_bump":      0.20,
     "roof_tile":      _hex("#B0D0E0"),
     "roof_metal":     _hex("#A0C0D0"),
-    "accent":         _hex("#F0F8FC"),  # Near-white
-    "frame":          _hex("#D0E4F0"),  # Pale blue frame
-    "frame_metal":    0.02,
-    "column":         _hex("#E8F4F8"),
+    "accent":         _hex("#206080"),  # Deep ocean blue — visible against light wall
+    "frame":          _hex("#1A2A3A"),  # Dark navy — strong contrast
+    "frame_metal":    0.15,
+    "column":         _hex("#4A6A7A"),  # Steel grey-blue — distinct from wall
     "wood_dark":      _hex("#B8C8D0"),
     "wood_light":     _hex("#D8E8F0"),
     "glass":          _hex("#C8E8F8"),  # Clear light blue glass
