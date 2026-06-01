@@ -745,8 +745,8 @@ def _roof_gable(bw, bd, top_z, oh, t, M, steep=False):
     angle = math.radians(40 if steep else 30)
     # Two pitched faces meeting at center ridge
     for name, cx, rot in [
-        ("Pitch_L", -half_w / 2,  angle),
-        ("Pitch_R",  half_w / 2, -angle),
+        ("Pitch_L", -half_w / 2, -angle),
+        ("Pitch_R",  half_w / 2,  angle),
     ]:
         bpy.ops.mesh.primitive_cube_add(size=1, location=(cx, 0, top_z + t + rh / 2))
         p = bpy.context.active_object; p.name = name
