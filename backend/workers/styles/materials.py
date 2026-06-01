@@ -661,6 +661,74 @@ _ASIAN: Pal = {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CLEAN — Light blue, airy, minimal, very clean
+# ─────────────────────────────────────────────────────────────────────────────
+_CLEAN: Pal = {
+    "wall":           _hex("#E8F4F8"),  # Light ice blue
+    "wall_rough":     0.75,
+    "wall_bump":      0.20,
+    "wall_wood":      _hex("#B8D8E8"),  # Pale blue-grey
+    "wall_brick":     _hex("#D0E8F0"),  # Faded blue
+    "facade":         _hex("#E8F4F8"),
+    "slab":           _hex("#D8EAF0"),  # Pale blue-grey
+    "concrete":       _hex("#C8DCE8"),
+    "roof":           _hex("#B0D0E0"),  # Soft powder blue
+    "roof_rough":     0.60,
+    "roof_bump":      0.20,
+    "roof_tile":      _hex("#B0D0E0"),
+    "roof_metal":     _hex("#A0C0D0"),
+    "accent":         _hex("#F0F8FC"),  # Near-white
+    "frame":          _hex("#D0E4F0"),  # Pale blue frame
+    "frame_metal":    0.02,
+    "column":         _hex("#E8F4F8"),
+    "wood_dark":      _hex("#B8C8D0"),
+    "wood_light":     _hex("#D8E8F0"),
+    "glass":          _hex("#C8E8F8"),  # Clear light blue glass
+    "glass_alpha":    0.12,
+    "glass_rough":    0.01,
+    "ground":         _hex("#E0E4E0"),  # Light grey ground
+    "grass":          _hex("#C8E0C8"),  # Pale muted green
+    "pavement":       _hex("#E0E4E8"),  # Light stone
+    "gravel":         _hex("#D8DCD8"),
+    "sand":           _hex("#E8E8E0"),
+    "path":           _hex("#D0D8D8"),
+    "pool_water":     _hex("#80C8E8"),  # Clean pool blue
+    "pool_water_alpha": 0.50,
+    "pool_water_trans": 0.85,
+    "pool_tile":      _hex("#A0D8F0"),
+    "water":          _hex("#80C8E8"),
+    "water_alpha":    0.50,
+    "water_trans":    0.85,
+    "foliage_a":      _hex("#B0D8B0"),  # Pale fresh green
+    "foliage_b":      _hex("#98C8A0"),
+    "foliage_dark":   _hex("#80B888"),
+    "bark":           _hex("#C0C8C0"),
+    "terracotta":     _hex("#D0DCE0"),
+    "plaster":        _hex("#E8F4F8"),
+    "marble":         _hex("#F0F4F8"),
+    "interior_floor": _hex("#D8EAF0"),
+    "interior_wall":  _hex("#E8F4F8"),
+    "interior_ceil":  _hex("#F0F8FC"),
+    "sofa":           _hex("#C8DCE8"),
+    "cushion_accent": _hex("#B0D8F0"),  # Light blue accent
+    "table_top":      _hex("#D8E8F0"),
+    "lantern":        False,
+    "sky_turbidity":  1.8,
+    "sun_energy":     4.5,
+    "sun_color":      _hex("#FFF5E8"),  # Soft warm light
+    "fill_energy":    280,
+    "fill_color":     _hex("#F0F8FC"),
+    "shadow_color":   _hex("#8098A8"),
+    "sun_elevation":  45.0,
+    "sun_rotation":   210.0,
+    "ambient_strength": 1.2,
+    "fog":            True,
+    "fog_color":      _hex("#E0ECF0"),
+    "fog_density":    0.03,
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Master registry
 # ─────────────────────────────────────────────────────────────────────────────
 STYLE_PALETTES: dict[str, Pal] = {
@@ -679,6 +747,7 @@ STYLE_PALETTES: dict[str, Pal] = {
     "contemporary": _MODERN,       # alias
     "asian":        _ASIAN,
     "chinese":      _ASIAN,        # alias
+    "clean":        _CLEAN,
 }
 
 

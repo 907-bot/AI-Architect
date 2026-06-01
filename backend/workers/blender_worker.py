@@ -55,6 +55,7 @@ _LAYOUT_OVERRIDES: dict = {
     "classical":    {"roof_type": "pitched",     "overhang": 0.6,  "window_ratio": 0.45, "bay_width": 3.4},
     "greek":        {"roof_type": "pitched",     "overhang": 0.6,  "window_ratio": 0.45, "bay_width": 3.4},
     "nordic":       {"roof_type": "steep_gable", "overhang": 0.6,  "window_ratio": 0.52, "bay_width": 3.0},
+    "clean":        {"roof_type": "flat",        "overhang": 0.5,  "window_ratio": 0.65, "bay_width": 4.0},
 }
 
 
@@ -679,22 +680,25 @@ def _roof_pagoda(bw, bd, top_z, oh, t, M):
         add_box(name,loc,dims, M["wood_dark"])
 
 def _roof_hip(bw, bd, top_z, oh, t, M):
-    """Mediterranean hip roof with terracotta tiles."""
+    """Hip roof with four full sloped faces meeting at center ridge."""
     add_box("Roof_Base", (0,0,top_z+t/2), (bw+oh*2,bd+oh*2,t), M["roof"])
     rh = min(bw,bd)*0.26
-    # Four hip faces as tapered boxes
-    for name,loc,dims,rot in [
-        ("Hip_N",(0, bd/2+oh/2, top_z+t+rh/2),(bw+oh*2, oh, rh),(math.radians(30), 0,0)),
-        ("Hip_S",(0,-bd/2-oh/2, top_z+t+rh/2),(bw+oh*2, oh, rh),(math.radians(-30), 0,0)),
-        ("Hip_E",( bw/2+oh/2,0, top_z+t+rh/2),(oh, bd+oh*2, rh),(0,math.radians(30),0)),
-        ("Hip_W",(-bw/2-oh/2,0, top_z+t+rh/2),(oh, bd+oh*2, rh),(0,math.radians(-30),0)),
+    angle = math.radians(30)
+    hw = bw / 2 + oh
+    hd = bd / 2 + oh
+    # Four hip faces — each extends from eave to center ridge
+    for name, cx, cy, sw, sd, rot in [
+        ("Hip_N", 0,  hd/2, bw + oh * 2, hd, ( angle, 0, 0)),
+        ("Hip_S", 0, -hd/2, bw + oh * 2, hd, (-angle, 0, 0)),
+        ("Hip_E",  hw/2, 0, hw, bd + oh * 2, (0,  angle, 0)),
+        ("Hip_W", -hw/2, 0, hw, bd + oh * 2, (0, -angle, 0)),
     ]:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
-        obj = bpy.context.active_object; obj.name = name
-        obj.scale = dims; obj.rotation_euler = rot
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(cx, cy, top_z + t + rh / 2))
+        p = bpy.context.active_object; p.name = name
+        p.scale = (sw, sd, rh)
+        p.rotation_euler = rot
         bpy.ops.object.transform_apply(scale=True)
-        assign(obj, M["roof_tile"])
-    add_box("Roof_Peak", (0,0,top_z+t+rh), (bw*0.3, bd*0.3, 0.2), M["terracotta"])
+        assign(p, M["roof_tile"])
     # Guttering
     for name,loc,dims in [
         ("Gutter_N",(0, bd/2+oh+0.06, top_z+t-0.06),(bw+oh*2+0.12,0.12,0.12)),
