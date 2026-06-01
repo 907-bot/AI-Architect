@@ -1285,80 +1285,23 @@ def _furniture_office(cx, cz_unused, fz, rw, rd, M, style_name):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 18. APARTMENT PARTITIONS — full real-world layout: corridor, lift, doors
+# 18. APARTMENT PARTITIONS — interior dividing walls for multi-flat floors
 # ══════════════════════════════════════════════════════════════════════════════
 def _generate_apartment_partitions(bw, bd, num_floors, floor_h, base_z, M, sc_cfg, style_name):
-    """Full apartment floor layout: corridor, 4 flats/floor, elevator core, entrance doors."""
-    cw  = 2.0                     # corridor width
-    ch  = cw / 2                  # corridor half-width
-    wt  = 0.18                    # wall thickness
-    dw  = 1.0                     # door width
-    dh  = 2.2                     # door height
-    wm  = M.get("facade") or M.get("wall")
-    dm  = M.get("door") or wm
-    cm  = M.get("concrete") or wm
-    sm  = M.get("steel") or dm
-
-    # Core (stairs + lift) sits at the east end of the corridor
-    core_cx = bw/2 - 3.5
-    core_w  = 5.0                 # E-W width
-    core_d  = 4.0                 # N-S depth
-    core_cy = 0
-
-    for fi in range(num_floors):
-        fz  = base_z + fi * floor_h
-        fzm = fz + floor_h * 0.5
-
-        # ── Corridor floor overlay ──────────────────────────────────────
-        add_box(f"Corr_Floor_{fi}", (0, 0, fz + 0.02), (bw - 0.6, cw, 0.04), cm)
-
-        # ── Corridor north wall (two segments, gap for doors) ───────────
-        gap   = dw + 0.4
-        add_box(f"Corr_N_W_{fi}", (-bw/4, ch, fzm), (bw/2 - gap/2, wt, floor_h), wm)
-        add_box(f"Corr_N_E_{fi}", (core_cx - core_w/2 - 1.0, ch, fzm), (2.0, wt, floor_h), wm)
-
-        # ── Corridor south wall ─────────────────────────────────────────
-        add_box(f"Corr_S_W_{fi}", (-bw/4, -ch, fzm), (bw/2 - gap/2, wt, floor_h), wm)
-        add_box(f"Corr_S_E_{fi}", (core_cx - core_w/2 - 1.0, -ch, fzm), (2.0, wt, floor_h), wm)
-
-        # ── Flat divider walls (N-S, splitting east/west flats) ────────
-        flat_dep = bd/2 - ch
-        add_box(f"Div_N_{fi}", (0, ch + flat_dep/2, fzm), (wt, flat_dep, floor_h), wm)
-        add_box(f"Div_S_{fi}", (0, -ch - flat_dep/2, fzm), (wt, flat_dep, floor_h), wm)
-
-        # ─－ Core enclosure walls ───────────────────────────────────────
-        add_box(f"Core_N_{fi}", (core_cx, core_cy + core_d/2, fzm), (core_w, wt, floor_h), wm)
-        add_box(f"Core_S_{fi}", (core_cx, core_cy - core_d/2, fzm), (core_w, wt, floor_h), wm)
-        add_box(f"Core_E_{fi}", (core_cx + core_w/2, core_cy, fzm), (wt, core_d, floor_h), wm)
-        add_box(f"Core_W_N_{fi}", (core_cx - core_w/2, core_cy + dw*0.6, fzm), (wt, core_d/2 - dw*0.6, floor_h), wm)
-        add_box(f"Core_W_S_{fi}", (core_cx - core_w/2, core_cy - dw*0.6, fzm), (wt, core_d/2 - dw*0.6, floor_h), wm)
-
-        # ─－ Core door (stairwell entrance from corridor) ───────────────
-        obj = add_box(f"Core_Door_{fi}", (core_cx - core_w/2 - 0.05, core_cy, fz + dh/2), (0.05, dw, dh), dm)
-        obj["isDoor"]  = True
-        obj["isOpen"]  = False
-
-        # ── Flat entrance doors (4 per floor) ───────────────────────────
-        for side, sy in [("N", ch), ("S", -ch)]:
-            for hname, hx in [("W", -bw*0.25), ("E", bw*0.25)]:
-                obj = add_box(f"AptDoor_{side}{hname}_{fi}",
-                    (hx, sy + 0.05 * (1 if side == "N" else -1), fz + dh/2), (dw, 0.05, dh), dm)
-                obj["isDoor"] = True
-                obj["isOpen"] = False
-
-    # ── Elevator shaft (single, spans all floors) ──────────────────────
-    el_x   = core_cx + 1.0
-    el_sz  = 1.8
-    sh_h   = num_floors * floor_h + 1.0
-    add_box("Elev_Shaft",    (el_x, 0, base_z + sh_h/2), (el_sz + 0.4, el_sz + 0.4, sh_h), cm)
-    add_box("Elev_Shaft_Inn",(el_x, 0, base_z + sh_h/2), (el_sz,     el_sz,     sh_h), wm)
-
-    # Elevator doors per floor
-    for fi in range(num_floors):
-        fz = base_z + fi * floor_h
-        obj = add_box(f"Elev_Door_{fi}", (el_x, el_sz/2 + 0.05, fz + dh/2), (dw*0.7, 0.05, dh), sm)
-        obj["isDoor"] = True
-        obj["isOpen"] = False
+    """Add an interior dividing wall splitting each floor into 2+ flats."""
+    wall_mat = M.get("facade") or M.get("wall")
+    wt   = 0.18
+    # Divide along the longer dimension
+    if bw >= bd:
+        # Split width-wise → flats on left/right
+        for fi in range(num_floors):
+            fz = base_z + fi*floor_h
+            add_box(f"Part_W_{fi}", (0, 0, fz+floor_h/2), (wt, bd*0.85, floor_h), wall_mat)
+    else:
+        # Split depth-wise → flats on front/back
+        for fi in range(num_floors):
+            fz = base_z + fi*floor_h
+            add_box(f"Part_D_{fi}", (0, 0, fz+floor_h/2), (bw*0.85, wt, floor_h), wall_mat)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 19. EXPORT
@@ -1380,6 +1323,7 @@ def export_glb(output_path):
 # ══════════════════════════════════════════════════════════════════════════════
 # 20. MAIN
 # ══════════════════════════════════════════════════════════════════════════════
+def main():
     s           = get_schema()
     num_floors  = max(1, int(s.get("floors", 3)))
     bw          = float(s.get("width",   20.0))

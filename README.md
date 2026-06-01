@@ -335,19 +335,3 @@ python -m backend.blender.mcp_server --verbose
 1. Copy `mcp_config.json` to correct location
 2. Restart ChatGPT desktop app
 3. Check server is running (`curl http://localhost:8765/health`)
-
-
-#=============#
-for apartments
-
-
-┌──────────────────────────────┐
-│  Flat NW         Flat NE     │
-│  (10×6.5m)       (10×6.5m)   │
-│                              │
-│  ┌─── Corridor (2m) ───┬────┤
-│  │   doors: NW NE SW SE │CORE│ ← stairs + lift
-│  └──────────────────────┴────┤
-│  Flat SW         Flat SE     │
-│                              │
-└──────────────────────────────┘
