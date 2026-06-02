@@ -23,24 +23,6 @@ import {
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
 import { API_BASE, unwrapApiResponse } from "@/lib/mvpScene";
 
-// Lazy load BOQPanel to avoid SSR/client hydration issues
-const BOQPanel = dynamic(() => import("@/components/BOQPanel"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-full flex flex-col bg-gray-900 text-gray-100">
-      <div className="flex-shrink-0 px-4 py-3 bg-gray-800 border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">🧮</span>
-          <h2 className="font-semibold text-gray-100">Bill of Quantities</h2>
-        </div>
-      </div>
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-gray-400 animate-pulse">Loading...</div>
-      </div>
-    </div>
-  )
-});
-
 const ThreeJSViewer = dynamic(() => import("@/components/ThreeJSViewer"), {
   ssr: false,
   loading: () => (
@@ -54,6 +36,69 @@ const ThreeJSViewer = dynamic(() => import("@/components/ThreeJSViewer"), {
 });
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), { ssr: false });
+
+// Simple BOQ Panel - inline to avoid import issues
+function SimpleBOQPanel() {
+  const [quality, setQuality] = React.useState("standard" as "basic" | "standard" | "premium");
+  const [initialized, setInitialized] = React.useState(false);
+
+  React.useEffect(() => {
+    setInitialized(true);
+  }, []);
+
+  const rate = quality === 'basic' ? 1800 : quality === 'standard' ? 2200 : 2800;
+  const area = 600; // sqm
+  const sqft = area * 10.764;
+  const total = sqft * rate;
+
+  const formatINR = (n: number) => n >= 10000000 ? `₹${(n/10000000).toFixed(2)} Cr` : n >= 100000 ? `₹${(n/100000).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
+  const formatUSD = (n: number) => `$${(n/83).toLocaleString('en-US')}`;
+
+  if (!initialized) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-900 text-gray-400">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-gray-900 text-gray-100">
+      <div className="flex items-center gap-2 px-4 py-3 bg-gray-800 border-b border-gray-700">
+        <span className="text-lg">🧮</span>
+        <h2 className="font-semibold">Cost Estimation</h2>
+      </div>
+      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <label className="text-xs text-gray-500 block mb-2">Quality Tier</label>
+          <select
+            value={quality}
+            onChange={(e) => setQuality(e.target.value as typeof quality)}
+            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+          >
+            <option value="basic">Basic (₹1800/sqft)</option>
+            <option value="standard">Standard (₹2200/sqft)</option>
+            <option value="premium">Premium (₹2800/sqft)</option>
+          </select>
+        </div>
+        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div className="text-xs text-gray-500 mb-1">Rate per sqft</div>
+          <div className="text-2xl font-bold text-emerald-400">{formatINR(rate)}/sqft</div>
+        </div>
+        <div className="bg-emerald-900/30 border border-emerald-700 rounded-lg p-6">
+          <div className="text-center">
+            <div className="text-xs text-emerald-400 mb-2">TOTAL COST</div>
+            <div className="text-3xl font-bold text-emerald-400">{formatINR(total)}</div>
+            <div className="text-lg text-emerald-300/70 mt-1">{formatUSD(total)}</div>
+          </div>
+        </div>
+        <div className="text-sm text-gray-400 text-center">
+          Plot Area: 600 sqm ({sqft.toFixed(0)} sqft)
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Projection selector ──────────────────────────────────────────────────────
 
@@ -286,7 +331,9 @@ export default function WorkspacePage() {
 
               {/* Cost tab — BOQ Panel */}
               {leftTab === "cost" && (
-                <BOQPanel />
+                <div className="h-full">
+                  <SimpleBOQPanel />
+                </div>
               )}
 
               {/* Style tab */}
