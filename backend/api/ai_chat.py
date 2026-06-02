@@ -6,7 +6,7 @@ Handles: architectural questions, image search, building edits, feasibility
 from __future__ import annotations
 import json, os, re, time, asyncio, urllib.request, urllib.parse
 from pathlib import Path
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -384,9 +384,9 @@ class ChatRequest(BaseModel):
     message:        str
     history:        list[dict]  = []
     current_schema: dict        = {}
-    plot_sqm:       float | None = None
-    lat:            float | None = None
-    lng:            float | None = None
+    plot_sqm:       Optional[float] = None
+    lat:            Optional[float] = None
+    lng:            Optional[float] = None
 
 
 # ── Streaming chat endpoint ───────────────────────────────────────────────────
@@ -516,8 +516,8 @@ Be concise, helpful, and proactive. If user gives a plot size, immediately check
 # ── Standalone feasibility endpoint ──────────────────────────────────────────
 class FeasibilityRequest(BaseModel):
     plot_area_sqm: float
-    plot_width_m:  float | None = None
-    plot_depth_m:  float | None = None
+    plot_width_m:  Optional[float] = None
+    plot_depth_m:  Optional[float] = None
     building_type: str   = "apartment"
     floors:        int   = 3
     width:         float = 20.0
