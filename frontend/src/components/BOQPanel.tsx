@@ -1,7 +1,12 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/lib/store";
-import { Calculator, Ruler, Building2, Layers, Window, Package } from "lucide-react";
+import {
+  Calculator, Ruler, Home, Layers, DoorOpen, AppWindow, Hammer,
+  Zap, Droplets, Square, Paintbrush, ChevronDown, ChevronRight,
+  IndianRupee, DollarSign, Building2, Package
+} from "lucide-react";
+import { formatINR, formatUSD } from "@/lib/boqCalculator";
 
 type Quality = "basic" | "standard" | "premium";
 
@@ -122,11 +127,61 @@ export default function BOQPanel() {
 
         {/* Specifications */}
         <Section title="Building Specifications" icon={<Building2 className="w-4 h-4 text-emerald-400" />}>
-          <DataRow label="Total Floors" value={calcData?.floors || 0} />
-          <DataRow label="Coverage" value={calcData?.coverage || 0} unit="%" />
-          <DataRow label="Building Width" value={(calcData?.buildingWidth || 0).toFixed(2)} unit="m" />
-          <DataRow label="Building Depth" value={(calcData?.buildingDepth || 0).toFixed(2)} unit="m" />
-          <DataRow label="Total Area" value={(calcData?.totalArea || 0).toFixed(0)} unit="sqm" />
+          <DataRow label="Total Floors" value={config.floors} />
+          <DataRow label="Coverage" value={config.coveragePercent} unit="%" />
+          <DataRow label="FAR Limit" value={config.far} />
+          <DataRow label="Achievable Area" value={config.achievableArea.toFixed(0)} unit="sqm" />
+          <DataRow label="Ceiling Height" value={heights.ceilingHeight} unit="m" />
+          <DataRow label="Total Height" value={heights.totalBuildingHeight.toFixed(2)} unit="m" />
+        </Section>
+
+        {/* Dimensions */}
+        <Section title="Dimensions" icon={<Layers className="w-4 h-4 text-blue-400" />}>
+          <div className="text-xs text-gray-500 mb-2">SETBACKS</div>
+          <DataRow label="Front" value={setbacks.front} unit="m" />
+          <DataRow label="Back" value={setbacks.back} unit="m" />
+          <DataRow label="Sides" value={`${setbacks.left}/${setbacks.right}`} unit="m" />
+          
+          <div className="text-xs text-gray-500 mt-3 mb-2">BUILDING</div>
+          <DataRow label="Width" value={config.buildingWidth} unit="m" highlight />
+          <DataRow label="Depth" value={config.buildingDepth} unit="m" highlight />
+          
+          <div className="text-xs text-gray-500 mt-3 mb-2">INTERIOR</div>
+          <DataRow label="Net Width" value={dimensions.interiorWidth} unit="m" />
+          <DataRow label="Net Depth" value={dimensions.interiorDepth} unit="m" />
+          <DataRow label="Per Floor Area" value={dimensions.interiorArea.toFixed(1)} unit="sqm" />
+          <DataRow label="Total Area" value={dimensions.interiorArea * config.floors} unit="sqm" highlight />
+        </Section>
+
+        {/* Windows & Doors */}
+        <Section title="Windows & Doors" icon={<AppWindow className="w-4 h-4 text-cyan-400" />}>
+          <div className="text-xs text-gray-500 mb-2">WINDOWS</div>
+          <DataRow label="Count per Floor" value={windows.countPerFloor} />
+          <DataRow label="Width" value={windows.width} unit="m" />
+          <DataRow label="Height" value={windows.height} unit="m" />
+          <DataRow label="Total Glass Area" value={windows.totalGlassArea.toFixed(2)} unit="sqm" />
+          
+          <div className="text-xs text-gray-500 mt-3 mb-2">DOORS</div>
+          <DataRow label="Main Door" value={`${doors.mainDoor.width}m × ${doors.mainDoor.height}m`} />
+          <DataRow label="Room Door" value={`${doors.roomDoor.width}m × ${doors.roomDoor.height}m`} />
+          <DataRow label="Bathroom" value={`${doors.bathroomDoor.width}m × ${doors.bathroomDoor.height}m`} />
+          <DataRow label="Total Door Area" value={doors.totalDoorArea.toFixed(2)} unit="sqm" />
+        </Section>
+
+        {/* Material Quantities */}
+        <Section title="Material Quantities" icon={<Package className="w-4 h-4 text-amber-400" />}>
+          <div className="text-xs text-gray-500 mb-2">STRUCTURAL</div>
+          <DataRow label="Concrete" value={materials.concrete_m3} unit="m³" highlight />
+          <DataRow label="Steel" value={materials.steel_kg.toLocaleString()} unit="kg" highlight />
+          <DataRow label="Bricks" value={materials.bricks_nos.toLocaleString()} unit="nos" />
+          
+          <div className="text-xs text-gray-500 mt-3 mb-2">FINISHING</div>
+          <DataRow label="Cement" value={materials.cement_bags} unit="bags" />
+          <DataRow label="Sand" value={materials.sand_m3} unit="m³" />
+          <DataRow label="Glass" value={materials.glass_m2} unit="m²" />
+          <DataRow label="Wood" value={materials.wood_m3} unit="m³" />
+          <DataRow label="Flooring" value={materials.flooring_m2} unit="m²" />
+          <DataRow label="Paint" value={materials.paint_liters} unit="liters" />
         </Section>
 
         {/* Cost Estimation */}
