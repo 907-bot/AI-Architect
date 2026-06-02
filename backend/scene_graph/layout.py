@@ -99,6 +99,7 @@ def _place_doors_and_windows(house: House) -> None:
             x=x,
             y=y,
             side=side,
+            width=0.9,  # Standard door width
         )
         left.doors.append(door)
         right.doors.append(door)

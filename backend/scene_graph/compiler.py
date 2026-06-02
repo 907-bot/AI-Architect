@@ -74,7 +74,7 @@ def compile_scene(scene: SceneGraph) -> dict:
 
 
 def _room_walls(prefix: str, x: float, z: float, width: float, depth: float, height: float) -> list[dict]:
-    thickness = 0.18
+    thickness = 0.22  # Thicker walls for better visibility
     return [
         _mesh(f"{prefix}_wall_front", "Walls", [x, height / 2, z + depth / 2], [width, height, thickness], "wall_plaster"),
         _mesh(f"{prefix}_wall_back", "Walls", [x, height / 2, z - depth / 2], [width, height, thickness], "wall_plaster"),
@@ -86,7 +86,11 @@ def _room_walls(prefix: str, x: float, z: float, width: float, depth: float, hei
 def _room_windows(prefix: str, room) -> list[dict]:
     meshes = []
     for index, window in enumerate(room.windows):
-        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.0, y=room.height * 0.58)
+        position, scale = _opening_transform(room, window.side, window.x, window.y, window.width, 1.2, y=room.height * 0.58)
+        # Add window frame
+        frame_scale = [scale[0] * 1.15, scale[1] * 1.15, scale[2] * 1.5]
+        meshes.append(_mesh(f"{prefix}_window_frame_{index}", "Windows", position, frame_scale, "wall_plaster"))
+        # Add glass
         meshes.append(_mesh(f"{prefix}_window_{index}", "Windows", position, scale, "glass_clear"))
     return meshes
 
@@ -98,7 +102,11 @@ def _room_doors(prefix: str, room) -> list[dict]:
         if door.id in seen:
             continue
         seen.add(door.id)
-        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.1, y=1.05)
+        # Door frame
+        position, scale = _opening_transform(room, door.side, door.x, door.y, door.width, 2.2, y=1.1)
+        frame_scale = [scale[0] * 1.2, scale[1] * 1.1, scale[2] * 1.5]
+        meshes.append(_mesh(f"{prefix}_{door.id}_frame", "Doors", position, frame_scale, "wall_plaster"))
+        # Door panel
         meshes.append(_mesh(f"{prefix}_{door.id}", "Doors", position, scale, "wood_warm"))
     return meshes
 
@@ -115,15 +123,16 @@ def _interiors(prefix: str, room) -> list[dict]:
 
 def _floor_plan(scene: SceneGraph) -> dict:
     rooms = scene.house.rooms
+    wall_thickness = 0.22  # Consistent with 3D model
     walls = []
     doors = []
     windows = []
     for room in rooms:
         walls.extend([
-            {"id": f"{room.name}_north", "room": room.name, "x1": room.left, "y1": room.top, "x2": room.right, "y2": room.top, "thickness": 0.18},
-            {"id": f"{room.name}_south", "room": room.name, "x1": room.left, "y1": room.bottom, "x2": room.right, "y2": room.bottom, "thickness": 0.18},
-            {"id": f"{room.name}_west", "room": room.name, "x1": room.left, "y1": room.bottom, "x2": room.left, "y2": room.top, "thickness": 0.18},
-            {"id": f"{room.name}_east", "room": room.name, "x1": room.right, "y1": room.bottom, "x2": room.right, "y2": room.top, "thickness": 0.18},
+            {"id": f"{room.name}_north", "room": room.name, "x1": room.left, "y1": room.top, "x2": room.right, "y2": room.top, "thickness": wall_thickness},
+            {"id": f"{room.name}_south", "room": room.name, "x1": room.left, "y1": room.bottom, "x2": room.right, "y2": room.bottom, "thickness": wall_thickness},
+            {"id": f"{room.name}_west", "room": room.name, "x1": room.left, "y1": room.bottom, "x2": room.left, "y2": room.top, "thickness": wall_thickness},
+            {"id": f"{room.name}_east", "room": room.name, "x1": room.right, "y1": room.bottom, "x2": room.right, "y2": room.top, "thickness": wall_thickness},
         ])
         for door in room.doors:
             if door.room_a != room.name:
