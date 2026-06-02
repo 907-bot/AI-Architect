@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import {
   Calculator, Ruler, Home, Layers, DoorOpen, Window, Hammer,
@@ -72,50 +72,73 @@ function NumberDisplay({ value, decimals = 0 }: { value: number; decimals?: numb
 }
 
 export default function BOQPanel() {
-  const plotWidth = useStore((s) => s.plotWidth) || 20;
-  const plotDepth = useStore((s) => s.plotDepth) || 25;
+  // Use individual selectors to avoid selector function recreations
+  const plotWidth = useStore((s) => s.plotWidth ?? 20);
+  const plotDepth = useStore((s) => s.plotDepth ?? 25);
   const boqSpec = useStore((s) => s.boqSpec);
   const calculateBoq = useStore((s) => s.calculateBoq);
   
-  const [plotArea, setPlotArea] = useState<number>(600);
+  const [plotArea, setPlotArea] = useState<number>(500);
   const [quality, setQuality] = useState<Quality>("standard");
   const [buildingType, setBuildingType] = useState<BuildingType>("apartment");
   const [initialized, setInitialized] = useState(false);
+  const [localBoqSpec, setLocalBoqSpec] = useState<any>(null);
 
-  // Initialize on mount
+  // Initialize on mount - compute local boqSpec to avoid store access issues
   useEffect(() => {
+    setInitialized(true);
+    // Compute initial BOQ
     const area = (plotWidth || 20) * (plotDepth || 25);
     setPlotArea(area);
-    if (calculateBoq) {
-      calculateBoq(area, quality);
-    }
-    setInitialized(true);
+    
+    // Import and call calculateBOQ directly
+    import("@/lib/boqCalculator").then(({ calculateBOQ, getCeilingHeight }) => {
+      const ceiling = getCeilingHeight(quality);
+      const spec = calculateBOQ(area, quality, ceiling);
+      setLocalBoqSpec(spec);
+      if (calculateBoq) {
+        calculateBoq(area, quality);
+      }
+    });
   }, []);
 
   // Recalculate when user changes inputs
-  const handleRecalculate = useMemo(() => {
-    return () => {
+  const handleRecalculate = React.useCallback(() => {
+    import("@/lib/boqCalculator").then(({ calculateBOQ, getCeilingHeight }) => {
+      const ceiling = getCeilingHeight(quality);
+      const spec = calculateBOQ(plotArea, quality, ceiling);
+      setLocalBoqSpec(spec);
       if (calculateBoq) {
         calculateBoq(plotArea, quality);
       }
-    };
-  }, [calculateBoq, plotArea, quality]);
+    });
+  }, [plotArea, quality, calculateBoq]);
 
   // Handle quality change
-  const handleQualityChange = (newQuality: Quality) => {
+  const handleQualityChange = React.useCallback((newQuality: Quality) => {
     setQuality(newQuality);
-    if (calculateBoq) {
-      calculateBoq(plotArea, newQuality);
-    }
-  };
+    import("@/lib/boqCalculator").then(({ calculateBOQ, getCeilingHeight }) => {
+      const ceiling = getCeilingHeight(newQuality);
+      const spec = calculateBOQ(plotArea, newQuality, ceiling);
+      setLocalBoqSpec(spec);
+      if (calculateBoq) {
+        calculateBoq(plotArea, newQuality);
+      }
+    });
+  }, [plotArea, calculateBoq]);
 
   // Handle plot area change
-  const handlePlotAreaChange = (newArea: number) => {
+  const handlePlotAreaChange = React.useCallback((newArea: number) => {
     setPlotArea(newArea);
-    if (calculateBoq) {
-      calculateBoq(newArea, quality);
-    }
-  };
+    import("@/lib/boqCalculator").then(({ calculateBOQ, getCeilingHeight }) => {
+      const ceiling = getCeilingHeight(quality);
+      const spec = calculateBOQ(newArea, quality, ceiling);
+      setLocalBoqSpec(spec);
+      if (calculateBoq) {
+        calculateBoq(newArea, quality);
+      }
+    });
+  }, [quality, calculateBoq]);
 
   if (!initialized) {
     return (
@@ -133,7 +156,10 @@ export default function BOQPanel() {
     );
   }
 
-  if (!boqSpec) {
+  // Use localBoqSpec if available, otherwise create from store
+  const activeBoqSpec = localBoqSpec || boqSpec;
+
+  if (!activeBoqSpec) {
     return (
       <div className="h-full flex flex-col bg-gray-900 text-gray-100">
         <div className="flex-shrink-0 px-4 py-3 bg-gray-800 border-b border-gray-700">
@@ -147,7 +173,7 @@ export default function BOQPanel() {
             <Calculator className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>No BOQ data available</p>
             <button
-              onClick={() => handleRecalculate()}
+              onClick={handleRecalculate}
               className="mt-3 px-4 py-2 bg-emerald-600 text-white rounded text-sm"
             >
               Generate BOQ
@@ -158,14 +184,15 @@ export default function BOQPanel() {
     );
   }
 
-  const config = boqSpec.config;
-  const heights = boqSpec.heights;
-  const dimensions = boqSpec.dimensions;
-  const setbacks = boqSpec.setbacks;
-  const windows = boqSpec.windows;
-  const doors = boqSpec.doors;
-  const materials = boqSpec.materials;
-  const costs = boqSpec.costs;
+  // Extract values safely
+  const config = activeBoqSpec.config || {};
+  const heights = activeBoqSpec.heights || {};
+  const dimensions = activeBoqSpec.dimensions || {};
+  const setbacks = activeBoqSpec.setbacks || {};
+  const windows = activeBoqSpec.windows || {};
+  const doors = activeBoqSpec.doors || {};
+  const materials = activeBoqSpec.materials || {};
+  const costs = activeBoqSpec.costs || {};
 
   return (
     <div className="h-full flex flex-col bg-gray-900 text-gray-100 overflow-hidden">
