@@ -3,6 +3,7 @@ import UnrealExport from "@/components/UnrealExport";
 import MapView from "@/components/MapView";
 import GovernmentNorms from "@/components/GovernmentNorms";
 import StylePicker from "@/components/StylePicker";
+import BOQPanel from "@/components/BOQPanel";
 
 import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -84,7 +85,7 @@ export default function WorkspacePage() {
   const [showBOQ, setShowBOQ] = React.useState(false);
   const boqData = useStore((s) => s.boqData);
   const [activeStyle, setActiveStyle] = React.useState("modern");
-  const [leftTab, setLeftTab] = React.useState<"chat"|"ai"|"plot"|"style">("chat");
+  const [leftTab, setLeftTab] = React.useState<"chat"|"ai"|"plot"|"cost"|"style">("chat");
   const booted = useRef(false);
 
   useEffect(() => {
@@ -222,8 +223,9 @@ export default function WorkspacePage() {
                 {id:"chat",  icon:"💬", label:"Chat"},
                 {id:"ai",    icon:"🤖", label:"AI Architect"},
                 {id:"plot",  icon:"📐", label:"Plot"},
+                {id:"cost",  icon:"🧮", label:"Cost"},
                 {id:"style", icon:"🎨", label:"Style"},
-              ] as {id:"chat"|"ai"|"plot"|"style"; icon:string; label:string}[]).map(tab => (
+              ] as {id:"chat"|"ai"|"plot"|"cost"|"style"; icon:string; label:string}[]).map(tab => (
                 <button key={tab.id} onClick={() => setLeftTab(tab.id)}
                   className={`flex-1 flex flex-col items-center py-2 text-[8px] font-semibold transition border-b-2 ${
                     leftTab === tab.id
@@ -263,6 +265,11 @@ export default function WorkspacePage() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* Cost tab — BOQ Panel */}
+              {leftTab === "cost" && (
+                <BOQPanel />
               )}
 
               {/* Style tab */}
@@ -371,13 +378,11 @@ export default function WorkspacePage() {
                 <Package className="w-3 h-3" />{isAssetPaletteOpen ? "Close" : "Assets"}
               </button>
 
-              {/* BOQ button */}
-              {complianceData && (
-                <button onClick={() => setShowBOQ(true)}
+              {/* BOQ/Cost button */}
+              <button onClick={() => setLeftTab("cost")}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition ml-auto">
-                  📋 BOQ
+                  🧮 Cost
                 </button>
-              )}
             </div>
 
             {/* ── Asset palette slide-in — BELOW toolbar, not over viewer ── */}

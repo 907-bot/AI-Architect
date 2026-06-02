@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { BOQSpec, calculateBOQ, getCeilingHeight } from "./boqCalculator";
 
 export interface AgentUpdate { agent: string; message: string; data?: any; }
 export interface ChatMessage {
@@ -51,6 +52,7 @@ interface ArchitectStore {
   activeFloor: number;
   floorplanUrl: string | null;
   boqData: any | null;
+  boqSpec: BOQSpec | null;
   zoningData: any | null;
 
   setProjectId: (id: string) => void; setPrompt: (p: string) => void;
@@ -75,6 +77,8 @@ interface ArchitectStore {
   setActiveFloor: (floor: number) => void;
   setFloorplanUrl: (url: string | null) => void;
   setBoqData: (data: any | null) => void;
+  setBoqSpec: (spec: BOQSpec | null) => void;
+  calculateBoq: (plotAreaSqm: number, quality?: 'basic' | 'standard' | 'premium') => void;
   setZoningData: (data: any | null) => void;
 }
 
@@ -91,7 +95,7 @@ export const useStore = create<ArchitectStore>((set) => ({
   complianceData: null, placedAssets: [], selectedAssetUid: null, isAssetPaletteOpen: false,
   // NEW defaults
   selectedRoomId: null, isWalkthrough: false, activeFloor: 0,
-  floorplanUrl: null, boqData: null, zoningData: null,
+  floorplanUrl: null, boqData: null, boqSpec: null, zoningData: null,
 
   setProjectId: (id) => set({ projectId: id }),
   setPrompt: (p) => set({ currentPrompt: p }),
@@ -130,5 +134,11 @@ export const useStore = create<ArchitectStore>((set) => ({
   setActiveFloor: (floor) => set({ activeFloor: floor }),
   setFloorplanUrl: (url) => set({ floorplanUrl: url }),
   setBoqData: (data) => set({ boqData: data }),
+  setBoqSpec: (spec) => set({ boqSpec: spec }),
+  calculateBoq: (plotAreaSqm, quality = 'standard') => {
+    const ceilingHeight = getCeilingHeight(quality);
+    const spec = calculateBOQ(plotAreaSqm, quality, ceilingHeight);
+    set({ boqSpec: spec });
+  },
   setZoningData: (data) => set({ zoningData: data }),
 }));
