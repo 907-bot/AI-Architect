@@ -7,6 +7,8 @@ import StylePicker from "@/components/StylePicker";
 import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import ChatPanel from "@/components/ChatPanel";
+import AIChatbot from "@/components/AIChatbot";
+import PlotFeasibility from "@/components/PlotFeasibility";
 import PromptBar from "@/components/PromptBar";
 import ConfigPanel from "@/components/ConfigPanel";
 import DroneCamera from "@/components/DroneCamera";
@@ -82,6 +84,7 @@ export default function WorkspacePage() {
   const [showBOQ, setShowBOQ] = React.useState(false);
   const boqData = useStore((s) => s.boqData);
   const [activeStyle, setActiveStyle] = React.useState("modern");
+  const [leftTab, setLeftTab] = React.useState<"chat"|"ai"|"plot"|"style">("chat");
   const booted = useRef(false);
 
   useEffect(() => {
@@ -210,64 +213,88 @@ export default function WorkspacePage() {
         {/* ── Body ── */}
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
-          {/* ── Left Panel: Chat ── */}
+          {/* ── Left Panel: Tabbed ── */}
           <aside className="w-[340px] flex flex-col bg-white border-r border-slate-100 min-h-0 z-10">
-            {/* Chat messages */}
-            <ChatPanel />
 
-            {/* Config accordion */}
-            <div className="border-t border-slate-100">
-              <button
-                onClick={() => setShowConfig(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-              >
-                <span className="flex items-center gap-2"><Settings2 className="w-3.5 h-3.5" />Customize Exterior</span>
-                {showConfig ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-              {showConfig && (
-                <div className="px-3 pb-3">
-                  <ConfigPanel config={buildConfig} setConfig={setBuildConfig} />
-                </div>
-              )}
+            {/* Tab bar */}
+            <div className="flex border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
+              {([
+                {id:"chat",  icon:"💬", label:"Chat"},
+                {id:"ai",    icon:"🤖", label:"AI Architect"},
+                {id:"plot",  icon:"📐", label:"Plot"},
+                {id:"style", icon:"🎨", label:"Style"},
+              ] as {id:"chat"|"ai"|"plot"|"style"; icon:string; label:string}[]).map(tab => (
+                <button key={tab.id} onClick={() => setLeftTab(tab.id)}
+                  className={`flex-1 flex flex-col items-center py-2 text-[8px] font-semibold transition border-b-2 ${
+                    leftTab === tab.id
+                      ? "border-[#7c93c3] text-[#7c93c3] bg-white"
+                      : "border-transparent text-slate-400 hover:text-slate-600"
+                  }`}>
+                  <span className="text-base leading-none mb-0.5">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
-            {/* Map accordion */}
-            <div className="border-t border-slate-100">
-              <button
-                onClick={() => setShowMap(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-              >
-                <span className="flex items-center gap-2">📍 Plot Location & Dimensions</span>
-                {showMap ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-              {showMap && (
-                <div className="px-3 pb-3 space-y-2">
-                  <MapView onClose={() => setShowMap(false)} />
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <label className="text-slate-400 block mb-1">Width (m)</label>
-                      <input type="number" value={plotWidth}
-                        onChange={e => setPlotData(plotLat, plotLng, parseFloat(e.target.value)||20, plotDepth)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 outline-none focus:border-[#7c93c3]" />
+            {/* Tab content */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+
+              {/* Chat tab — existing ChatPanel */}
+              {leftTab === "chat" && (
+                <div className="flex flex-col h-full">
+                  <ChatPanel />
+                </div>
+              )}
+
+              {/* AI Architect tab — OpenAI chatbot */}
+              {leftTab === "ai" && (
+                <div className="h-full flex flex-col">
+                  <AIChatbot />
+                </div>
+              )}
+
+              {/* Plot tab — feasibility + map */}
+              {leftTab === "plot" && (
+                <div className="flex flex-col">
+                  <PlotFeasibility />
+                  <div className="border-t border-slate-100">
+                    <div className="h-[280px] relative">
+                      <MapView />
                     </div>
-                    <div>
-                      <label className="text-slate-400 block mb-1">Depth (m)</label>
-                      <input type="number" value={plotDepth}
-                        onChange={e => setPlotData(plotLat, plotLng, plotWidth, parseFloat(e.target.value)||30)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 outline-none focus:border-[#7c93c3]" />
-                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Style tab */}
+              {leftTab === "style" && (
+                <div className="flex flex-col">
+                  <StylePicker
+                    selected={activeStyle}
+                    onChange={setActiveStyle}
+                  />
+                  <div className="border-t border-slate-100 px-3 py-2">
+                    <DroneCamera />
+                  </div>
+                  <div className="border-t border-slate-100 px-3 py-3">
+                    <button
+                      onClick={() => setShowConfig(v => !v)}
+                      className="w-full flex items-center justify-between text-xs font-semibold text-slate-600 hover:text-slate-800 transition"
+                    >
+                      <span className="flex items-center gap-2"><Settings2 className="w-3.5 h-3.5" />Customize Exterior</span>
+                      {showConfig ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                    {showConfig && (
+                      <div className="mt-2">
+                        <ConfigPanel config={buildConfig} setConfig={setBuildConfig} />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Drone camera */}
-            <div className="border-t border-slate-100 px-3 py-2">
-              <DroneCamera />
-            </div>
-
-            {/* Prompt input bar */}
-            <div className="border-t border-slate-100 px-3 py-3 bg-slate-50/60">
+            {/* Always-visible prompt bar at bottom */}
+            <div className="border-t border-slate-100 px-3 py-3 bg-slate-50/60 flex-shrink-0">
               <PromptBar buildConfig={buildConfig} />
             </div>
           </aside>

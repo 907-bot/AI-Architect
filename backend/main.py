@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 """
 AI Architect — FastAPI Main Application
 Production-ready multi-agent architectural AI platform
@@ -22,7 +24,7 @@ from backend.routers.render_jobs_router import router as render_jobs_router
 from backend.routers.styles_router import router as styles_router
 from backend.routers.assets_router import router as assets_library_router
 from backend.routers.sketchfab_assets import router as sketchfab_router
-from backend.api import router as mvp_router
+from backend.api import router as mvp_router, ai_chat_router
 from backend.websocket_manager import ws_manager
 from backend.database.client import db_client
 from backend.config import settings
@@ -248,6 +250,7 @@ app.include_router(render_jobs_router, prefix="/api/render-jobs", tags=["render-
 app.include_router(styles_router, prefix="/api", tags=["styles"])
 app.include_router(assets_library_router, prefix="/api/assets-library", tags=["assets-library"])
 app.include_router(sketchfab_router, prefix="/api/sketchfab", tags=["sketchfab"])
+app.include_router(ai_chat_router, prefix="/api", tags=["ai-chat"])
 app.include_router(mvp_router, prefix="/api", tags=["mvp-pipeline"])
 app.include_router(mvp_router, tags=["mvp-pipeline"])
 

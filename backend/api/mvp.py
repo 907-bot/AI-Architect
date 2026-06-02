@@ -639,6 +639,34 @@ async def sketchfab_drag_drop(body: DragDropRequest):
 
 
 def _response(toon, scene_graph, geometry, glb_path):
+    # Always inject a floor plan into geometry
+    if isinstance(geometry, dict) and not geometry.get("floor_plan"):
+        rooms = geometry.get("rooms") or []
+        house = scene_graph.get("house", {}) if isinstance(scene_graph, dict) else {}
+        sg_rooms = house.get("rooms", [])
+        if sg_rooms and not rooms:
+            # Build floor plan from scene graph rooms
+            fp_rooms = []
+            for i, r in enumerate(sg_rooms):
+                plan = r.get("plan", {})
+                fp_rooms.append({
+                    "id": r.get("name", f"room_{i}"),
+                    "name": r.get("name", f"Room {i+1}").replace("_"," ").title(),
+                    "type": r.get("type", "living_room"),
+                    "x": plan.get("x", 0) + plan.get("width", 4)/2,
+                    "y": plan.get("y", 0) + plan.get("depth", 3)/2,
+                    "width": plan.get("width", 4),
+                    "depth": plan.get("depth", 3),
+                    "area_m2": round(plan.get("width",4) * plan.get("depth",3), 1),
+                    "floor": r.get("floor", 0),
+                })
+            if fp_rooms:
+                geometry["floor_plan"] = {
+                    "rooms": fp_rooms,
+                    "walls": [], "doors": [], "windows": [],
+                    "adjacency": [], "circulation": [],
+                    "total_floors": max(r.get("floor",0) for r in fp_rooms) + 1,
+                }
     return {"success": True, "toon": toon, "scene_graph": scene_graph,
             "geometry": geometry, "glb_path": glb_path, "model_path": glb_path,
             "blender_rendered": glb_path is not None,
