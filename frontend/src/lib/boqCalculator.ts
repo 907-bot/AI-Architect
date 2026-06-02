@@ -131,10 +131,13 @@ const COST_PERCENTAGES = {
  * Calculate building configuration from plot size
  */
 export function calculateBuildingConfig(plotAreaSqM: number): BuildingConfig {
+  // Handle invalid input
+  const safeArea = isNaN(plotAreaSqM) || plotAreaSqM <= 0 ? 500 : plotAreaSqM;
+  
   // Estimate plot dimensions (assuming roughly square/rectangular)
   const aspectRatio = 0.8; // width/depth ratio
-  const plotWidth = Math.sqrt(plotAreaSqM * aspectRatio);
-  const plotDepth = plotAreaSqM / plotWidth;
+  const plotWidth = Math.sqrt(safeArea * aspectRatio);
+  const plotDepth = safeArea / plotWidth;
 
   // Determine floors and coverage based on plot size
   let floors: number;
@@ -411,11 +414,15 @@ export function calculateBOQ(
   quality: 'basic' | 'standard' | 'premium' = 'standard',
   ceilingHeight: number = 3.0
 ): BOQSpec {
-  const config = calculateBuildingConfig(plotAreaSqM);
-  const heights = calculateHeights(config.floors, ceilingHeight);
+  // Ensure valid input
+  const safeArea = Math.max(plotAreaSqM, 100); // Minimum 100 sqm
+  const safeCeiling = Math.max(ceilingHeight, 2.5); // Minimum 2.5m
+  
+  const config = calculateBuildingConfig(safeArea);
+  const heights = calculateHeights(config.floors, safeCeiling);
   const dimensions = calculateDimensions(config.buildingWidth, config.buildingDepth);
   const setbacks = calculateSetbacks(config.plotWidth, config.plotDepth, config.buildingWidth, config.buildingDepth);
-  const windows = calculateWindows(config.buildingWidth, config.buildingDepth, ceilingHeight);
+  const windows = calculateWindows(config.buildingWidth, config.buildingDepth, safeCeiling);
   const doors = calculateDoors(config.floors);
   const materials = calculateMaterialQuantities(config, dimensions, heights);
   const costs = calculateCosts(config.achievableArea, quality);
