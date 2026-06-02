@@ -1,8 +1,8 @@
 "use client";
-import StylePicker from "@/components/StylePicker";
+import StylePicker, { STYLES } from "@/components/StylePicker";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Sparkles, RefreshCw } from "lucide-react";
+import { Send, Loader2, Sparkles, RefreshCw, Pencil, PlusCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useStore } from "@/lib/store";
 import axios from "axios";
 import { API_BASE, fallbackVillaGeometry, normalizeMvpResponse } from "@/lib/mvpScene";
@@ -17,6 +17,7 @@ const SUGGESTIONS = [
 export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?: any; selectedStyle?: string }) {
   const [value, setValue] = useState("");
   const [suggIdx, setSuggIdx] = useState(0);
+  const [showStyleChips, setShowStyleChips] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isGenerating = useStore((s) => s.isGenerating);
@@ -28,6 +29,7 @@ export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?
   const updateChatMessage = useStore((s) => s.updateChatMessage);
   const setGeneratedGlbPath = useStore((s) => s.setGeneratedGlbPath);
   const setLatestToon = useStore((s) => s.setLatestToon);
+  const latestToon = useStore((s) => s.latestToon);
   const setFloorplanUrl = useStore((s) => s.setFloorplanUrl);
   const setBoqData = useStore((s) => s.setBoqData);
   const zoningData = useStore((s) => s.zoningData);
@@ -48,6 +50,8 @@ export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?
     return () => window.removeEventListener("build-config", handler);
   }, []);
 
+  const hasBuilding = !!latestToon;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const prompt = value.trim();
@@ -57,38 +61,56 @@ export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?
     setIsGenerating(true);
     clearAgentLogs();
 
+    // Determine if this is a fresh generate or an edit
+    const useEdit = hasBuilding && isEditIntent(prompt);
+    const endpoint = useEdit ? `${API_BASE}/api/edit` : `${API_BASE}/api/generate`;
+
     // Add user bubble
     addChatMessage({ role: "user", content: prompt });
-    // Add streaming AI bubble
-    const aiId = addChatMessage({ role: "assistant", content: "Analysing your request…", isStreaming: true });
+    const aiId = addChatMessage({
+      role: "assistant",
+      content: useEdit ? "✏️ Editing your building…" : "Analysing your request…",
+      isStreaming: true,
+    });
 
-    const steps = [
-      { delay: 300,  text: "Planning layout and rooms…" },
-      { delay: 800,  text: "Llama 3.1 is thinking — this takes ~20s…" },
-      { delay: 5000, text: "Generating 3D geometry…" },
-      { delay: 10000, text: "Applying materials and finishes…" },
-      { delay: 15000, text: "Running NBC compliance audit…" },
-    ];
-
-    // Animate agent progress in the AI bubble
-    for (const step of steps) {
-      setTimeout(() => {
-        updateChatMessage(aiId, { content: step.text });
-        addAgentLog({ agent: "orchestrator", message: step.text });
-      }, step.delay);
+    if (!useEdit) {
+      // Animate progress steps only for fresh generation
+      const steps = [
+        { delay: 300,   text: "Planning layout and rooms…" },
+        { delay: 800,   text: "Llama 3.1 is thinking — this takes ~20s…" },
+        { delay: 5000,  text: "Generating 3D geometry…" },
+        { delay: 10000, text: "Applying materials and finishes…" },
+        { delay: 15000, text: "Running NBC compliance audit…" },
+      ];
+      for (const step of steps) {
+        setTimeout(() => {
+          updateChatMessage(aiId, { content: step.text });
+          addAgentLog({ agent: "orchestrator", message: step.text });
+        }, step.delay);
+      }
     }
 
     try {
-      const response = await axios.post(
-        `${API_BASE}/api/generate`,
-        {
-          prompt,
-          style: selectedStyle || "modern",
-          render_quality: "cinematic",
-          zoning_data: zoningData,
-        },
-        { timeout: 120000 },
-      );
+      let response;
+      if (useEdit) {
+        response = await axios.post(
+          endpoint,
+          { toon: latestToon, instruction: prompt },
+          { timeout: 60000 },
+        );
+      } else {
+        response = await axios.post(
+          endpoint,
+          {
+            prompt,
+            style: buildConfig?.roofStyle === "gable" ? "craftsman" : "contemporary",
+            render_quality: "cinematic",
+            zoning_data: zoningData,
+          },
+          { timeout: 120000 },
+        );
+      }
+
       const result = response.data?.data || response.data;
       const generated = normalizeMvpResponse(result);
       const geo = generated.geometry;
@@ -99,57 +121,64 @@ export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?
         setGeneratedGlbPath(generated.glbPath);
         setLatestToon(generated.toon);
         updateScene(generated.geometry, generated.sceneConfig, generated.assets, compliance || undefined);
-        
-        // Handle new floorplan and BOQ data
-        if (result.floorplan_url) {
-          setFloorplanUrl(result.floorplan_url);
+
+        if (result.floorplan_url) setFloorplanUrl(result.floorplan_url);
+        if (result.boq_data) setBoqData(result.boq_data);
+
+        if (useEdit) {
+          const changedList: string[] = result.changed || [];
+          updateChatMessage(aiId, {
+            content: changedList.length
+              ? `✅ Done! Modified: **${changedList.join(", ")}**. The 3D model has been updated.`
+              : `✅ Applied: "${prompt}". 3D model updated.`,
+            isStreaming: false,
+          });
+        } else {
+          const p = prompt.toLowerCase();
+          const features: string[] = [];
+          if (p.includes("pool") || buildConfig?.pool) features.push("swimming pool");
+          if (p.includes("garage") || buildConfig?.garage) features.push("garage");
+          if (p.includes("garden") || buildConfig?.garden) features.push("garden");
+          if (p.includes("balcon") || buildConfig?.balcony) features.push("balcony");
+
+          const floorsMatch = p.match(/(\d+)[- ]?(floor|stor)/);
+          const floors = floorsMatch ? parseInt(floorsMatch[1]) : (buildConfig?.floors ?? 2);
+          const btype = p.includes("villa") ? "villa" : p.includes("apartment") ? "apartment" : p.includes("bungalow") ? "bungalow" : "house";
+
+          const summary = [
+            `Built. Your **${floors}-floor ${btype}** is ready.`,
+            result?.glb_path
+              ? `Blender exported ${result.glb_path}; viewer is synchronized.`
+              : "Viewer showing procedural geometry.",
+            result?.planner ? `Planner: ${result.planner}.` : "",
+            features.length ? `Features: ${features.join(", ")}.` : "",
+            compliance
+              ? compliance.compliant
+                ? `🟢 NBC Compliant — FAR ${compliance.actual_far}/${compliance.allowed_far}, Coverage ${compliance.actual_coverage_pct}%/${compliance.allowed_coverage_pct}%.`
+                : `🔴 NBC Issues: ${compliance.issues.slice(0, 2).join(" ")}`
+              : "",
+            "\nTry: *\"Make it taller\"*, *\"Add a pool\"*, or *\"Change walls to red brick\"*.",
+          ].filter(Boolean).join(" ");
+
+          updateChatMessage(aiId, {
+            content: summary,
+            isStreaming: false,
+            buildingSummary: {
+              type: btype, floors, features,
+              compliant: compliance?.compliant ?? true,
+              far: compliance?.actual_far,
+              coverage: compliance?.actual_coverage_pct,
+            },
+          });
         }
-        if (result.boq_data) {
-          setBoqData(result.boq_data);
-        }
-
-        // Build a natural-language summary
-        const p = prompt.toLowerCase();
-        const features: string[] = [];
-        if (p.includes("pool") || buildConfig?.pool) features.push("swimming pool");
-        if (p.includes("garage") || buildConfig?.garage) features.push("garage");
-        if (p.includes("garden") || buildConfig?.garden) features.push("garden");
-        if (p.includes("balcon") || buildConfig?.balcony) features.push("balcony");
-
-        const floorsMatch = p.match(/(\d+)[- ]?(floor|stor)/);
-        const floors = floorsMatch ? parseInt(floorsMatch[1]) : (buildConfig?.floors ?? 2);
-        const btype = p.includes("villa") ? "villa" : p.includes("apartment") ? "apartment" : p.includes("bungalow") ? "bungalow" : "house";
-
-        const summary = [
-          `Built. Your **${floors}-floor ${btype}** is ready.`,
-          result?.glb_path ? `Blender exported ${result.glb_path}; viewer is synchronized to the SceneGraph layout.` : "Blender was not available to the API, so the viewer is showing compiled procedural geometry.",
-          result?.planner ? `Planner: ${result.planner}.` : "",
-          features.length ? `Features: ${features.join(", ")}.` : "",
-          compliance
-            ? compliance.compliant
-              ? `🟢 NBC Compliant — FAR ${compliance.actual_far}/${compliance.allowed_far}, Coverage ${compliance.actual_coverage_pct}%/${compliance.allowed_coverage_pct}%.`
-              : `🔴 NBC Issues: ${compliance.issues.slice(0, 2).join(" ")}`
-            : "",
-          "\nTry: *\"Make it taller\"*, *\"Add a pool\"*, or *\"Change walls to red brick\"*."
-        ].filter(Boolean).join(" ");
-
-        updateChatMessage(aiId, {
-          content: summary,
-          isStreaming: false,
-          buildingSummary: {
-            type: btype, floors,
-            features,
-            compliant: compliance?.compliant ?? true,
-            far: compliance?.actual_far,
-            coverage: compliance?.actual_coverage_pct,
-          },
-        });
-        addAgentLog({ agent: "orchestrator", message: msg || "Generation complete" });
+        addAgentLog({ agent: "orchestrator", message: msg || (useEdit ? "Edit complete" : "Generation complete") });
       } else {
-        updateChatMessage(aiId, { content: "Backend returned no geometry. Try rephrasing your prompt.", isStreaming: false });
+        updateChatMessage(aiId, {
+          content: "Backend returned no geometry. Try rephrasing your prompt.",
+          isStreaming: false,
+        });
       }
     } catch (err) {
-      // Don't use fallback - show empty state
       updateScene(
         { meshes: [], rooms: [], style: "modern" },
         { drone_path: [] },
@@ -157,16 +186,14 @@ export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?
         {
           compliant: false,
           issues: ["Backend unavailable - check if server is running on port 8000"],
-          actual_far: 0,
-          allowed_far: 2.5,
-          actual_coverage_pct: 0,
-          allowed_coverage_pct: 60,
+          actual_far: 0, allowed_far: 2.5,
+          actual_coverage_pct: 0, allowed_coverage_pct: 60,
         }
       );
       setGeneratedGlbPath(null);
       setLatestToon(null);
       updateChatMessage(aiId, {
-        content: "Could not reach the backend server. Make sure to run:\n\n```bash\ncd AI-Architect\npython -m uvicorn backend.main:app --port 8000\n```\n\nFor local AI (Ollama/Llama 3.1) and Blender, install them locally.",
+        content: "Could not reach the backend server. Make sure to run:\n\n```bash\ncd AI-Architect\npython -m uvicorn backend.main:app --port 8000\n```",
         isStreaming: false,
       });
     } finally {
@@ -175,36 +202,126 @@ export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full">
-      <div className="relative flex items-center w-full rounded-2xl bg-white border border-slate-200/80 shadow-lg overflow-hidden">
-        <Sparkles className="absolute left-4 w-4 h-4 text-[#7c93c3] pointer-events-none" />
-        <input
-          id="prompt-input"
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          disabled={isGenerating}
-          placeholder={SUGGESTIONS[suggIdx]}
-          className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-300 outline-none pl-11 pr-4 py-3.5"
-        />
-        <div className="flex items-center gap-1 pr-2">
-          {value && (
-            <button type="button" onClick={() => setValue("")}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          )}
+    <div className="w-full flex flex-col gap-2">
+
+      {/* ── Quick chips row ── */}
+      {!hasBuilding ? (
+        /* Style chips — shown when no building generated yet */
+        <div className="flex flex-col gap-1.5">
           <button
-            type="submit"
-            disabled={isGenerating || !value.trim()}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#7c93c3] hover:bg-[#8da3d3] disabled:opacity-40 disabled:hover:bg-[#7c93c3] text-white font-medium text-xs transition-all duration-200 shadow-sm"
+            type="button"
+            onClick={() => setShowStyleChips((v) => !v)}
+            className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition px-1"
           >
-            {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            {isGenerating ? "Building…" : "Generate"}
+            <PlusCircle className="w-3 h-3" />
+            Quick start — pick a style
+            {showStyleChips ? <ChevronUp className="w-3 h-3 ml-auto" /> : <ChevronDown className="w-3 h-3 ml-auto" />}
           </button>
+          {showStyleChips && (
+            <div className="grid grid-cols-4 gap-1">
+              {STYLE_PROMPTS.map((s) => (
+                <button
+                  key={s.style}
+                  type="button"
+                  disabled={isGenerating}
+                  onClick={() => {
+                    setValue(s.prompt);
+                    inputRef.current?.focus();
+                  }}
+                  className="flex flex-col items-center gap-0.5 rounded-xl border border-slate-100 bg-white hover:border-[#7c93c3]/50 hover:bg-[#7c93c3]/5 px-1.5 py-1.5 transition-all disabled:opacity-40 group"
+                >
+                  <span className="text-base leading-none">{s.emoji}</span>
+                  <span className="text-[8px] font-semibold text-slate-600 group-hover:text-[#5a73a3] text-center leading-tight">
+                    {s.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
-    </form>
+      ) : (
+        /* Edit chips — shown when a building already exists */
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-[#7c93c3] px-1">
+            <Pencil className="w-3 h-3" />
+            Edit your building
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {EDIT_CHIPS.map((chip) => (
+              <button
+                key={chip.label}
+                type="button"
+                disabled={isGenerating}
+                onClick={() => {
+                  setValue(chip.prompt);
+                  inputRef.current?.focus();
+                }}
+                className="text-[9px] font-semibold px-2.5 py-1 rounded-lg border border-[#7c93c3]/30 bg-[#7c93c3]/5 hover:bg-[#7c93c3]/15 hover:border-[#7c93c3]/60 text-[#5a73a3] transition-all disabled:opacity-40"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Main input bar ── */}
+      <form onSubmit={handleSubmit} className="w-full">
+        <div className="relative flex items-center w-full rounded-2xl bg-white border border-slate-200/80 shadow-lg overflow-hidden">
+          {hasBuilding ? (
+            <Pencil className="absolute left-4 w-4 h-4 text-[#7c93c3] pointer-events-none" />
+          ) : (
+            <Sparkles className="absolute left-4 w-4 h-4 text-[#7c93c3] pointer-events-none" />
+          )}
+          <input
+            id="prompt-input"
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            disabled={isGenerating}
+            placeholder={
+              hasBuilding
+                ? "e.g. Add a pool, make it taller, flat roof…"
+                : SUGGESTIONS[suggIdx]
+            }
+            className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-300 outline-none pl-11 pr-4 py-3.5"
+          />
+          <div className="flex items-center gap-1 pr-2">
+            {value && (
+              <button
+                type="button"
+                onClick={() => setValue("")}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={isGenerating || !value.trim()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#7c93c3] hover:bg-[#8da3d3] disabled:opacity-40 disabled:hover:bg-[#7c93c3] text-white font-medium text-xs transition-all duration-200 shadow-sm"
+            >
+              {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (hasBuilding ? <Pencil className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />)}
+              {isGenerating ? (hasBuilding ? "Editing…" : "Building…") : (hasBuilding ? "Edit" : "Generate")}
+            </button>
+          </div>
+        </div>
+
+        {/* Mode indicator */}
+        {hasBuilding && !isGenerating && (
+          <p className="text-[8px] text-slate-400 text-center mt-1">
+            ✏️ Edit mode — your building is loaded. Type a change or{" "}
+            <button
+              type="button"
+              onClick={() => setLatestToon(null)}
+              className="underline text-[#7c93c3] hover:text-[#5a73a3]"
+            >
+              start fresh
+            </button>
+          </p>
+        )}
+      </form>
+    </div>
   );
 }

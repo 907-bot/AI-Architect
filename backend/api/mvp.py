@@ -283,6 +283,47 @@ def _export_with_blender(toon: str, stem: str) -> str | None:
     if not blender_bin:
         return None
 
+    try:
+        from backend.toon.parser import parse_toon
+        scene = parse_toon(toon)
+        rooms = scene.house.rooms
+        
+        # Calculate dimensions from rooms if they exist
+        if rooms:
+            min_x = min(room.x - room.width / 2 for room in rooms)
+            max_x = max(room.x + room.width / 2 for room in rooms)
+            min_z = min(room.z - room.depth / 2 for room in rooms)
+            max_z = max(room.z + room.depth / 2 for room in rooms)
+            width = max_x - min_x
+            depth = max_z - min_z
+            floor_height = max(room.height for room in rooms)
+            max_floor = max(room.floor for room in rooms)
+            floors = max(scene.house.num_floors or 1, max_floor + 1)
+        else:
+            width, depth, floor_height, floors = 20.0, 15.0, 3.2, scene.house.num_floors or 1
+
+        style = scene.house.style or "modern"
+        
+        schema = {
+            "floors": floors,
+            "width": width,
+            "depth": depth,
+            "floor_height": floor_height,
+            "style": style,
+            "pool": "pool" in scene.house.features or any("pool" in r.name.lower() for r in rooms),
+            "garage": "garage" in scene.house.features or any("garage" in r.name.lower() for r in rooms),
+            "balconies": "balcony" in scene.house.features or any("balcony" in r.name.lower() for r in rooms),
+            "roof_style": scene.house.roof.kind,
+            "building_type": "house",
+        }
+        
+        glb_path = _export_with_building_worker(schema, stem)
+        if glb_path:
+            return glb_path
+    except Exception as e:
+        print(f"[Export] Error routing to blender_worker: {e}")
+
+    # Fallback to legacy blender main
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = int(time.time() * 1000)
     toon_path = EXPORTS_DIR / f"{stem}_{stamp}.toon"
