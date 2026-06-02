@@ -3,9 +3,8 @@ import UnrealExport from "@/components/UnrealExport";
 import MapView from "@/components/MapView";
 import GovernmentNorms from "@/components/GovernmentNorms";
 import StylePicker from "@/components/StylePicker";
-import BOQPanel from "@/components/BOQPanel";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, Suspense } from "react";
 import dynamic from "next/dynamic";
 import ChatPanel from "@/components/ChatPanel";
 import AIChatbot from "@/components/AIChatbot";
@@ -23,6 +22,24 @@ import {
 } from "lucide-react";
 import { useStore, ProjectionType, ComponentGroupFilter } from "@/lib/store";
 import { API_BASE, unwrapApiResponse } from "@/lib/mvpScene";
+
+// Lazy load BOQPanel to avoid SSR/client hydration issues
+const BOQPanel = dynamic(() => import("@/components/BOQPanel"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex flex-col bg-gray-900 text-gray-100">
+      <div className="flex-shrink-0 px-4 py-3 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🧮</span>
+          <h2 className="font-semibold text-gray-100">Bill of Quantities</h2>
+        </div>
+      </div>
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-gray-400 animate-pulse">Loading...</div>
+      </div>
+    </div>
+  )
+});
 
 const ThreeJSViewer = dynamic(() => import("@/components/ThreeJSViewer"), {
   ssr: false,
