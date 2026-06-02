@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 interface BuildingLoaderProps { isLoading: boolean; }
 
-export const BuildingLoader = ({ isLoading }: BuildingLoaderProps) => {
+export default function BuildingLoader({ isLoading }: BuildingLoaderProps) {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,6 +106,4 @@ export const BuildingLoader = ({ isLoading }: BuildingLoaderProps) => {
       </div>
     </div>
   );
-};
-
-export default BuildingLoader;
+}
