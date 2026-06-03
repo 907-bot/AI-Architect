@@ -493,84 +493,96 @@ export default function WorkspacePage() {
           {/* ── Right Panel ── */}
           <section className="flex-1 relative min-h-0 overflow-hidden flex flex-col">
 
-            {/* ── Toolbar row — NO overlapping ── */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-slate-100 z-20 flex-shrink-0 flex-wrap">
+            {/* ── Toolbar — 2 rows to prevent overflow ── */}
+            <div className="bg-white border-b border-slate-100 z-20 flex-shrink-0">
+              {/* Row 1: View tabs + always-visible actions */}
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-50">
+                {/* View mode tabs */}
+                <div className="flex rounded-lg border border-slate-200/70 bg-slate-50 p-0.5">
+                  {([
+                    {id:"model",  label:"3D Model",   icon:<Cuboid className="h-3 w-3"/>},
+                    {id:"plan",   label:"Floor Plan",  icon:<Map className="h-3 w-3"/>},
+                    {id:"unreal", label:"Unreal",      icon:<span>🎮</span>},
+                  ] as any[]).map(tab => (
+                    <button key={tab.id}
+                      onClick={() => { setViewMode(tab.id); if(tab.id==="plan") setActiveProjection("orthographic_top"); }}
+                      className={`flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-semibold transition ${
+                        viewMode===tab.id?"bg-white shadow text-slate-800 border border-slate-200":"text-slate-500 hover:text-slate-700"
+                      }`}>
+                      {tab.icon}{tab.label}
+                    </button>
+                  ))}
+                </div>
 
-              {/* View mode tabs */}
-              <div className="flex rounded-lg border border-slate-200/70 bg-slate-50 p-0.5">
-                <button onClick={() => setViewMode("model")}
-                  className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-semibold transition ${viewMode==="model"?"bg-white shadow text-slate-800 border border-slate-200":"text-slate-500 hover:text-slate-700"}`}>
-                  <Cuboid className="h-3 w-3" />3D Model
+                <div className="flex-1" />
+
+                {/* ✏️ Edit — ALWAYS VISIBLE, grayed when no building */}
+                <button
+                  onClick={() => generatedGlbPath ? setShowEditor(e => !e) : null}
+                  title={generatedGlbPath ? "Edit building elements" : "Generate a building first"}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition border ${
+                    !generatedGlbPath
+                      ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
+                      : showEditor
+                      ? "bg-[#7c93c3] text-white border-[#7c93c3] shadow-md"
+                      : "bg-white text-[#7c93c3] border-[#7c93c3] hover:bg-[#7c93c3] hover:text-white"
+                  }`}>
+                  ✏️ Edit Building
                 </button>
-                <button onClick={() => { setViewMode("plan"); setActiveProjection("orthographic_top"); }}
-                  className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-semibold transition ${viewMode==="plan"?"bg-white shadow text-slate-800 border border-slate-200":"text-slate-500 hover:text-slate-700"}`}>
-                  <Map className="h-3 w-3" />Floor Plan
+
+                {/* 🚶 Walkthrough */}
+                {viewMode === "model" && (
+                  <button onClick={() => generatedGlbPath && setWalkthrough(!isWalkthrough)}
+                    title={generatedGlbPath ? "First-person walkthrough" : "Generate a building first"}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
+                      !generatedGlbPath
+                        ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
+                        : isWalkthrough
+                        ? "bg-[#7c93c3] text-white border-[#7c93c3]"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+                    }`}>
+                    🚶 {isWalkthrough ? "Exit" : "Walk"}
+                  </button>
+                )}
+
+                {/* Assets */}
+                <button onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
+                    isAssetPaletteOpen ? "bg-[#7c93c3] text-white border-[#7c93c3]" : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3]"
+                  }`}>
+                  <Package className="w-3 h-3"/>Assets
                 </button>
-                <button onClick={() => setViewMode("unreal")}
-                  className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-semibold transition ${viewMode==="unreal"?"bg-white shadow text-slate-800 border border-slate-200":"text-slate-500 hover:text-slate-700"}`}>
-                  🎮 Unreal
+
+                {/* Cost */}
+                <button onClick={() => setLeftTab("cost")}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition">
+                  🧮
                 </button>
               </div>
 
-              {/* Divider */}
-              <div className="h-5 w-px bg-slate-200" />
-
-              {/* Component filter — only in 3D mode */}
+              {/* Row 2: Component filter + camera — only in 3D mode */}
               {viewMode === "model" && (
-                <select value={visibleComponentGroup}
-                  onChange={e => setVisibleComponentGroup(e.target.value as any)}
-                  className="text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#7c93c3]">
-                  {COMPONENTS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="text-[9px] text-slate-400 font-medium">Filter:</span>
+                  <select value={visibleComponentGroup}
+                    onChange={e => setVisibleComponentGroup(e.target.value as any)}
+                    className="text-[10px] border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#7c93c3]">
+                    {COMPONENTS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  <span className="text-[9px] text-slate-400 font-medium ml-2">View:</span>
+                  <select value={activeProjection}
+                    onChange={e => setActiveProjection(e.target.value as any)}
+                    className="text-[10px] border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#7c93c3]">
+                    {PROJECTIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  </select>
+                  {generatedGlbPath && (
+                    <span className="ml-auto text-[8px] text-emerald-500 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"/>
+                      {generatedGlbPath.split("/").pop()}
+                    </span>
+                  )}
+                </div>
               )}
-
-              {/* Camera projection — only in 3D mode */}
-              {viewMode === "model" && (
-                <select value={activeProjection}
-                  onChange={e => setActiveProjection(e.target.value as any)}
-                  className="text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#7c93c3]">
-                  {PROJECTIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-                </select>
-              )}
-
-              {/* Walkthrough — only when GLB exists in 3D mode */}
-              {viewMode === "model" && generatedGlbPath && (
-                <button onClick={() => setWalkthrough(!isWalkthrough)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
-                    isWalkthrough
-                      ? "bg-[#7c93c3] text-white border-[#7c93c3]"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
-                  }`}>
-                  🚶 {isWalkthrough ? "Exit Walk" : "Walkthrough"}
-                </button>
-              )}
-
-              {/* Edit building button — only when GLB loaded */}
-              {generatedGlbPath && viewMode === "model" && (
-                <button onClick={() => setShowEditor(e => !e)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
-                    showEditor
-                      ? "bg-[#7c93c3] text-white border-[#7c93c3]"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
-                  }`}>
-                  ✏️ Edit
-                </button>
-              )}
-              {/* Asset Library button */}
-              <button onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
-                  isAssetPaletteOpen
-                    ? "bg-[#7c93c3] text-white border-[#7c93c3]"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
-                }`}>
-                <Package className="w-3 h-3" />{isAssetPaletteOpen ? "Close" : "Assets"}
-              </button>
-
-              {/* BOQ/Cost button */}
-              <button onClick={() => setLeftTab("cost")}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition ml-auto">
-                  🧮 Cost
-                </button>
             </div>
 
             {/* ── Asset palette slide-in — BELOW toolbar, not over viewer ── */}
