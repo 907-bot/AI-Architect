@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState, Suspense } from "react";
 import dynamic from "next/dynamic";
 import ChatPanel from "@/components/ChatPanel";
 import AIChatbot from "@/components/AIChatbot";
+import ElementEditor from "@/components/ElementEditor";
 import PlotFeasibility from "@/components/PlotFeasibility";
 import PromptBar from "@/components/PromptBar";
 import ConfigPanel from "@/components/ConfigPanel";
@@ -37,65 +38,176 @@ const ThreeJSViewer = dynamic(() => import("@/components/ThreeJSViewer"), {
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), { ssr: false });
 
-// Simple BOQ Panel - inline to avoid import issues
+// ─── Dynamic BOQ Panel — reads actual building schema ─────────────────────────
 function SimpleBOQPanel() {
-  const [quality, setQuality] = React.useState("standard" as "basic" | "standard" | "premium");
-  const [initialized, setInitialized] = React.useState(false);
+  const geometryData  = useStore(s => s.geometryData);
+  const plotWidth     = useStore(s => s.plotWidth);
+  const plotDepth     = useStore(s => s.plotDepth);
+  const [quality, setQuality] = React.useState<"basic"|"standard"|"premium">("standard");
 
-  React.useEffect(() => {
-    setInitialized(true);
-  }, []);
+  const schema = (geometryData as any)?.schema || {};
+  const floors     = schema.floors     || 3;
+  const bw         = schema.width      || plotWidth  || 20;
+  const bd         = schema.depth      || plotDepth  || 15;
+  const btype      = schema.building_type || "apartment";
+  const style      = schema.style      || "modern";
+  const hasPool    = !!schema.pool;
+  const hasGarage  = !!schema.garage;
+  const hasBals    = !!schema.balconies;
+  const floorH     = schema.floor_height || 3.2;
 
-  const rate = quality === 'basic' ? 1800 : quality === 'standard' ? 2200 : 2800;
-  const area = 600; // sqm
-  const sqft = area * 10.764;
-  const total = sqft * rate;
+  // Style-based rate multiplier
+  const styleMultiplier: Record<string,number> = {
+    modern:0.95, contemporary:1.0, minimalist:0.92, bauhaus:0.95,
+    japanese:1.15, japanese_modern:1.10, villa:1.20, italian:1.25,
+    french_chateau:1.35, classical:1.30, mughal:1.40, scandinavian:1.05,
+    industrial:0.88, brutalist:0.85, colonial:1.10, craftsman:1.08,
+    moroccan:1.15, persian:1.20, greek:1.10, victorian:1.18, georgian:1.15,
+    luxury:1.50, futuristic:1.45,
+  };
+  const styleMult = styleMultiplier[style] || 1.0;
 
-  const formatINR = (n: number) => n >= 10000000 ? `₹${(n/10000000).toFixed(2)} Cr` : n >= 100000 ? `₹${(n/100000).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
-  const formatUSD = (n: number) => `$${(n/83).toLocaleString('en-US')}`;
+  // Base rates INR/sqft by quality
+  const BASE = { basic: 1800, standard: 2400, premium: 3200 }[quality];
+  const rate = Math.round(BASE * styleMult);
 
-  if (!initialized) {
-    return (
-      <div className="h-full flex items-center justify-center bg-gray-900 text-gray-400">
-        Loading...
-      </div>
-    );
-  }
+  // Quantities from actual geometry
+  const footprint   = bw * bd;
+  const totalFlrArea = footprint * floors;
+  const perimeter   = 2 * (bw + bd);
+  const wallArea    = perimeter * floors * floorH * 0.70;
+  const windowArea  = perimeter * floors * floorH * 0.28;
+  const concreteM3  = (footprint * 0.28 * (floors + 1)) + (footprint * 0.6);
+  const steelKg     = concreteM3 * 90;
+  const brickNos    = Math.round(wallArea * 60);
+  const roofArea    = footprint * 1.12;
+  const plasterM2   = wallArea * 2;
+  const paintM2     = plasterM2;
+
+  // Costs per element (INR)
+  const RATES_INR = {
+    concrete: 7500, steel: 75, brickwork: 65,
+    glass: 1200, paint: 50, tiles: 900, electrical: 300, plumbing: 250, finishing: 1600,
+  };
+  const sqft       = totalFlrArea * 10.764;
+  const breakdown = [
+    { label: "Foundation & Substructure",  icon:"🏗️", cost: concreteM3 * 0.35 * RATES_INR.concrete + steelKg * 0.35 * RATES_INR.steel },
+    { label: "RCC Structure & Slabs",      icon:"⬜", cost: concreteM3 * 0.55 * RATES_INR.concrete + steelKg * 0.55 * RATES_INR.steel },
+    { label: "Brickwork & Masonry",        icon:"🧱", cost: brickNos * RATES_INR.brickwork },
+    { label: "Windows & Glazing",          icon:"🪟", cost: windowArea * RATES_INR.glass },
+    { label: "Plaster & Paint",            icon:"🎨", cost: paintM2 * RATES_INR.paint },
+    { label: "Flooring & Tiles",           icon:"⬛", cost: totalFlrArea * RATES_INR.tiles },
+    { label: "Electrical Works",           icon:"⚡", cost: totalFlrArea * RATES_INR.electrical },
+    { label: "Plumbing & Sanitation",      icon:"🚿", cost: totalFlrArea * RATES_INR.plumbing },
+    { label: "Interior Finishing",         icon:"🛋️", cost: totalFlrArea * RATES_INR.finishing * (quality==="basic"?0.7:quality==="premium"?1.4:1) },
+    { label: "Roofing",                    icon:"🏠", cost: roofArea * 800 },
+    ...(hasPool   ? [{ label:"Swimming Pool",    icon:"🏊", cost: 1200000 + (schema.pool?.width||12) * (schema.pool?.length||6) * 8000 }] : []),
+    ...(hasGarage ? [{ label:"Garage",           icon:"🚗", cost: 180000 * (schema.garage?.capacity||2) }] : []),
+    ...(hasBals   ? [{ label:"Balconies",        icon:"🌅", cost: bw * (floors-1) * 4500 }] : []),
+  ].map(b => ({ ...b, cost: Math.round(b.cost * styleMult * (quality==="basic"?0.8:quality==="premium"?1.3:1)) }));
+
+  const subtotal   = breakdown.reduce((s,b) => s+b.cost, 0);
+  const contingency = Math.round(subtotal * 0.08);
+  const totalINR   = subtotal + contingency;
+  const totalUSD   = Math.round(totalINR / 83.5);
+
+  const fmtINR = (n:number) => n>=10000000 ? `₹${(n/10000000).toFixed(2)} Cr` : n>=100000 ? `₹${(n/100000).toFixed(1)} L` : `₹${n.toLocaleString("en-IN")}`;
+  const fmtUSD = (n:number) => `$${(n).toLocaleString("en-US")}`;
+
+  const noBuilding = !schema.floors;
 
   return (
-    <div className="h-full flex flex-col bg-gray-900 text-gray-100">
-      <div className="flex items-center gap-2 px-4 py-3 bg-gray-800 border-b border-gray-700">
+    <div className="h-full flex flex-col bg-white overflow-y-auto">
+      <div className="flex items-center gap-2 px-4 py-3 bg-white border-b border-slate-100 sticky top-0 z-10">
         <span className="text-lg">🧮</span>
-        <h2 className="font-semibold">Cost Estimation</h2>
+        <div>
+          <h2 className="text-sm font-bold text-slate-800">Cost Estimation</h2>
+          {!noBuilding && <p className="text-[9px] text-slate-400">{floors}F · {bw}×{bd}m · {style} · {btype}</p>}
+        </div>
       </div>
-      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <label className="text-xs text-gray-500 block mb-2">Quality Tier</label>
-          <select
-            value={quality}
-            onChange={(e) => setQuality(e.target.value as typeof quality)}
-            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-          >
-            <option value="basic">Basic (₹1800/sqft)</option>
-            <option value="standard">Standard (₹2200/sqft)</option>
-            <option value="premium">Premium (₹2800/sqft)</option>
-          </select>
+
+      {noBuilding ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
+          <span className="text-4xl">🏗️</span>
+          <p className="text-sm font-semibold text-slate-600">No building generated yet</p>
+          <p className="text-xs text-slate-400">Generate a building first to see accurate cost estimates based on its dimensions, style, and features.</p>
         </div>
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="text-xs text-gray-500 mb-1">Rate per sqft</div>
-          <div className="text-2xl font-bold text-emerald-400">{formatINR(rate)}/sqft</div>
-        </div>
-        <div className="bg-emerald-900/30 border border-emerald-700 rounded-lg p-6">
-          <div className="text-center">
-            <div className="text-xs text-emerald-400 mb-2">TOTAL COST</div>
-            <div className="text-3xl font-bold text-emerald-400">{formatINR(total)}</div>
-            <div className="text-lg text-emerald-300/70 mt-1">{formatUSD(total)}</div>
+      ) : (
+        <div className="p-4 space-y-4">
+          {/* Quality tier */}
+          <div className="flex rounded-lg bg-slate-100 p-0.5 gap-0.5">
+            {(["basic","standard","premium"] as const).map(q => (
+              <button key={q} onClick={() => setQuality(q)}
+                className={`flex-1 py-1.5 rounded text-[9px] font-bold transition capitalize ${quality===q?"bg-white text-slate-800 shadow-sm":"text-slate-500"}`}>
+                {q}
+              </button>
+            ))}
           </div>
+
+          {/* Building summary */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              ["Total Area", `${totalFlrArea.toFixed(0)} m²`, `${sqft.toFixed(0)} sqft`],
+              ["Footprint",  `${footprint.toFixed(0)} m²`,    `${floors} floors`],
+              ["Rate/sqft",  fmtINR(rate),                    style],
+            ].map(([k,v,s]) => (
+              <div key={k} className="bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+                <p className="text-[7px] text-slate-400 uppercase">{k}</p>
+                <p className="text-[10px] font-bold text-slate-700">{v}</p>
+                <p className="text-[7px] text-slate-400 capitalize">{s}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Breakdown */}
+          <div className="space-y-1">
+            <p className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Breakdown</p>
+            {breakdown.map(({label,icon,cost}) => (
+              <div key={label} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-slate-50 transition">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">{icon}</span>
+                  <span className="text-[10px] text-slate-600">{label}</span>
+                </div>
+                <span className="text-[10px] font-semibold text-slate-700">{fmtINR(cost)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between py-1.5 px-2 text-slate-400 border-t border-slate-100">
+              <span className="text-[9px]">Contingency (8%)</span>
+              <span className="text-[9px]">{fmtINR(contingency)}</span>
+            </div>
+          </div>
+
+          {/* Total */}
+          <div className="bg-gradient-to-br from-[#7c93c3]/20 to-[#7c93c3]/5 rounded-2xl p-4 border border-[#7c93c3]/20 text-center">
+            <p className="text-[9px] text-[#7c93c3] font-bold uppercase mb-1">Total Estimated Cost</p>
+            <p className="text-2xl font-black text-slate-800">{fmtINR(totalINR)}</p>
+            <p className="text-sm text-slate-500 mt-0.5">{fmtUSD(totalUSD)}</p>
+            <p className="text-[8px] text-slate-400 mt-2">Indicative estimate · Rates vary by location</p>
+          </div>
+
+          {/* Quantities */}
+          <details className="group">
+            <summary className="text-[9px] font-bold uppercase text-slate-400 tracking-wider cursor-pointer hover:text-slate-600 list-none flex items-center gap-1">
+              <span className="group-open:rotate-90 transition-transform inline-block">▶</span> Material Quantities
+            </summary>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {[
+                ["Concrete",   `${concreteM3.toFixed(0)} m³`],
+                ["Steel TMT",  `${steelKg.toFixed(0)} kg`],
+                ["Brickwork",  `${brickNos.toLocaleString()} nos`],
+                ["Glazing",    `${windowArea.toFixed(0)} m²`],
+                ["Paint",      `${paintM2.toFixed(0)} m²`],
+                ["Floor Area", `${totalFlrArea.toFixed(0)} m²`],
+              ].map(([k,v]) => (
+                <div key={k} className="bg-slate-50 rounded-lg px-2.5 py-1.5 flex justify-between text-[9px]">
+                  <span className="text-slate-400">{k}</span>
+                  <span className="font-bold text-slate-700">{v}</span>
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
-        <div className="text-sm text-gray-400 text-center">
-          Plot Area: 600 sqm ({sqft.toFixed(0)} sqft)
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -147,6 +259,7 @@ export default function WorkspacePage() {
   const [showBOQ, setShowBOQ] = React.useState(false);
   const boqData = useStore((s) => s.boqData);
   const [activeStyle, setActiveStyle] = React.useState("modern");
+  const [showEditor, setShowEditor] = React.useState(false);
   const [leftTab, setLeftTab] = React.useState<"chat"|"ai"|"plot"|"cost"|"style">("chat");
   const booted = useRef(false);
 
@@ -366,7 +479,7 @@ export default function WorkspacePage() {
 
             {/* Always-visible prompt bar at bottom */}
             <div className="border-t border-slate-100 px-3 py-3 bg-slate-50/60 flex-shrink-0">
-              <PromptBar buildConfig={buildConfig} />
+              <PromptBar buildConfig={buildConfig} selectedStyle={activeStyle} />
             </div>
           </aside>
 
@@ -432,6 +545,17 @@ export default function WorkspacePage() {
                 </button>
               )}
 
+              {/* Edit building button — only when GLB loaded */}
+              {generatedGlbPath && viewMode === "model" && (
+                <button onClick={() => setShowEditor(e => !e)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
+                    showEditor
+                      ? "bg-[#7c93c3] text-white border-[#7c93c3]"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+                  }`}>
+                  ✏️ Edit
+                </button>
+              )}
               {/* Asset Library button */}
               <button onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
@@ -457,11 +581,19 @@ export default function WorkspacePage() {
             )}
 
             {/* ── Main view area ── */}
-            <div className="flex-1 relative min-h-0">
-              {viewMode === "model"  && <ThreeJSViewer />}
-              {viewMode === "plan"   && <FloorPlanView floorPlan={geometryData?.floor_plan} />}
-              {viewMode === "unreal" && <UnrealExport />}
+            <div className="flex-1 relative min-h-0 flex">
+              <div className="flex-1 relative min-h-0">
+                {viewMode === "model"  && <ThreeJSViewer />}
+                {viewMode === "plan"   && <FloorPlanView floorPlan={geometryData?.floor_plan} />}
+                {viewMode === "unreal" && <UnrealExport />}
 
+              </div>
+              {/* ElementEditor — slide-in panel on right */}
+              {showEditor && viewMode === "model" && (
+                <div className="w-[260px] flex-shrink-0 border-l border-slate-100 overflow-y-auto">
+                  <ElementEditor onClose={() => setShowEditor(false)} />
+                </div>
+              )}
               {/* Compass — only in 3D model mode */}
               {viewMode === "model" && (
                 <div className="absolute bottom-4 right-4 z-10 pointer-events-none">

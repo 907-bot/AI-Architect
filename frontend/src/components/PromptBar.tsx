@@ -14,7 +14,7 @@ const SUGGESTIONS = [
   "Contemporary glass house with 4 floors",
 ];
 
-export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
+export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?: any; selectedStyle?: string }) {
   const [value, setValue] = useState("");
   const [suggIdx, setSuggIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +83,7 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         `${API_BASE}/api/generate`,
         {
           prompt,
-          style: buildConfig?.roofStyle === "gable" ? "craftsman" : "contemporary",
+          style: selectedStyle || "modern",
           render_quality: "cinematic",
           zoning_data: zoningData,
         },
