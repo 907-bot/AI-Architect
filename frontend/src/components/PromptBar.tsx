@@ -50,6 +50,16 @@ export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?
     return () => window.removeEventListener("build-config", handler);
   }, []);
 
+  // Listen for edit-prompt events from Edit tab
+  useEffect(() => {
+    const handler = (e: any) => {
+      setValue(e.detail);
+      inputRef.current?.focus();
+    };
+    window.addEventListener("edit-prompt", handler);
+    return () => window.removeEventListener("edit-prompt", handler);
+  }, []);
+
   const hasBuilding = !!latestToon;
 
   const handleSubmit = async (e: React.FormEvent) => {

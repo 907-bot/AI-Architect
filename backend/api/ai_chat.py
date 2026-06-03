@@ -197,6 +197,41 @@ async def execute_tool(name: str, args: dict, current_schema: dict) -> dict:
     elif name == "edit_building_element":
         element = args["element"]
         value   = args["value"]
+        reason  = args.get("reason", "")
+        
+        # Special handling for floors - increment instead of set absolute value
+        if element == "floors":
+            # Check if the reason or value indicates adding floors
+            text = (reason + " " + value).lower()
+            if "add" in text:
+                # Extract number to add
+                word_to_num = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+                floors_to_add = 1  # default
+                
+                # Try digit pattern
+                import re
+                match = re.search(r"(\d+)", text)
+                if match:
+                    floors_to_add = int(match.group(1))
+                else:
+                    # Try word pattern
+                    for word, num in word_to_num.items():
+                        if word in text:
+                            floors_to_add = num
+                            break
+                
+                current_floors = current_schema.get("floors", 1)
+                current_schema["floors"] = current_floors + floors_to_add
+                return {
+                    "type":    "edit",
+                    "element": element,
+                    "value":   str(current_schema["floors"]),
+                    "reason":  f"Added {floors_to_add} floor(s)",
+                    "schema":  current_schema,
+                    "regenerate": True,
+                    "text":    f"✅ Added {floors_to_add} floor(s). Building now has {current_schema['floors']} floors."
+                }
+        
         # Map element → schema field
         FIELD_MAP = {
             "roof":           ("roof_style", value),
@@ -226,10 +261,10 @@ async def execute_tool(name: str, args: dict, current_schema: dict) -> dict:
             "type":    "edit",
             "element": element,
             "value":   value,
-            "reason":  args.get("reason", ""),
+            "reason":  reason,
             "schema":  current_schema,
             "regenerate": True,
-            "text":    f"✅ {args.get('reason', f'Updated {element} to {value}')}"
+            "text":    f"✅ {reason or f'Updated {element} to {value}'}"
         }
 
     elif name == "check_plot_feasibility":

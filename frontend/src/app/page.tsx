@@ -253,15 +253,18 @@ export default function WorkspacePage() {
     isAssetPaletteOpen, setAssetPaletteOpen,
     geometryData, generatedGlbPath,
   } = useStore();
+  const latestToon = useStore((s) => s.latestToon);
   const isWalkthrough   = useStore((s) => s.isWalkthrough);
   const setWalkthrough  = useStore((s) => s.setWalkthrough);
   const selectedRoomId  = useStore((s) => s.selectedRoomId);
   const [showBOQ, setShowBOQ] = React.useState(false);
   const boqData = useStore((s) => s.boqData);
   const [activeStyle, setActiveStyle] = React.useState("modern");
-  const [showEditor, setShowEditor] = React.useState(false);
-  const [leftTab, setLeftTab] = React.useState<"chat"|"ai"|"plot"|"cost"|"style">("chat");
+  const [leftTab, setLeftTab] = React.useState<"chat"|"ai"|"plot"|"cost"|"style"|"edit">("chat");
   const booted = useRef(false);
+
+  // Determine if a building exists to show Edit tab instead of Style tab
+  const hasBuilding = generatedGlbPath || latestToon;
 
   useEffect(() => {
     if (booted.current) return;
@@ -399,9 +402,10 @@ export default function WorkspacePage() {
                 {id:"ai",    icon:"🤖", label:"AI Architect"},
                 {id:"plot",  icon:"📐", label:"Plot"},
                 {id:"cost",  icon:"🧮", label:"Cost"},
-                {id:"style", icon:"🎨", label:"Style"},
-              ] as {id:"chat"|"ai"|"plot"|"cost"|"style"; icon:string; label:string}[]).map(tab => (
-                <button key={tab.id} onClick={() => setLeftTab(tab.id)}
+                ...(hasBuilding ? [{id:"edit", icon:"✏️", label:"Edit"}] : []),
+                ...(!hasBuilding ? [{id:"style", icon:"🎨", label:"Style"}] : []),
+              ] as {id:"chat"|"ai"|"plot"|"cost"|"style"|"edit"; icon:string; label:string}[]).map(tab => (
+                <button key={tab.id} onClick={() => setLeftTab(tab.id as any)}
                   className={`flex-1 flex flex-col items-center py-2 text-[8px] font-semibold transition border-b-2 ${
                     leftTab === tab.id
                       ? "border-[#7c93c3] text-[#7c93c3] bg-white"
@@ -449,7 +453,43 @@ export default function WorkspacePage() {
                 </div>
               )}
 
-              {/* Style tab */}
+              {/* Edit tab - shown when building exists */}
+              {leftTab === "edit" && (
+                <div className="flex flex-col p-3">
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#7c93c3] mb-3">
+                    <Settings2 className="w-3.5 h-3.5" />
+                    Quick Edits
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: "Add pool", prompt: "Add a swimming pool" },
+                      { label: "+1 Floor", prompt: "Add one more floor" },
+                      { label: "Flat roof", prompt: "Change roof to flat" },
+                      { label: "Gable roof", prompt: "Change roof to gable" },
+                      { label: "Red brick", prompt: "Change walls to red brick" },
+                      { label: "Glass facade", prompt: "Change exterior to glass facade" },
+                      { label: "Add garage", prompt: "Add a garage" },
+                      { label: "Wider rooms", prompt: "Make all rooms larger" },
+                    ].map((chip) => (
+                      <button
+                        key={chip.label}
+                        onClick={() => {
+                          // Dispatch event to PromptBar
+                          window.dispatchEvent(new CustomEvent('edit-prompt', { detail: chip.prompt }));
+                        }}
+                        className="text-[9px] font-semibold px-2.5 py-1.5 rounded-lg border border-[#7c93c3]/30 bg-[#7c93c3]/5 hover:bg-[#7c93c3]/15 hover:border-[#7c93c3]/60 text-[#5a73a3] transition-all"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <p className="text-[9px] text-slate-500">Or type your edit request in the prompt bar below.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Style tab - shown when no building exists */}
               {leftTab === "style" && (
                 <div className="flex flex-col">
                   <StylePicker
@@ -583,6 +623,49 @@ export default function WorkspacePage() {
                   )}
                 </div>
               )}
+
+              {/* Camera projection — only in 3D mode */}
+              {viewMode === "model" && (
+                <select value={activeProjection}
+                  onChange={e => setActiveProjection(e.target.value as any)}
+                  className="text-[10px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#7c93c3]">
+                  {PROJECTIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              )}
+
+              {/* Walkthrough — only when GLB exists in 3D mode */}
+              {viewMode === "model" && generatedGlbPath && (
+                <button onClick={() => setWalkthrough(!isWalkthrough)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
+                    isWalkthrough
+                      ? "bg-[#7c93c3] text-white border-[#7c93c3]"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+                  }`}>
+                  🚶 {isWalkthrough ? "Exit Walk" : "Walkthrough"}
+                </button>
+              )}
+
+              {/* Asset Library button */}
+              <button onClick={() => setAssetPaletteOpen(!isAssetPaletteOpen)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition border ${
+                  isAssetPaletteOpen
+                    ? "bg-[#7c93c3] text-white border-[#7c93c3]"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3]"
+                }`}>
+                <Package className="w-3 h-3" />{isAssetPaletteOpen ? "Close" : "Assets"}
+              </button>
+
+              {/* Edit button - switches to AI Architect tab */}
+              <button onClick={() => setLeftTab("ai")}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border bg-white text-slate-600 border-slate-200 hover:border-[#7c93c3] hover:text-[#7c93c3] transition">
+                🤝 Edit
+              </button>
+
+              {/* BOQ/Cost button */}
+              <button onClick={() => setLeftTab("cost")}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition ml-auto">
+                  🧮 Cost
+                </button>
             </div>
 
             {/* ── Asset palette slide-in — BELOW toolbar, not over viewer ── */}

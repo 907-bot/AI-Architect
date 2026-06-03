@@ -157,10 +157,19 @@ export default function AIChatbot() {
         }
       }
     } catch (err) {
-      updateMsg(asstId, {
-        content: "Connection error. Make sure the backend is running.",
-        isStreaming: false
-      });
+      console.error("AI Chat error:", err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (errorMsg.includes("fetch") || errorMsg.includes("network")) {
+        updateMsg(asstId, {
+          content: "Cannot connect to backend. Please ensure the backend server is running on port 8000.",
+          isStreaming: false
+        });
+      } else {
+        updateMsg(asstId, {
+          content: `Error: ${errorMsg}. Please check your setup.`,
+          isStreaming: false
+        });
+      }
     }
     setLoading(false);
     inputRef.current?.focus();
@@ -177,6 +186,17 @@ export default function AIChatbot() {
             <p className="text-[9px] text-amber-600">Add <code className="bg-amber-100 px-1 rounded">OPENAI_API_KEY=sk-...</code> to your <code className="bg-amber-100 px-1 rounded">.env</code> file and restart the backend.</p>
           </div>
           <button onClick={() => setApiKeyMissing(false)} className="ml-auto"><X className="w-3 h-3 text-amber-400" /></button>
+        </div>
+      )}
+
+      {/* Backend connection warning */}
+      {!apiKeyMissing && messages.length === 1 && (
+        <div className="mx-3 mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2">
+          <Lightbulb className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[10px] font-bold text-blue-700">AI Architect Requirements</p>
+            <p className="text-[9px] text-blue-600">This feature requires an OpenAI API key and backend server running on port 8000.</p>
+          </div>
         </div>
       )}
 
