@@ -14,7 +14,52 @@ const SUGGESTIONS = [
   "Contemporary glass house with 4 floors",
 ];
 
-export default function PromptBar({ buildConfig, selectedStyle }: { buildConfig?: any; selectedStyle?: string }) {
+/** Keywords that signal the user wants to EDIT, not generate fresh */
+const EDIT_KEYWORDS = [
+  "make it", "add a", "add the", "remove the", "change the", "change it",
+  "taller", "wider", "shorter", "smaller", "bigger", "larger",
+  "more floors", "fewer floors", "extra floor",
+  "flat roof", "gable roof", "hip roof",
+  "red brick", "white walls", "glass walls",
+  "make the", "increase", "decrease", "reduce",
+  // Additional patterns for EDIT_CHIPS and common phrasings
+  "add one more", "one more floor", "more floor", "remove a", "remove one",
+  "add pool", "swimming pool", "add garage", "wider rooms", "all rooms",
+  "make all", "remove floor", "subtract floor", "fewer floor", "less floor",
+  "add 1 floor", "add 2 floor", "add 3 floor",
+];
+
+
+function isEditIntent(prompt: string): boolean {
+  const lower = prompt.toLowerCase();
+  return EDIT_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/** Quick-prompt chips shown above the input when no building exists */
+const STYLE_PROMPTS: { style: string; label: string; emoji: string; prompt: string }[] = [
+  { style: "modern",       label: "Modern Villa",      emoji: "🏢", prompt: "Modern 3-floor villa with flat roof, glass walls and rooftop pool" },
+  { style: "japanese",     label: "Japanese Home",     emoji: "⛩️", prompt: "Japanese-style 2-floor house with pagoda roof, zen garden and wooden facade" },
+  { style: "villa",        label: "Mediterranean",     emoji: "🏡", prompt: "Mediterranean villa with hip roof, terracotta tiles, arched windows and garden" },
+  { style: "scandinavian", label: "Scandinavian",      emoji: "🏔️", prompt: "Scandinavian 2-floor house with steep gable roof, light wood and minimalist design" },
+  { style: "colonial",     label: "Colonial",          emoji: "🏛️", prompt: "Colonial bungalow with white columns, large gable roof, wraparound porch and garden" },
+  { style: "industrial",   label: "Industrial Loft",   emoji: "🏭", prompt: "Industrial loft-style house with exposed red brick, steel beams and large windows" },
+  { style: "asian",        label: "Asian Palace",      emoji: "🏯", prompt: "Asian palace-style 3-floor residence with curved roofs, red columns and courtyard" },
+  { style: "classical",    label: "Neo-Classical",     emoji: "🏺", prompt: "Neo-classical mansion with marble facade, grand portico, symmetrical columns and dome" },
+];
+
+/** Quick-edit chips shown when a building already exists */
+const EDIT_CHIPS = [
+  { label: "Add pool",          prompt: "Add a swimming pool" },
+  { label: "+1 Floor",          prompt: "Add one more floor" },
+  { label: "Flat roof",         prompt: "Change roof to flat" },
+  { label: "Gable roof",        prompt: "Change roof to gable" },
+  { label: "Red brick",         prompt: "Change walls to red brick" },
+  { label: "Glass facade",      prompt: "Change exterior to glass facade" },
+  { label: "Add garage",        prompt: "Add a garage" },
+  { label: "Wider rooms",       prompt: "Make all rooms larger" },
+];
+
+export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
   const [value, setValue] = useState("");
   const [suggIdx, setSuggIdx] = useState(0);
   const [showStyleChips, setShowStyleChips] = useState(true);

@@ -49,6 +49,18 @@ class RenderQueue:
             log.info("render_queue_using_local_mode")
         self._initialized = True
 
+    def _redis_mapping(self, mapping: Dict[str, Any]) -> Dict[str, str]:
+        """Convert job metadata into Redis-safe scalar strings."""
+        normalized: Dict[str, str] = {}
+        for key, value in mapping.items():
+            if value is None:
+                normalized[key] = ""
+            elif isinstance(value, (dict, list)):
+                normalized[key] = json.dumps(value)
+            else:
+                normalized[key] = str(value)
+        return normalized
+
     async def health_check(self) -> Dict[str, Any]:
         """Return current queue backend status without failing the API."""
         if not self._redis:
@@ -98,7 +110,7 @@ class RenderQueue:
             "max_attempts": 3,
         }
         if self._redis:
-            await self._redis.hset(JOB_PREFIX + job_id, mapping=job)
+            await self._redis.hset(JOB_PREFIX + job_id, mapping=self._redis_mapping(job))
             await self._redis.lpush(QUEUE_NAME, job_id)
             if priority:
                 await self._redis.zadd(f"{QUEUE_NAME}:priority", {job_id: priority})
@@ -119,7 +131,7 @@ class RenderQueue:
             job_data["status"] = JobStatus.PROCESSING.value
             job_data["started_at"] = datetime.utcnow().isoformat()
             job_data["attempts"] = int(job_data.get("attempts", 0)) + 1
-            await self._redis.hset(JOB_PREFIX + job_id, mapping=job_data)
+            await self._redis.hset(JOB_PREFIX + job_id, mapping=self._redis_mapping(job_data))
             return job_data
         for jid, job in list(self._local_jobs.items()):
             if job["status"] == JobStatus.QUEUED.value:

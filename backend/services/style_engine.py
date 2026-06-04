@@ -232,7 +232,7 @@ def get_style_config(style: DesignStyle) -> StyleConfig:
     """Get the full style configuration for a given design style."""
     if style in STYLE_REGISTRY:
         return STYLE_REGISTRY[style]
-    return STYLE_REGISTRY[DesignStyle.MODERN]
+    return STYLE_REGISTRY.get(DesignStyle.MODERN_LUXURY) or next(iter(STYLE_REGISTRY.values()))
 
 
 def apply_style_to_design_system(style: DesignStyle) -> DesignSystem:
@@ -346,9 +346,9 @@ def list_available_styles() -> List[Dict[str, Any]]:
         {
             "id": s.value,
             "name": s.name.replace("_", " ").title(),
-            "description": STYLE_REGISTRY[s].get("description", ""),
-            "landscaping": STYLE_REGISTRY[s].get("landscaping_style", ""),
-            "hdri": STYLE_REGISTRY[s].get("hdri_environment", ""),
+            "description": get_style_config(s).get("description", ""),
+            "landscaping": get_style_config(s).get("landscaping_style", ""),
+            "hdri": get_style_config(s).get("hdri_environment", ""),
         }
         for s in DesignStyle
     ]

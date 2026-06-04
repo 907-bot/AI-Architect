@@ -88,23 +88,6 @@ async def search_sketchfab(request: SearchRequest):
 
 
 # ====================================================
-# GET ASSET DETAILS + DOWNLOAD
-# ====================================================
-
-@router.get("/{uid}")
-async def get_asset(uid: str):
-    """
-    Get full asset metadata + download info.
-    Returns local cache path if already downloaded.
-    """
-    manager = get_sketchfab_manager()
-    asset = await manager.get_asset(uid)
-    if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    return asset
-
-
-# ====================================================
 # PLACE ASSET IN SCENE (with smart positioning)
 # ====================================================
 
@@ -338,3 +321,21 @@ async def assets_health():
         "sketchfab_configured": bool(get_sketchfab_manager().direct.api_token),
         "mcp_enabled": get_sketchfab_manager().use_mcp
     }
+
+
+# ====================================================
+# GET ASSET DETAILS + DOWNLOAD
+# Keep this dynamic route below fixed routes like /health and /catalog.
+# ====================================================
+
+@router.get("/{uid}")
+async def get_asset(uid: str):
+    """
+    Get full asset metadata + download info.
+    Returns local cache path if already downloaded.
+    """
+    manager = get_sketchfab_manager()
+    asset = await manager.get_asset(uid)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return asset

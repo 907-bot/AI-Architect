@@ -4,7 +4,7 @@ AI Architect Chatbot — OpenAI GPT-4o-mini with tool calling
 Handles: architectural questions, image search, building edits, feasibility
 """
 from __future__ import annotations
-import json, os, re, time, asyncio, urllib.request, urllib.parse
+import copy, json, os, re, time, asyncio, urllib.request, urllib.parse
 from pathlib import Path
 from typing import AsyncIterator, Optional
 from fastapi import APIRouter
@@ -198,41 +198,105 @@ async def execute_tool(name: str, args: dict, current_schema: dict) -> dict:
         element = args["element"]
         value   = args["value"]
         reason  = args.get("reason", "")
-        
-        # Special handling for floors - increment instead of set absolute value
+
+        # Deep-copy so we never mutate the caller's schema dict
+        schema = copy.deepcopy(current_schema)
+
+        # ── Special handling for floors: always treat `value` as the DELTA ──────
         if element == "floors":
-            # Check if the reason or value indicates adding floors
-            text = (reason + " " + value).lower()
-            if "add" in text:
-                # Extract number to add
-                word_to_num = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
-                floors_to_add = 1  # default
-                
-                # Try digit pattern
-                import re
-                match = re.search(r"(\d+)", text)
-                if match:
-                    floors_to_add = int(match.group(1))
+            word_to_num = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                           "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+            val_lower = str(value).strip().lower()
+
+            # Determine direction (positive/negative)
+            sign = 1
+            if "-" in val_lower or "remove" in val_lower or "decrease" in val_lower or "reduce" in val_lower or "less" in val_lower or "subtract" in val_lower or "fewer" in val_lower:
+                sign = -1
+
+            floors_delta = 1  # default
+            digit_match = re.search(r"(\d+)", val_lower)
+            if digit_match:
+                floors_delta = min(int(digit_match.group(1)), 10)  # cap at 10
+            else:
+                for word, num in word_to_num.items():
+                    if word in val_lower:
+                        floors_delta = num
+                        break
+
+            actual_delta = sign * floors_delta
+            current_floors = schema.get("floors", 1)
+            new_floors = max(1, current_floors + actual_delta)
+            schema["floors"] = new_floors
+            
+            action_word = "Added" if actual_delta >= 0 else "Removed"
+            abs_delta = abs(actual_delta)
+            return {
+                "type":      "edit",
+                "element":   element,
+                "value":     str(schema["floors"]),
+                "reason":    f"{action_word} {abs_delta} floor(s)",
+                "schema":    schema,
+                "regenerate": True,
+                "text":      f"✅ {action_word} {abs_delta} floor(s). Building now has {schema['floors']} floors."
+            }
+
+        # ── Special handling for width & depth: support relative adjustments ─────
+        elif element in ("width", "depth"):
+            val_lower = str(value).strip().lower()
+            current_val = float(schema.get(element, 20.0 if element == "width" else 15.0))
+
+            multiplier = 1.0
+            delta = 0.0
+
+            # 1. Check for percentage change, e.g. "+10%", "10%", "-5%"
+            pct_match = re.search(r"([+-]?\d+(?:\.\d+)?)\s*%", val_lower)
+            if pct_match:
+                pct_val = float(pct_match.group(1))
+                multiplier = 1.0 + (pct_val / 100.0)
+            else:
+                # 2. Check for keywords
+                is_increase = any(w in val_lower for w in ("larger", "bigger", "increase", "wider", "deeper", "longer", "add", "grow", "+"))
+                is_decrease = any(w in val_lower for w in ("smaller", "reduce", "decrease", "narrower", "shorter", "shrink", "-"))
+
+                # Try to extract a number
+                num_match = re.search(r"([+-]?\d+(?:\.\d+)?)", val_lower)
+                if num_match:
+                    num_val = float(num_match.group(1))
+                    if val_lower.startswith("+") or val_lower.startswith("-") or is_increase or is_decrease:
+                        sign = -1.0 if (val_lower.startswith("-") or is_decrease) else 1.0
+                        delta = sign * abs(num_val)
+                    else:
+                        if is_increase or is_decrease:
+                            sign = -1.0 if is_decrease else 1.0
+                            delta = sign * abs(num_val)
+                        else:
+                            # Plain number, set as absolute value
+                            current_val = num_val
                 else:
-                    # Try word pattern
-                    for word, num in word_to_num.items():
-                        if word in text:
-                            floors_to_add = num
-                            break
-                
-                current_floors = current_schema.get("floors", 1)
-                current_schema["floors"] = current_floors + floors_to_add
-                return {
-                    "type":    "edit",
-                    "element": element,
-                    "value":   str(current_schema["floors"]),
-                    "reason":  f"Added {floors_to_add} floor(s)",
-                    "schema":  current_schema,
-                    "regenerate": True,
-                    "text":    f"✅ Added {floors_to_add} floor(s). Building now has {current_schema['floors']} floors."
-                }
-        
-        # Map element → schema field
+                    # No number, just keywords, e.g. "larger"
+                    if is_increase:
+                        multiplier = 1.2  # 20% increase
+                    elif is_decrease:
+                        multiplier = 0.85 # 15% decrease
+
+            new_val = (current_val * multiplier) + delta
+            # Enforce limits (5.0m to 100.0m)
+            new_val = max(5.0, min(new_val, 100.0))
+            new_val = round(new_val, 1)
+            schema[element] = new_val
+
+            action_desc = f"Updated {element} to {new_val}m"
+            return {
+                "type":      "edit",
+                "element":   element,
+                "value":     str(new_val),
+                "reason":    action_desc,
+                "schema":    schema,
+                "regenerate": True,
+                "text":      f"✅ {action_desc} (was {current_val:.1f}m)."
+            }
+
+        # ── Map element → schema field (non-floor edits) ─────────────────────────
         FIELD_MAP = {
             "roof":           ("roof_style", value),
             "style":          ("style",      value),
@@ -246,23 +310,25 @@ async def execute_tool(name: str, args: dict, current_schema: dict) -> dict:
             "floor_material": ("interior.floor_material", value),
             "wall_color":     ("interior.wall_color",     value),
             "furniture_style":("interior.furniture_style",value),
+            "window_style":   ("window_style", value),
+            "interior":       ("interior_style", value),
         }
         if element in FIELD_MAP:
             field, val = FIELD_MAP[element]
             if "." in field:
                 outer, inner = field.split(".", 1)
-                if outer not in current_schema:
-                    current_schema[outer] = {}
-                current_schema[outer][inner] = val
+                if outer not in schema:
+                    schema[outer] = {}
+                schema[outer][inner] = val
             else:
-                current_schema[field] = val
+                schema[field] = val
 
         return {
             "type":    "edit",
             "element": element,
             "value":   value,
             "reason":  reason,
-            "schema":  current_schema,
+            "schema":  schema,
             "regenerate": True,
             "text":    f"✅ {reason or f'Updated {element} to {value}'}"
         }
@@ -424,6 +490,68 @@ class ChatRequest(BaseModel):
     lng:            Optional[float] = None
 
 
+def _local_edit_tool_calls(message: str) -> list[dict]:
+    """Map simple edit commands to local tools so quota/network issues do not block edits."""
+    text = (message or "").strip().lower()
+    if not text:
+        return []
+
+    word_to_num = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+        "a": 1, "an": 1,
+    }
+
+    def amount(default: int = 1) -> int:
+        digit = re.search(r"\b(\d+)\b", text)
+        if digit:
+            return max(1, min(int(digit.group(1)), 10))
+        for word, num in word_to_num.items():
+            if re.search(rf"\b{re.escape(word)}\b", text):
+                return num
+        return default
+
+    mentions_floor = any(w in text for w in ("floor", "floors", "storey", "storeys", "story", "stories"))
+    if mentions_floor and any(w in text for w in ("add", "increase", "more", "extra", "raise")):
+        delta = amount()
+        return [{
+            "name": "edit_building_element",
+            "args": {"element": "floors", "value": str(delta), "reason": f"Added {delta} floor(s)"},
+        }]
+    if mentions_floor and any(w in text for w in ("remove", "decrease", "reduce", "less", "fewer", "subtract")):
+        delta = amount()
+        return [{
+            "name": "edit_building_element",
+            "args": {"element": "floors", "value": f"-{delta}", "reason": f"Removed {delta} floor(s)"},
+        }]
+
+    mentions_room_or_size = any(w in text for w in ("room", "rooms", "width", "depth", "larger", "bigger", "wider", "deeper"))
+    if mentions_room_or_size and any(w in text for w in ("larger", "bigger", "increase", "wider", "deeper", "expand", "grow")):
+        return [
+            {
+                "name": "edit_building_element",
+                "args": {"element": "width", "value": "larger", "reason": "Increased building width"},
+            },
+            {
+                "name": "edit_building_element",
+                "args": {"element": "depth", "value": "larger", "reason": "Increased building depth"},
+            },
+        ]
+    if mentions_room_or_size and any(w in text for w in ("smaller", "reduce", "decrease", "narrower", "shorter", "shrink")):
+        return [
+            {
+                "name": "edit_building_element",
+                "args": {"element": "width", "value": "smaller", "reason": "Reduced building width"},
+            },
+            {
+                "name": "edit_building_element",
+                "args": {"element": "depth", "value": "smaller", "reason": "Reduced building depth"},
+            },
+        ]
+
+    return []
+
+
 # ── Streaming chat endpoint ───────────────────────────────────────────────────
 @router.post("/ai-chat")
 async def ai_chat(body: ChatRequest):
@@ -439,6 +567,30 @@ async def _stream_chat(body: ChatRequest) -> AsyncIterator[str]:
     """Stream chat response as SSE events."""
     def event(data: dict) -> str:
         return f"data: {json.dumps(data)}\n\n"
+
+    local_calls = _local_edit_tool_calls(body.message)
+    if local_calls:
+        accumulated_schema = copy.deepcopy(body.current_schema) if body.current_schema else {}
+        for call in local_calls:
+            fn_name = call["name"]
+            fn_args = call["args"]
+            yield event({"type": "tool_start", "tool": fn_name, "args": fn_args})
+
+            result = await execute_tool(fn_name, fn_args, accumulated_schema)
+            if result.get("schema"):
+                accumulated_schema = result["schema"]
+
+            yield event({"type": "tool_result", "tool": fn_name, "result": result})
+            if result.get("regenerate"):
+                yield event({
+                    "type": "regenerate",
+                    "schema": accumulated_schema,
+                    "element": fn_args.get("element"),
+                    "value": fn_args.get("value"),
+                })
+
+        yield event({"type": "done"})
+        return
 
     try:
         client = _get_client()
@@ -475,7 +627,15 @@ Your capabilities:
 When user asks about architectural styles or elements, ALWAYS use search_architectural_images.
 When user wants to change something, use edit_building_element.
 
-IMPORTANT: When user asks to "add X floor" or "add X more floor", the edit_building_element tool will automatically increment the floor count from the current value. Do NOT set the floor count to X - the tool handles the increment logic. Just call edit_building_element with element="floors" and value="X" (the number to add).
+CRITICAL FLOOR & DIMENSION RULES — follow exactly:
+- To ADD floors: call edit_building_element(element="floors", value="N") (where N is the positive number of floors to add, e.g. "1", "2")
+- To REMOVE floors: call edit_building_element(element="floors", value="-N") (where N is the number of floors to remove, e.g. "-1", "-2")
+- NEVER pass the target total floors — always pass only the DELTA (positive to add, negative to remove) as the value.
+- To increase room sizes or overall dimensions: call edit_building_element(element="width", value="larger") and/or element="depth", value="larger". Or pass a percentage delta like "+10%" or "+20%".
+- To decrease dimensions: call edit_building_element(element="width", value="smaller") and/or element="depth", value="smaller". Or pass a percentage delta like "-10%" or "-15%".
+- You can call edit_building_element multiple times in a single response to modify multiple elements simultaneously (e.g. both width and depth to enlarge rooms).
+
+STYLE PRESERVATION: When editing ANY element, only edit that one element. Do NOT change style, roof_style, or any other field unless the user explicitly asked for it.
 
 Be concise, helpful, and proactive. If user gives a plot size, immediately check feasibility."""
 
@@ -484,18 +644,35 @@ Be concise, helpful, and proactive. If user gives a plot size, immediately check
         messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": body.message})
 
-    # First pass — get tool calls + text
-    try:
-        response = await client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            max_tokens=800,
-            temperature=0.7,
-        )
-    except Exception as e:
-        yield event({"type": "error", "text": f"OpenAI error: {e}"})
+    # First pass — get tool calls + text (with 429 retry backoff)
+    response = None
+    for attempt in range(3):
+        try:
+            response = await client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+                max_tokens=800,
+                temperature=0.7,
+            )
+            break
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str and attempt < 2:
+                wait = (attempt + 1) * 5  # 5s, 10s
+                yield event({"type": "text_chunk", "text": f"⏳ Rate limited — retrying in {wait}s…"})
+                await asyncio.sleep(wait)
+                # Refresh client in case key was rotated
+                try:
+                    client = _get_client()
+                except ValueError:
+                    pass
+            else:
+                yield event({"type": "error", "text": f"OpenAI error: {e}"})
+                return
+    if response is None:
+        yield event({"type": "error", "text": "OpenAI unavailable after retries. Check your API key quota."})
         return
 
     msg = response.choices[0].message
@@ -505,6 +682,7 @@ Be concise, helpful, and proactive. If user gives a plot size, immediately check
         yield event({"type": "text_chunk", "text": msg.content})
 
     # Execute tool calls
+    accumulated_schema = copy.deepcopy(body.current_schema) if body.current_schema else {}
     if msg.tool_calls:
         for tc in msg.tool_calls:
             fn_name = tc.function.name
@@ -515,7 +693,9 @@ Be concise, helpful, and proactive. If user gives a plot size, immediately check
 
             yield event({"type": "tool_start", "tool": fn_name, "args": fn_args})
 
-            result = await execute_tool(fn_name, fn_args, dict(body.current_schema))
+            result = await execute_tool(fn_name, fn_args, accumulated_schema)
+            if result.get("schema"):
+                accumulated_schema = result["schema"]
 
             yield event({"type": "tool_result", "tool": fn_name, "result": result})
 
@@ -523,7 +703,7 @@ Be concise, helpful, and proactive. If user gives a plot size, immediately check
             if result.get("regenerate"):
                 yield event({
                     "type":   "regenerate",
-                    "schema": result.get("schema", body.current_schema),
+                    "schema": accumulated_schema,
                     "element": fn_args.get("element"),
                     "value":  fn_args.get("value"),
                 })

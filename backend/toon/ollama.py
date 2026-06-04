@@ -9,8 +9,8 @@ from backend.toon.parser import parse_toon
 from backend.toon.planner import prompt_to_toon
 
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")  # Using Llama 3.1 as specified
+OLLAMA_URL = os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL") or "llama3.1"  # Using Llama 3.1 as specified
 
 
 def check_ollama_connection() -> tuple[bool, str | None, str | None]:

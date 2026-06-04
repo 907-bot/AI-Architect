@@ -256,7 +256,10 @@ app.include_router(mvp_router, tags=["mvp-pipeline"])
 
 # Serve cached GLB files from Sketchfab
 import os as _os
+import mimetypes as _mimetypes
 from fastapi.staticfiles import StaticFiles as _StaticFiles
+_mimetypes.add_type("model/gltf-binary", ".glb")
+_mimetypes.add_type("model/gltf+json", ".gltf")
 _sketchfab_cache = _os.path.join(_os.path.dirname(__file__), "..", "cache", "sketchfab")
 _os.makedirs(_sketchfab_cache, exist_ok=True)
 app.mount("/cache/sketchfab", _StaticFiles(directory=_sketchfab_cache), name="sketchfab_cache")

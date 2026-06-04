@@ -79,7 +79,7 @@ def _schema_to_scene_graph(schema: dict) -> dict:
         if i == 0:
             rooms.extend([
                 {
-                    "name": "Living Room",
+                    "name": "Living_Room",
                     "room_type": "living_room",
                     "width": bw * 0.6, "depth": bd * 0.8, "height": floor_h,
                     "floor": i,
@@ -103,7 +103,7 @@ def _schema_to_scene_graph(schema: dict) -> dict:
         else:
             rooms.extend([
                 {
-                    "name": f"Master Bedroom {i}",
+                    "name": f"Master_Bedroom_{i}",
                     "room_type": "bedroom",
                     "width": bw * 0.5, "depth": bd * 0.6, "height": floor_h,
                     "floor": i,
@@ -113,7 +113,7 @@ def _schema_to_scene_graph(schema: dict) -> dict:
                     "windows": [],
                 },
                 {
-                    "name": f"Bathroom {i}",
+                    "name": f"Bathroom_{i}",
                     "room_type": "bathroom",
                     "width": bw * 0.25, "depth": bd * 0.3, "height": floor_h,
                     "floor": i,
@@ -161,18 +161,24 @@ def assign_floors_to_scene(scene, prompt: str = ""):
         return
 
     prompt_lower = prompt.lower() if prompt else ""
-    
-    # Skip floor count inference if instruction is about adding floors (handled by edit_toon)
-    if "add" in prompt_lower and "floor" in prompt_lower:
-        # Use the existing num_floors from the scene (set by edit_toon)
+
+    # Skip floor count inference if instruction already modified floors via edit_toon.
+    # This covers both floor addition ("add floor") and floor removal ("remove floor", etc.)
+    _is_floor_edit = (
+        ("floor" in prompt_lower)
+        and any(w in prompt_lower for w in ("add", "remove", "reduc", "decreas", "fewer", "less floor", "subtract", "extra", "more floor"))
+    )
+    if _is_floor_edit:
+        # Use the num_floors already set by edit_toon
         if scene.house.num_floors and scene.house.num_floors > 1:
             _distribute_rooms_to_floors(scene.house, scene.house.num_floors)
         return
-    
+
     requested = infer_floor_count(prompt_lower)
     if requested and requested > 1:
         _distribute_rooms_to_floors(scene.house, min(requested, scene.house.num_floors or requested))
         return
+
 
     is_two_story   = any(w in prompt_lower for w in ["2 floor","2 story","two floor","two story","double story","2-floor","2-story"])
     is_three_story = any(w in prompt_lower for w in ["3 floor","3 story","three floor","three story","3-floor","3-story"])
@@ -468,16 +474,21 @@ async def generate(body: GenerateRequest):
             style=schema.get("style", "modern")
         )
         
-        # Compile scene using the compiler to get a proper 3D representation and floor plan!
+        # Build scene and compile geometry
         from backend.toon.models import SceneGraph
         scene = SceneGraph.from_dict(scene_graph)
         geometry = compile_scene(scene)
         geometry["schema"] = schema
         geometry["floors"] = floors
 
+        # Synthesise a TOON from the schema-built scene so /api/edit can consume it
+        from backend.toon.editor import scene_to_toon
+        synthesized_toon = scene_to_toon(scene)
+
+
         return {
             "success": True,
-            "toon": "",
+            "toon": synthesized_toon,
             "scene_graph": scene_graph,
             "geometry": geometry,
             "glb_path": glb_path or "",
@@ -497,6 +508,7 @@ async def generate(body: GenerateRequest):
             "planner": "procedural-architecture",
             "schema": schema,
         }
+
 
     # ── Route 3: Simple house → TOON → blender/main.py ───────────────────────
     toon, planner = prompt_to_toon_with_ollama(prompt, body.ollama_model)

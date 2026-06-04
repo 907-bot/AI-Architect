@@ -275,7 +275,7 @@ class ArtifactPipeline:
             rw = room.get("width", 5) * scale
             rh = room.get("depth", 5) * scale
             fill, stroke = room_colors.get(room.get("room_type", ""), ("#F1F5F9", "#475569"))
-            name = room.get("name", room.get("room_type", "Room"))
+            name = room.get("name", room.get("room_type", "Room")).replace("_", " ")
             area = room.get("width", 5) * room.get("depth", 5)
 
             svg.append(
