@@ -74,6 +74,9 @@ def edit_toon(existing_toon: str, instruction: str) -> tuple[str, SceneGraph, li
 
 def scene_to_toon(scene: SceneGraph) -> str:
     lines = [f"HOUSE {scene.house.name} {{", f"  STYLE {scene.house.style}"]
+    # Include floor count if it exists
+    if scene.house.num_floors:
+        lines.append(f"  FLOORS {scene.house.num_floors}")
     for room in scene.house.rooms:
         lines.extend(["", f"  ROOM {room.name} {{", f"    size {room.width:g}x{room.depth:g}", f"    height {room.height:g}", "  }"])
     lines.extend(["", f"  ROOF {scene.house.roof.kind}", "}"])

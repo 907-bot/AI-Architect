@@ -474,6 +474,9 @@ Your capabilities:
 
 When user asks about architectural styles or elements, ALWAYS use search_architectural_images.
 When user wants to change something, use edit_building_element.
+
+IMPORTANT: When user asks to "add X floor" or "add X more floor", the edit_building_element tool will automatically increment the floor count from the current value. Do NOT set the floor count to X - the tool handles the increment logic. Just call edit_building_element with element="floors" and value="X" (the number to add).
+
 Be concise, helpful, and proactive. If user gives a plot size, immediately check feasibility."""
 
     messages = [{"role": "system", "content": system}]

@@ -161,6 +161,14 @@ def assign_floors_to_scene(scene, prompt: str = ""):
         return
 
     prompt_lower = prompt.lower() if prompt else ""
+    
+    # Skip floor count inference if instruction is about adding floors (handled by edit_toon)
+    if "add" in prompt_lower and "floor" in prompt_lower:
+        # Use the existing num_floors from the scene (set by edit_toon)
+        if scene.house.num_floors and scene.house.num_floors > 1:
+            _distribute_rooms_to_floors(scene.house, scene.house.num_floors)
+        return
+    
     requested = infer_floor_count(prompt_lower)
     if requested and requested > 1:
         _distribute_rooms_to_floors(scene.house, min(requested, scene.house.num_floors or requested))
