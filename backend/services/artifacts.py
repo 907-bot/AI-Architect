@@ -227,16 +227,63 @@ class ArtifactPipeline:
             except Exception as e:
                 log.warning("progress_callback_error", error=str(e))
 
+    @staticmethod
+    def _safe_room_pos(room: dict, key: str, fallback: float = 0) -> float:
+        """Extract position coordinate from room, handling dict or list format."""
+        pos = room.get("position")
+        if isinstance(pos, dict):
+            return pos.get(key, fallback)
+        if isinstance(pos, (list, tuple)):
+            keys = {"x": 0, "y": 1, "z": 2}
+            idx = keys.get(key, 0)
+            return float(pos[idx]) if idx < len(pos) else fallback
+        return fallback
+
+    @staticmethod
+    def _safe_door_pos(door: dict, key: str, fallback: float = 0) -> float:
+        """Extract position coordinate from door, handling flat or nested format."""
+        pos = door.get("position")
+        if isinstance(pos, dict):
+            return pos.get(key, fallback)
+        if isinstance(pos, (list, tuple)):
+            keys = {"x": 0, "y": 1, "z": 2}
+            idx = keys.get(key, 0)
+            return float(pos[idx]) if idx < len(pos) else fallback
+        return float(door.get(key, fallback))
+
     def _generate_svg_floorplan(self, scene_graph: Dict[str, Any]) -> str:
         """Generate a polished SVG floorplan from room data."""
         rooms = scene_graph.get("rooms") or scene_graph.get("house", {}).get("rooms", [])
         if not rooms:
             return "<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><text x='10' y='100'>No rooms</text></svg>"
 
-        min_x = min(r.get("position", {}).get("x", 0) - r.get("width", 5) / 2 for r in rooms)
-        max_x = max(r.get("position", {}).get("x", 0) + r.get("width", 5) / 2 for r in rooms)
-        min_z = min(r.get("position", {}).get("z", 0) - r.get("depth", 5) / 2 for r in rooms)
-        max_z = max(r.get("position", {}).get("z", 0) + r.get("depth", 5) / 2 for r in rooms)
+        # Sanitize rooms: skip malformed entries, coerce floors to int ≥ 1
+        cleaned = []
+        for r in rooms:
+            if not isinstance(r, dict):
+                continue
+            w = r.get("width", 5) or 5
+            d = r.get("depth", 5) or 5
+            cleaned.append(r)
+        rooms = cleaned
+        if not rooms:
+            return "<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><text x='10' y='100'>No rooms</text></svg>"
+
+        def _pos(r, k, f=0):
+            p = r.get("position")
+            if isinstance(p, dict):
+                return p.get(k, f)
+            if isinstance(p, (list, tuple)):
+                return float(p[{"x":0,"y":1,"z":2}.get(k,0)]) if {"x":0,"y":1,"z":2}.get(k,0) < len(p) else f
+            return f
+
+        min_x = min(_pos(r, "x", 0) - (r.get("width", 5) or 5) / 2 for r in rooms)
+        max_x = max(_pos(r, "x", 0) + (r.get("width", 5) or 5) / 2 for r in rooms)
+        min_z = min(_pos(r, "z", 0) - (r.get("depth", 5) or 5) / 2 for r in rooms)
+        max_z = max(_pos(r, "z", 0) + (r.get("depth", 5) or 5) / 2 for r in rooms)
+
+        if max_x - min_x < 0.01 or max_z - min_z < 0.01:
+            return "<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><text x='10' y='100'>Rooms overlap — check dimensions</text></svg>"
 
         scale = 30
         padding = 30
@@ -244,7 +291,7 @@ class ArtifactPipeline:
         height = (max_z - min_z) * scale + padding * 2
         legend_y = height + 20
 
-        total_area = sum(r.get("width", 0) * r.get("depth", 0) for r in rooms)
+        total_area = sum((r.get("width", 0) or 0) * (r.get("depth", 0) or 0) for r in rooms)
 
         svg = [
             f'<svg viewBox="0 0 {width} {height + 60}" xmlns="http://www.w3.org/2000/svg">',
@@ -270,13 +317,15 @@ class ArtifactPipeline:
         }
 
         for room in rooms:
-            rx = (room.get("position", {}).get("x", 0) - room.get("width", 5) / 2 - min_x) * scale + padding
-            rz = (room.get("position", {}).get("z", 0) - room.get("depth", 5) / 2 - min_z) * scale + padding
-            rw = room.get("width", 5) * scale
-            rh = room.get("depth", 5) * scale
-            fill, stroke = room_colors.get(room.get("room_type", ""), ("#F1F5F9", "#475569"))
-            name = room.get("name", room.get("room_type", "Room")).replace("_", " ")
-            area = room.get("width", 5) * room.get("depth", 5)
+            rx = (_pos(room, "x", 0) - (room.get("width", 5) or 5) / 2 - min_x) * scale + padding
+            rz = (_pos(room, "z", 0) - (room.get("depth", 5) or 5) / 2 - min_z) * scale + padding
+            rw = (room.get("width", 5) or 5) * scale
+            rh = (room.get("depth", 5) or 5) * scale
+            # Check both "type" and "room_type" keys
+            room_type = room.get("room_type") or room.get("type", "")
+            fill, stroke = room_colors.get(room_type, ("#F1F5F9", "#475569"))
+            name = room.get("name", room_type or "Room").replace("_", " ")
+            area = (room.get("width", 5) or 5) * (room.get("depth", 5) or 5)
 
             svg.append(
                 f'<rect x="{rx}" y="{rz}" width="{rw}" height="{rh}" '
@@ -294,8 +343,10 @@ class ArtifactPipeline:
             )
 
             for door in room.get("doors", []):
-                dx = (door.get("position", {}).get("x", 0) - min_x) * scale + padding
-                dz = (door.get("position", {}).get("z", 0) - min_z) * scale + padding
+                if not isinstance(door, dict):
+                    continue
+                dx = (self._safe_door_pos(door, "x", 0) - min_x) * scale + padding
+                dz = (self._safe_door_pos(door, "z", 0) - min_z) * scale + padding
                 svg.append(
                     f'<rect x="{dx - 3}" y="{dz - 3}" width="6" height="6" '
                     f'fill="#FFFFFF" stroke="#475569" stroke-width="1.5" rx="1"/>'

@@ -77,6 +77,7 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
   const latestToon = useStore((s) => s.latestToon);
   const setFloorplanUrl = useStore((s) => s.setFloorplanUrl);
   const setBoqData = useStore((s) => s.setBoqData);
+  const calculateBoq = useStore((s) => s.calculateBoq);
   const zoningData = useStore((s) => s.zoningData);
 
   // Cycle suggestion placeholder
@@ -178,7 +179,13 @@ export default function PromptBar({ buildConfig }: { buildConfig?: any }) {
         updateScene(generated.geometry, generated.sceneConfig, generated.assets, compliance || undefined);
 
         if (result.floorplan_url) setFloorplanUrl(result.floorplan_url);
-        if (result.boq_data) setBoqData(result.boq_data);
+        if (result.boq_data) {
+          setBoqData(result.boq_data);
+          // Also populate boqSpec from backend dimensions so BOQPanel works
+          const bld = result.boq_data.building || {};
+          const area = (bld.width || 20) * (bld.depth || 15);
+          if (area > 0) calculateBoq(area, 'standard');
+        }
 
         if (useEdit) {
           const changedList: string[] = result.changed || [];
